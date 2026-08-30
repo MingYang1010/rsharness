@@ -21,7 +21,7 @@
         "zh_Hans": "简体中文",
         "en": "English"
       },
-      "fallbackLanguage": "zh_Hans",
+      "fallbackLanguage": "en",
       "changeLanguageOnStartWhen": ["querystring", "localStorage"]
     },
     "searchProviders": [],

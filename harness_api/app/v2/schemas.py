@@ -585,6 +585,20 @@ class StateData(V2ContractModel):
     semantic_state_hash: Sha256
 
 
+class ObservationData(V2ContractModel):
+    episode_id: EpisodeId
+    observation: Observation
+
+
+class ArtifactData(V2ContractModel):
+    artifact: ArtifactRef
+
+
+class EvaluationData(V2ContractModel):
+    episode_id: EpisodeId
+    evaluation: MetricResult
+
+
 class EventRecord(V2ContractModel):
     event_id: EventId
     episode_id: EpisodeId
@@ -655,6 +669,18 @@ class StepResponse(V2SuccessResponse[EpisodeResultData]):
 
 
 class StateResponse(V2SuccessResponse[StateData]):
+    pass
+
+
+class ObservationResponse(V2SuccessResponse[ObservationData]):
+    pass
+
+
+class ArtifactResponse(V2SuccessResponse[ArtifactData]):
+    pass
+
+
+class EvaluationResponse(V2SuccessResponse[EvaluationData]):
     pass
 
 

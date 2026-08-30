@@ -5,19 +5,34 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from . import STORE_SCHEMA_VERSION
+from .artifacts import ArtifactStore
+from .budgets import exhausted, update_budget
 from .capabilities import TaskRegistry
-from .domain import V2DomainError, apply_action, create_initial_state, utc_now
+from .domain import (
+    V2DomainError,
+    apply_action,
+    create_initial_state,
+    elapsed_ms,
+    utc_now,
+)
+from .evaluation import EvaluatorRegistry
 from .events import (
     canonical_json,
     create_event,
     semantic_trace_hash,
     trace_hash,
 )
-from .observations import semantic_state_hash, state_hash
+from .observations import add_rendered_view, semantic_state_hash, state_hash
+from .renderer.base import RendererAdapter
 from .schemas import (
+    ArtifactData,
+    ArtifactRef,
     EpisodeResultData,
+    EvaluationData,
     EventRecord,
+    MetricResult,
     Observation,
+    ObservationData,
     ReplayCheck,
     ReplayData,
     StateData,
@@ -133,11 +148,63 @@ MIGRATION_1 = [
     """,
 ]
 
+MIGRATION_2 = [
+    """
+    CREATE TABLE IF NOT EXISTS v2_episode_artifacts (
+        episode_id TEXT NOT NULL,
+        artifact_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (episode_id, artifact_id),
+        FOREIGN KEY (episode_id) REFERENCES v2_episodes(episode_id),
+        FOREIGN KEY (artifact_id) REFERENCES v2_artifacts(artifact_id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS v2_observation_artifacts (
+        observation_id TEXT NOT NULL,
+        artifact_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (observation_id, artifact_id),
+        FOREIGN KEY (observation_id) REFERENCES v2_observations(observation_id),
+        FOREIGN KEY (artifact_id) REFERENCES v2_artifacts(artifact_id)
+    )
+    """,
+    """
+    INSERT OR IGNORE INTO v2_episode_artifacts (
+        episode_id, artifact_id, created_at
+    )
+    SELECT episode_id, artifact_id, created_at
+    FROM v2_artifacts
+    WHERE status = 'created'
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_v2_episode_artifacts_episode
+    ON v2_episode_artifacts(episode_id, artifact_id)
+    """,
+]
+
+MIGRATIONS = {
+    1: MIGRATION_1,
+    2: MIGRATION_2,
+}
+
 
 class V2EpisodeStore:
-    def __init__(self, database_path: str, task_registry: TaskRegistry):
+    def __init__(
+        self,
+        database_path: str,
+        task_registry: TaskRegistry,
+        artifact_store: Optional[ArtifactStore] = None,
+        renderer: Optional[RendererAdapter] = None,
+        evaluator_registry: Optional[EvaluatorRegistry] = None,
+        renderer_config: Optional[Dict[str, Any]] = None,
+    ):
         self.database_path = str(database_path)
         self.task_registry = task_registry
+        self.artifact_store = artifact_store
+        self.renderer = renderer
+        self.evaluator_registry = evaluator_registry
+        self.renderer_config = renderer_config or {}
         Path(self.database_path).parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
 
@@ -147,8 +214,11 @@ class V2EpisodeStore:
         connection.execute("PRAGMA foreign_keys = ON")
         return connection
 
-    def _migration_statements(self) -> Sequence[str]:
-        return MIGRATION_1
+    def _migration_statements(self, version: int) -> Sequence[str]:
+        try:
+            return MIGRATIONS[version]
+        except KeyError:
+            raise RuntimeError("missing V2 store migration %s" % version)
 
     def _initialize(self) -> None:
         with self._connect() as connection:
@@ -167,12 +237,17 @@ class V2EpisodeStore:
             current = connection.execute(
                 "SELECT COALESCE(MAX(version), 0) FROM v2_schema_migrations"
             ).fetchone()[0]
-            if current < STORE_SCHEMA_VERSION:
-                for statement in self._migration_statements():
+            if current > STORE_SCHEMA_VERSION:
+                raise RuntimeError(
+                    "V2 store schema %s is newer than supported schema %s"
+                    % (current, STORE_SCHEMA_VERSION)
+                )
+            for version in range(current + 1, STORE_SCHEMA_VERSION + 1):
+                for statement in self._migration_statements(version):
                     connection.execute(statement)
                 connection.execute(
                     "INSERT INTO v2_schema_migrations(version, applied_at) VALUES (?, ?)",
-                    (STORE_SCHEMA_VERSION, utc_now()),
+                    (version, utc_now()),
                 )
             connection.commit()
         except Exception:
@@ -270,6 +345,106 @@ class V2EpisodeStore:
                 canonical_json(observation.model_dump(mode="json")),
             ),
         )
+
+    @staticmethod
+    def _register_artifact(
+        connection: sqlite3.Connection,
+        episode_id: str,
+        observation_id: str,
+        artifact: ArtifactRef,
+        created_at: str,
+    ) -> None:
+        existing = connection.execute(
+            "SELECT artifact_json FROM v2_artifacts WHERE artifact_id = ?",
+            (artifact.artifact_id,),
+        ).fetchone()
+        artifact_json = canonical_json(artifact.model_dump(mode="json"))
+        if existing is None:
+            connection.execute(
+                """
+                INSERT INTO v2_artifacts (
+                    artifact_id, episode_id, status, sha256,
+                    size_bytes, artifact_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    artifact.artifact_id,
+                    episode_id,
+                    "created",
+                    artifact.sha256,
+                    artifact.size_bytes,
+                    artifact_json,
+                    created_at,
+                ),
+            )
+        elif existing["artifact_json"] != artifact_json:
+            raise V2DomainError(
+                "artifact_metadata_conflict",
+                "artifact_id already exists with different metadata",
+                status_code=409,
+                phase="artifact",
+            )
+        connection.execute(
+            """
+            INSERT OR IGNORE INTO v2_episode_artifacts (
+                episode_id, artifact_id, created_at
+            ) VALUES (?, ?, ?)
+            """,
+            (episode_id, artifact.artifact_id, created_at),
+        )
+        connection.execute(
+            """
+            INSERT OR IGNORE INTO v2_observation_artifacts (
+                observation_id, artifact_id, created_at
+            ) VALUES (?, ?, ?)
+            """,
+            (observation_id, artifact.artifact_id, created_at),
+        )
+
+    @staticmethod
+    def _insert_evaluation(
+        connection: sqlite3.Connection,
+        episode_id: str,
+        evaluation: MetricResult,
+        created_at: str,
+    ) -> None:
+        connection.execute(
+            """
+            INSERT INTO v2_evaluations (
+                evaluation_id, episode_id, status,
+                evaluation_json, created_at
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                evaluation.evaluation_id,
+                episode_id,
+                evaluation.status,
+                canonical_json(evaluation.model_dump(mode="json")),
+                created_at,
+            ),
+        )
+
+    @staticmethod
+    def _artifacts_for_episode(
+        connection: sqlite3.Connection,
+        episode_id: str,
+    ) -> Dict[str, ArtifactRef]:
+        rows = connection.execute(
+            """
+            SELECT artifact.artifact_json
+            FROM v2_artifacts AS artifact
+            INNER JOIN v2_episode_artifacts AS association
+                ON association.artifact_id = artifact.artifact_id
+            WHERE association.episode_id = ? AND artifact.status = 'created'
+            ORDER BY artifact.artifact_id
+            """,
+            (episode_id,),
+        ).fetchall()
+        artifacts = [
+            ArtifactRef.model_validate_json(row["artifact_json"])
+            for row in rows
+        ]
+        return {artifact.artifact_id: artifact for artifact in artifacts}
 
     def create_episode(
         self,
@@ -380,6 +555,124 @@ class V2EpisodeStore:
             semantic_state_hash=semantic_state_hash(state),
         )
 
+    def get_observation(
+        self,
+        episode_id: str,
+        observation_id: str,
+    ) -> ObservationData:
+        with self._connect() as connection:
+            self._load_episode(connection, episode_id)
+            row = connection.execute(
+                """
+                SELECT observation_json FROM v2_observations
+                WHERE episode_id = ? AND observation_id = ?
+                """,
+                (episode_id, observation_id),
+            ).fetchone()
+        if row is None:
+            raise V2DomainError(
+                "observation_not_found",
+                "observation does not exist in the requested episode",
+                status_code=404,
+                phase="request",
+            )
+        return ObservationData(
+            episode_id=episode_id,
+            observation=Observation.model_validate_json(row["observation_json"]),
+        )
+
+    def get_artifact(self, artifact_id: str) -> ArtifactData:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT artifact_json FROM v2_artifacts
+                WHERE artifact_id = ? AND status = 'created'
+                """,
+                (artifact_id,),
+            ).fetchone()
+        if row is None:
+            raise V2DomainError(
+                "artifact_not_found",
+                "artifact metadata does not exist",
+                status_code=404,
+                phase="artifact",
+            )
+        return ArtifactData(
+            artifact=ArtifactRef.model_validate_json(row["artifact_json"])
+        )
+
+    def get_evaluation(self, episode_id: str) -> EvaluationData:
+        with self._connect() as connection:
+            self._load_episode(connection, episode_id)
+            row = connection.execute(
+                """
+                SELECT evaluation_json FROM v2_evaluations
+                WHERE episode_id = ?
+                """,
+                (episode_id,),
+            ).fetchone()
+        if row is None:
+            raise V2DomainError(
+                "evaluation_not_found",
+                "episode does not have an evaluation result",
+                status_code=404,
+                phase="evaluation",
+            )
+        return EvaluationData(
+            episode_id=episode_id,
+            evaluation=MetricResult.model_validate_json(row["evaluation_json"]),
+        )
+
+    def renderer_capability(self) -> Tuple[str, Optional[str], Dict[str, Any]]:
+        if self.renderer is None:
+            return "unavailable", None, {"reason": "renderer_not_configured"}
+        try:
+            health = self.renderer.health()
+        except V2DomainError as error:
+            return "unavailable", None, {"reason": error.code}
+        versions = health.get("versions")
+        version = None
+        if isinstance(versions, dict) and versions.get("renderer") is not None:
+            version = str(versions["renderer"])
+        return "available", version, {"health": "ok"}
+
+    def evaluator_capability(self) -> Tuple[str, Optional[str], Dict[str, Any]]:
+        if self.evaluator_registry is None:
+            return "unavailable", None, {"reason": "evaluator_not_configured"}
+        status, details = self.evaluator_registry.capability()
+        version_value = details.get("version")
+        version = str(version_value) if version_value is not None else None
+        return status, version, details
+
+    @staticmethod
+    def _uses_rendered_observations(manifest: TaskManifest) -> bool:
+        return manifest.task.metadata.get("observation_profile") == "rendered-worldcover-v1"
+
+    def _should_render(self, manifest: TaskManifest, action_type: str) -> bool:
+        if not self._uses_rendered_observations(manifest):
+            return False
+        prefixes = self.renderer_config.get("capture_action_prefixes", ["map."])
+        return any(
+            isinstance(prefix, str) and action_type.startswith(prefix)
+            for prefix in prefixes
+        )
+
+    @staticmethod
+    def _event_count(
+        connection: sqlite3.Connection,
+        episode_id: str,
+        event_type: str,
+    ) -> int:
+        return int(
+            connection.execute(
+                """
+                SELECT COUNT(*) FROM v2_events
+                WHERE episode_id = ? AND event_type = ?
+                """,
+                (episode_id, event_type),
+            ).fetchone()[0]
+        )
+
     @staticmethod
     def _next_sequence(connection: sqlite3.Connection, episode_id: str) -> int:
         return int(
@@ -464,20 +757,108 @@ class V2EpisodeStore:
                     "action": action.model_dump(mode="json"),
                 },
             )
+            artifacts = self._artifacts_for_episode(connection, episode_id)
+            render_result = None
+            evaluation = None
             try:
                 next_state, observation, action_payload = apply_action(
                     current_state,
                     action,
                     manifest,
                     current_time=timestamp,
+                    artifacts=artifacts,
                 )
+                if self._should_render(manifest, action.type):
+                    if self.renderer is None:
+                        raise V2DomainError(
+                            "renderer_unavailable",
+                            "rendered observation is required but renderer is unavailable",
+                            status_code=503,
+                            retryable=True,
+                            phase="renderer",
+                        )
+                    render_result = self.renderer.render(
+                        episode_id,
+                        next_state.map,
+                        semantic_state_hash(next_state),
+                    )
+                    if (
+                        render_result.artifact.size_bytes
+                        > current_state.budget.artifact_bytes.remaining
+                    ):
+                        raise V2DomainError(
+                            "artifact_budget_exceeded",
+                            "rendered observation exceeds remaining artifact budget",
+                            status_code=422,
+                            phase="artifact",
+                        )
+                    observation = add_rendered_view(observation, render_result)
+                    artifacts[render_result.artifact.artifact_id] = render_result.artifact
+
+                completed_at = utc_now()
+                artifact_increment = (
+                    render_result.artifact.size_bytes
+                    if render_result is not None
+                    else 0
+                )
+                next_state.updated_at = completed_at
+                next_state.budget = update_budget(
+                    next_state.budget,
+                    elapsed_wall_time_ms=elapsed_ms(
+                        next_state.created_at,
+                        completed_at,
+                    ),
+                    artifact_byte_increment=artifact_increment,
+                )
+                if next_state.status == "active" and exhausted(next_state.budget):
+                    next_state.status = "truncated"
+
+                if (
+                    self._uses_rendered_observations(manifest)
+                    and action.type == "answer.submit"
+                ):
+                    if self.evaluator_registry is None:
+                        evaluation = MetricResult(
+                            evaluation_id="eval-%s" % uuid.uuid4().hex,
+                            status="failed",
+                            metrics=[],
+                            aggregate_reward=None,
+                            evaluator_id=manifest.evaluator.evaluator_id,
+                            evaluator_version=manifest.evaluator.evaluator_version,
+                            diagnostics={"code": "evaluator_not_configured"},
+                        )
+                    else:
+                        evaluation = self.evaluator_registry.evaluate_safely(
+                            manifest=manifest,
+                            state=next_state,
+                            artifacts=artifacts,
+                            renderer_calls=(
+                                self._event_count(
+                                    connection,
+                                    episode_id,
+                                    "artifact.created",
+                                )
+                                + (1 if render_result is not None else 0)
+                            ),
+                            failed_actions=self._event_count(
+                                connection,
+                                episode_id,
+                                "action.failed",
+                            ),
+                            wall_time_ms=next_state.budget.wall_time_ms.used,
+                        )
+                    next_state.evaluation = evaluation
+
+                observation.state_hash = state_hash(next_state)
+                observation.semantic_state_hash = semantic_state_hash(next_state)
             except V2DomainError as error:
+                failed_at = utc_now()
                 failed_event = create_event(
                     episode_id,
                     next_sequence + 1,
                     "action.failed",
                     current_state.state_version,
-                    timestamp,
+                    failed_at,
                     {
                         "action_type": action.type,
                         "code": error.code,
@@ -508,7 +889,7 @@ class V2EpisodeStore:
                         request_json,
                         "error",
                         canonical_json(stored_error),
-                        timestamp,
+                        failed_at,
                     ),
                 )
                 connection.commit()
@@ -521,7 +902,7 @@ class V2EpisodeStore:
                     next_sequence + 1,
                     "action.completed",
                     next_state.state_version,
-                    timestamp,
+                    completed_at,
                     {
                         **action_payload,
                         "state_hash": state_hash(next_state),
@@ -531,6 +912,21 @@ class V2EpisodeStore:
                 ),
             ]
             offset = 2
+            if render_result is not None:
+                events.append(
+                    create_event(
+                        episode_id,
+                        next_sequence + offset,
+                        "artifact.created",
+                        next_state.state_version,
+                        completed_at,
+                        {
+                            "artifact": render_result.artifact.model_dump(mode="json"),
+                            "observation_id": observation.observation_id,
+                        },
+                    )
+                )
+                offset += 1
             if action.type == "memory.save_evidence":
                 events.append(
                     create_event(
@@ -538,7 +934,7 @@ class V2EpisodeStore:
                         next_sequence + offset,
                         "evidence.saved",
                         next_state.state_version,
-                        timestamp,
+                        completed_at,
                         {"evidence": action.evidence.model_dump(mode="json")},
                     )
                 )
@@ -549,11 +945,28 @@ class V2EpisodeStore:
                     next_sequence + offset,
                     "observation.emitted",
                     next_state.state_version,
-                    timestamp,
+                    completed_at,
                     {"observation": observation.model_dump(mode="json")},
                 )
             )
             offset += 1
+            if evaluation is not None:
+                evaluation_event_type = (
+                    "evaluation.completed"
+                    if evaluation.status == "completed"
+                    else "evaluation.failed"
+                )
+                events.append(
+                    create_event(
+                        episode_id,
+                        next_sequence + offset,
+                        evaluation_event_type,
+                        next_state.state_version,
+                        completed_at,
+                        {"evaluation": evaluation.model_dump(mode="json")},
+                    )
+                )
+                offset += 1
             if next_state.status == "terminated":
                 events.append(
                     create_event(
@@ -561,7 +974,7 @@ class V2EpisodeStore:
                         next_sequence + offset,
                         "episode.terminated",
                         next_state.state_version,
-                        timestamp,
+                        completed_at,
                         {"final_answer": next_state.final_answer.model_dump(mode="json")},
                     )
                 )
@@ -572,7 +985,7 @@ class V2EpisodeStore:
                         next_sequence + offset,
                         "episode.truncated",
                         next_state.state_version,
-                        timestamp,
+                        completed_at,
                         {"reason": "budget_exhausted"},
                     )
                 )
@@ -581,7 +994,15 @@ class V2EpisodeStore:
             response_json = canonical_json(response.model_dump(mode="json"))
             for event in events:
                 self._insert_event(connection, event)
-            self._insert_observation(connection, episode_id, observation, timestamp)
+            self._insert_observation(connection, episode_id, observation, completed_at)
+            if render_result is not None:
+                self._register_artifact(
+                    connection,
+                    episode_id,
+                    observation.observation_id,
+                    render_result.artifact,
+                    completed_at,
+                )
             if action.type == "memory.save_evidence":
                 connection.execute(
                     """
@@ -593,8 +1014,15 @@ class V2EpisodeStore:
                         action.evidence.evidence_id,
                         episode_id,
                         canonical_json(action.evidence.model_dump(mode="json")),
-                        timestamp,
+                        completed_at,
                     ),
+                )
+            if evaluation is not None:
+                self._insert_evaluation(
+                    connection,
+                    episode_id,
+                    evaluation,
+                    completed_at,
                 )
             connection.execute(
                 """
@@ -625,10 +1053,15 @@ class V2EpisodeStore:
                     request_json,
                     "success",
                     response_json,
-                    timestamp,
+                    completed_at,
                 ),
             )
             connection.commit()
+            if next_state.status in {"terminated", "truncated"} and self.renderer is not None:
+                try:
+                    self.renderer.close_session(episode_id)
+                except V2DomainError:
+                    pass
             return EpisodeResultData.model_validate_json(response_json)
         except Exception:
             connection.rollback()

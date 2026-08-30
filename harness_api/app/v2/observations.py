@@ -1,6 +1,7 @@
 from typing import Any, Dict, List
 
 from .events import semanticize, sha256_json
+from .renderer.base import RenderResult
 from .schemas import Observation, ObservationItem, V2EpisodeState
 
 
@@ -38,3 +39,25 @@ def build_structural_observation(
         },
         warnings=["rendered_view is unavailable until milestone M2"],
     )
+
+
+def add_rendered_view(
+    observation: Observation,
+    render_result: RenderResult,
+) -> Observation:
+    rendered = observation.model_copy(deep=True)
+    rendered.primary_type = "rendered_view"
+    rendered.items.append(
+        ObservationItem(
+            type="rendered_view",
+            artifact_ref=render_result.artifact.artifact_id,
+        )
+    )
+    rendered.provenance = {
+        **rendered.provenance,
+        "renderer": render_result.provenance,
+        "renderer_readback": render_result.readback,
+        "renderer_pixel_stats": render_result.pixel_stats,
+    }
+    rendered.warnings = []
+    return rendered

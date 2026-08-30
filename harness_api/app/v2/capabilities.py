@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
-from typing import Dict, Iterable, Tuple
+from typing import Any, Dict, Iterable, Optional, Tuple
 
-from . import IMPLEMENTATION_VERSION, STORE_SCHEMA_VERSION
+from . import IMPLEMENTATION_VERSION
 from .events import sha256_json
 from .schemas import (
     AssetRef,
@@ -117,10 +117,17 @@ class TaskRegistry:
         return len(self._manifests)
 
 
-def build_capabilities(registry: TaskRegistry) -> CapabilitiesData:
+def build_capabilities(
+    registry: TaskRegistry,
+    store_schema_version: int,
+    renderer_status: Tuple[str, Optional[str], Dict[str, Any]],
+    evaluator_status: Tuple[str, Optional[str], Dict[str, Any]],
+) -> CapabilitiesData:
+    renderer_state, renderer_version, renderer_details = renderer_status
+    evaluator_state, evaluator_version, evaluator_details = evaluator_status
     return CapabilitiesData(
         implementation_version=IMPLEMENTATION_VERSION,
-        store_schema_version=STORE_SCHEMA_VERSION,
+        store_schema_version=store_schema_version,
         enabled=True,
         task_count=registry.count(),
         actions=IMPLEMENTED_ACTIONS,
@@ -128,12 +135,14 @@ def build_capabilities(registry: TaskRegistry) -> CapabilitiesData:
         observation_types=OBSERVATION_TYPES,
         tools=[],
         renderer=CapabilityStatus(
-            status="not_implemented",
-            details={"milestone": "M2", "observation": "structural_only"},
+            status=renderer_state,
+            version=renderer_version,
+            details=renderer_details,
         ),
         evaluator=CapabilityStatus(
-            status="not_implemented",
-            details={"milestone": "M2", "task_pack": "registered"},
+            status=evaluator_state,
+            version=evaluator_version,
+            details=evaluator_details,
         ),
         structural_replay=CapabilityStatus(
             status="available",

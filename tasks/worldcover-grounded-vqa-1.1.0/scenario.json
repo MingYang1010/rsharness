@@ -1,0 +1,16 @@
+{
+  "abstention_allowed": true,
+  "allowed_actions": [
+    "map.*",
+    "memory.save_evidence",
+    "answer.*"
+  ],
+  "allowed_tools": [],
+  "data_cutoff": "2026-08-30T00:00:00Z",
+  "domain": "worldcover_grounded_vqa",
+  "evidence_required": true,
+  "freshness_max_age_seconds": null,
+  "human_review_policy": "allowed",
+  "network_policy": "none",
+  "profile_id": "worldcover-rendered-v1"
+}

@@ -1,8 +1,8 @@
-# EO Harness Environment API V2 M1
+# EO Harness Environment API V2 M2
 
 ## Contract Boundary
 
-Implementation release `0.3.0` exposes V2 body schema `2.0.0` alongside the frozen V1 API. V2 uses independent DTOs, routes, task manifests, events, action results, and `v2_*` SQLite tables. It does not convert or modify V1 episodes.
+Implementation release `0.4.0` exposes V2 body schema `2.0.0` alongside the frozen V1 API. V2 uses independent DTOs, routes, task manifests, events, action results, and `v2_*` SQLite tables. It does not convert or modify V1 episodes. Store schema `2` adds observation-artifact associations and evaluation records through an additive migration.
 
 Every success uses a typed `meta + data` envelope:
 
@@ -28,12 +28,16 @@ Every validation, policy, state, routing, and internal error uses `meta + error`
 | `GET` | `/v2/tasks/{task_id}/versions/{task_version}` | Read an immutable task manifest |
 | `POST` | `/v2/reset` | Create an episode from a registered task reference |
 | `GET` | `/v2/episodes/{episode_id}/state` | Read current state and hashes |
+| `GET` | `/v2/episodes/{episode_id}/observations/{observation_id}` | Read one immutable observation |
 | `POST` | `/v2/episodes/{episode_id}/step` | Execute an optimistic, idempotent action |
+| `GET` | `/v2/artifacts/{artifact_id}` | Read artifact metadata and lineage |
+| `GET` | `/v2/artifacts/{artifact_id}/content` | Read audited content, including a single HTTP byte Range |
+| `GET` | `/v2/episodes/{episode_id}/evaluation` | Read the persisted metric vector |
 | `GET` | `/v2/episodes/{episode_id}/trace` | Read an append-only event page |
 | `POST` | `/v2/episodes/{episode_id}/replay` | Run structural replay checks |
 | `GET` | `/v2/openapi.json` | Read the standalone V2 OpenAPI document |
 
-The M1 action set is `map.set_view`, `map.pan`, `map.zoom`, layer visibility and opacity, map time range, `memory.save_evidence`, and the three answer outcomes. `memory.bookmark_aoi` and `tool.invoke` are declared contract variants but return a typed policy rejection until their milestone is implemented.
+The implemented action set is `map.set_view`, `map.pan`, `map.zoom`, layer visibility and opacity, map time range, `memory.save_evidence`, and the three answer outcomes. `memory.bookmark_aoi` and `tool.invoke` are declared contract variants but return a typed policy rejection until their milestone is implemented.
 
 ## Example Episode
 
@@ -84,21 +88,41 @@ curl --noproxy '*' -fsS \
 - Trace cursors use `seq:<integer>`. `limit` defaults to 100 and is capped at 1000.
 - Concrete hashes retain instance IDs and timestamps. Semantic hashes remove instance-specific values while retaining the task manifest and behaviorally relevant content.
 
+## M2 Rendered Task
+
+`worldcover-grounded-vqa@1.1.0` fixes the evaluation AOI to `121.45-121.55 E, 31.20-31.30 N`. A map action in this task creates an internal renderer session, applies the API-owned map state, reads back camera and layer state, waits for a stable nonblank Cesium frame, and captures the canvas twice. Different bytes between the consecutive captures return typed `409 nondeterministic_capture` rather than registering an artifact.
+
+The deterministic profile uses a `1024 x 768` viewport, device pixel ratio `1`, English, the local Natural Earth basemap, PNG output, and no external renderer network access. Provenance records TerriaMap, TerriaJS, Cesium, Chromium, Playwright, bridge, and renderer versions. Only the internal Compose network can reach port `8090`.
+
+The expected four-step task flow is:
+
+```text
+map.set_view fixed AOI
+memory.save_evidence source asset
+memory.save_evidence rendered artifact
+answer.submit built-up
+```
+
+The evaluator reads the checksum-pinned canonical WorldCover class raster, not the screenshot, to determine the gold label. A completed evaluation persists three explicit metrics: `task.accuracy`, `evidence.faithfulness`, and `process.efficiency`. Evaluator failure preserves the answer and trace, stores status `failed`, leaves the metric vector empty, and keeps aggregate reward `null`.
+
+Artifact content paths are derived only from validated SHA-256 values. Missing or corrupt content returns typed HTTP `503`; invalid or unsatisfiable byte ranges return typed HTTP `416`. Trace events store `ArtifactRef` metadata, never PNG bytes.
+
 ## Storage And Rollback
 
-V2 startup applies additive, transactional, idempotent migrations to `/sata/yangm/eo-harness/state/episodes.sqlite3`. Migration failure does not advance the V2 schema version or leave partial V2 tables. The artifact mount is `/sata/yangm/eo-harness/artifacts:/app/artifacts`, but M1 does not expose artifact content endpoints.
+V2 startup applies additive, transactional, idempotent migrations to `/sata/yangm/eo-harness/state/episodes.sqlite3`. Migration failure does not advance the V2 schema version or leave partial V2 tables. The artifact mount is `/sata/yangm/eo-harness/artifacts:/app/artifacts`; content is written atomically by SHA-256 and audited before reads.
 
-Set `EO_HARNESS_V2_ENABLED=0` to start the application in V1-only mode without running V2 migration or registering V2 routes. Do not delete V2 tables or artifact files when rolling back the application version.
+Set `EO_HARNESS_V2_ENABLED=0` to start the application in V1-only runtime mode without running V2 migration. V2 stateful routes remain registered and return typed HTTP `503 v2_disabled`; V1 remains healthy. Do not delete V2 tables or artifact files when rolling back the application version.
 
-## Current M1 Limit
+## Current Limit
 
-M1 returns structural map-state observations only. It does not prove TerriaMap state projection, nonblank deterministic screenshots, WorldCover evaluation, tool sandboxing, or Sentinel-2 temporal tasks. Those are M2-M4 acceptance items and must not be reported as complete from the M1 contract tests.
+M2 proves one fixed WorldCover rendered-observation and evaluation loop. It does not implement executable raster tools, catalog or STAC adapters, Sentinel-2 temporal tasks, agent adapters, batch execution, or resume. `/v2/capabilities` therefore keeps the executable tool list empty even though renderer and evaluator are available.
 
 ## Contract Verification
 
 ```bash
 python harness_api/scripts/export_v2_contracts.py
 python -m unittest discover -s harness_api/tests -p 'test_*.py' -v
+cd harness_renderer && npm test
 ```
 
-The committed V1 OpenAPI and eight V1 fixtures must remain byte-identical while V2 changes are developed.
+The committed V1 OpenAPI and eight V1 fixtures must remain byte-identical while V2 changes are developed. The M2 gate is 44 Python tests plus four renderer tests.

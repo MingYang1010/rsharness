@@ -1,0 +1,91 @@
+[
+  {
+    "asset_id": "asset-worldcover-n30e120",
+    "bands": [
+      "visual"
+    ],
+    "instrument": null,
+    "license": "CC-BY-4.0",
+    "media_type": "image/tiff; application=geotiff; profile=cloud-optimized",
+    "platform": "ESA WorldCover",
+    "polarizations": [],
+    "quality": {
+      "cloud_cover_percent": null,
+      "coverage_fraction": 1.0,
+      "nodata_fraction": null
+    },
+    "roles": [
+      "data",
+      "visual"
+    ],
+    "sha256": "9f376abaca38815c5c743126147aeffd1916bb1907ad98929d341d4e6c87381c",
+    "size_bytes": 152280029,
+    "source": "ESA WorldCover 2021 v200 N30E120 local RGB derivative",
+    "source_snapshot_hash": "9f376abaca38815c5c743126147aeffd1916bb1907ad98929d341d4e6c87381c",
+    "spatial": {
+      "bbox": {
+        "east": 123.0,
+        "north": 33.0,
+        "south": 30.0,
+        "west": 120.0
+      },
+      "crs": "EPSG:4326",
+      "geometry": null,
+      "gsd_meters": 10.0,
+      "shape": [
+        36000,
+        36000,
+        3
+      ]
+    },
+    "temporal": {
+      "end": "2021-12-31T23:59:59Z",
+      "start": "2021-01-01T00:00:00Z"
+    },
+    "uri": "local://dataset/worldcover-2021/ESA_WorldCover_10m_2021_v200_N30E120_Map_RGB.tif"
+  },
+  {
+    "asset_id": "asset-worldcover-n30e120-canonical",
+    "bands": [
+      "class"
+    ],
+    "instrument": null,
+    "license": "CC-BY-4.0",
+    "media_type": "image/tiff; application=geotiff; profile=cloud-optimized",
+    "platform": "ESA WorldCover",
+    "polarizations": [],
+    "quality": {
+      "cloud_cover_percent": null,
+      "coverage_fraction": 1.0,
+      "nodata_fraction": 0.0
+    },
+    "roles": [
+      "evaluator",
+      "gold"
+    ],
+    "sha256": "f3859c80b7bd8d61a82f0adafee02378d418a2f1bafe32d8229b84301329c814",
+    "size_bytes": 93443932,
+    "source": "ESA WorldCover 2021 v200 N30E120 canonical class COG",
+    "source_snapshot_hash": "f3859c80b7bd8d61a82f0adafee02378d418a2f1bafe32d8229b84301329c814",
+    "spatial": {
+      "bbox": {
+        "east": 123.0,
+        "north": 33.0,
+        "south": 30.0,
+        "west": 120.0
+      },
+      "crs": "EPSG:4326",
+      "geometry": null,
+      "gsd_meters": 10.0,
+      "shape": [
+        36000,
+        36000
+      ]
+    },
+    "temporal": {
+      "end": "2021-12-31T23:59:59Z",
+      "start": "2021-01-01T00:00:00Z"
+    },
+    "uri": "local://dataset/worldcover-2021/ESA_WorldCover_10m_2021_v200_N30E120_Map.tif"
+  }
+]

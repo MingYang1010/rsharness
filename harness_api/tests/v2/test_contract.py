@@ -150,10 +150,19 @@ class V2ContractTests(unittest.TestCase):
         no_migration_database = Path(self.tempdir.name) / "no-v2-migration.sqlite3"
         from app.main import create_app
 
-        create_app(
+        disabled_application = create_app(
             database_path=str(no_migration_database),
             v2_enabled=False,
         )
+        with TestClient(
+            disabled_application,
+            raise_server_exceptions=False,
+        ) as client:
+            disabled_response = client.get("/v2/capabilities")
+            v1_response = client.get("/v1/action-space")
+        self.assertEqual(v1_response.status_code, 200, v1_response.text)
+        self.assertEqual(disabled_response.status_code, 503, disabled_response.text)
+        self.assertEqual(disabled_response.json()["error"]["code"], "v2_disabled")
         with sqlite3.connect(no_migration_database) as connection:
             names = {
                 row[0]

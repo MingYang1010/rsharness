@@ -1,6 +1,9 @@
-from typing import Dict
+from typing import Dict, Union
 
-from .schemas import AssetRef, EvidenceRef, SpatialBoundingBox
+from .schemas import ArtifactRef, AssetRef, EvidenceRef, SpatialBoundingBox
+
+
+EvidenceSource = Union[AssetRef, ArtifactRef]
 
 
 def _contains(
@@ -17,23 +20,24 @@ def _contains(
 
 def validate_evidence(
     evidence: EvidenceRef,
-    assets: Dict[str, AssetRef],
+    sources: Dict[str, EvidenceSource],
 ) -> None:
-    asset = assets.get(evidence.source_ref)
-    if asset is None:
-        raise ValueError("evidence source_ref is not an accessible M1 asset")
-    if evidence.frozen_sha256 != asset.sha256:
-        raise ValueError("evidence frozen_sha256 does not match the source asset")
-    if evidence.selector.bbox is not None and not _contains(
-        asset.spatial.bbox,
-        evidence.selector.bbox,
-    ):
-        raise ValueError("evidence bbox is outside the source asset extent")
+    source = sources.get(evidence.source_ref)
+    if source is None:
+        raise ValueError("evidence source_ref is not an accessible source")
+    if evidence.frozen_sha256 != source.sha256:
+        raise ValueError("evidence frozen_sha256 does not match the source")
+    if evidence.selector.bbox is not None:
+        if source.spatial is None or not _contains(
+            source.spatial.bbox,
+            evidence.selector.bbox,
+        ):
+            raise ValueError("evidence bbox is outside the source extent")
     if evidence.selector.time_range is not None:
-        if asset.temporal is None:
+        if source.temporal is None:
             raise ValueError("evidence time_range requires a temporal source extent")
         if (
-            evidence.selector.time_range.start < asset.temporal.start
-            or evidence.selector.time_range.end > asset.temporal.end
+            evidence.selector.time_range.start < source.temporal.start
+            or evidence.selector.time_range.end > source.temporal.end
         ):
-            raise ValueError("evidence time_range is outside the source asset extent")
+            raise ValueError("evidence time_range is outside the source extent")

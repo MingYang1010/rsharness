@@ -1,0 +1,72 @@
+{
+  "answer_schema": {
+    "properties": {
+      "claims": {
+        "items": {
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "confidence": {
+        "maximum": 1,
+        "minimum": 0,
+        "type": "number"
+      },
+      "label": {
+        "enum": [
+          "tree-cover",
+          "shrubland",
+          "grassland",
+          "cropland",
+          "built-up",
+          "bare-sparse-vegetation",
+          "snow-ice",
+          "permanent-water-bodies",
+          "herbaceous-wetland",
+          "mangroves",
+          "moss-lichen"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "label",
+      "confidence",
+      "claims"
+    ],
+    "type": "object"
+  },
+  "budget": {
+    "max_artifact_bytes": 52428800,
+    "max_input_bytes": 104857600,
+    "max_steps": 20,
+    "max_tool_calls": 0,
+    "max_wall_time_ms": 120000
+  },
+  "evaluator": "worldcover-grounded-v1",
+  "family": "grounded_vqa",
+  "inputs": [
+    "asset-worldcover-n30e120"
+  ],
+  "metadata": {
+    "evaluation_aoi": {
+      "east": 121.55,
+      "north": 31.3,
+      "south": 31.2,
+      "west": 121.45
+    },
+    "gold_label_source": "asset-worldcover-n30e120-canonical",
+    "milestone": "M2",
+    "observation_profile": "rendered-worldcover-v1"
+  },
+  "metric_aggregation": {
+    "evidence.faithfulness": 0.3,
+    "process.efficiency": 0.1,
+    "task.accuracy": 0.6
+  },
+  "prompt": "Within the fixed AOI 121.45-121.55 E and 31.20-31.30 N, determine the dominant ESA WorldCover 2021 class and cite both source and rendered evidence.",
+  "scenario_profile": "worldcover-rendered-v1",
+  "seed": 42,
+  "task_id": "worldcover-grounded-vqa",
+  "task_version": "1.1.0"
+}

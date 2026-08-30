@@ -1,0 +1,53 @@
+{
+  "aggregate_weights": {
+    "evidence.faithfulness": 0.3,
+    "process.efficiency": 0.1,
+    "task.accuracy": 0.6
+  },
+  "config": {
+    "canonical_asset_id": "asset-worldcover-n30e120-canonical",
+    "class_labels": {
+      "10": "tree-cover",
+      "20": "shrubland",
+      "30": "grassland",
+      "40": "cropland",
+      "50": "built-up",
+      "60": "bare-sparse-vegetation",
+      "70": "snow-ice",
+      "80": "permanent-water-bodies",
+      "90": "herbaceous-wetland",
+      "95": "mangroves",
+      "100": "moss-lichen"
+    },
+    "efficiency": {
+      "ideal_renderer_calls": 1,
+      "ideal_steps": 4,
+      "wall_time_soft_limit_ms": 30000
+    },
+    "evaluation_aoi": {
+      "east": 121.55,
+      "north": 31.3,
+      "south": 31.2,
+      "west": 121.45
+    },
+    "expected_distribution": {
+      "10": 195294,
+      "30": 9479,
+      "40": 12374,
+      "50": 1128426,
+      "60": 13804,
+      "80": 80598,
+      "90": 25
+    },
+    "expected_pixel_count": 1440000,
+    "minimum_dominant_fraction": 0.5,
+    "observation_profile": "rendered-worldcover-v1"
+  },
+  "evaluator_id": "worldcover-grounded-v1",
+  "evaluator_version": "1.1.0",
+  "metric_names": [
+    "task.accuracy",
+    "evidence.faithfulness",
+    "process.efficiency"
+  ]
+}

@@ -1,5 +1,18 @@
 {
-  "enabled": false,
+  "basemap_id": "basemap-natural-earth-II",
+  "bridge_version": "2.0.0",
+  "capture_action_prefixes": [
+    "map."
+  ],
+  "capture_format": "png",
+  "device_pixel_ratio": 1,
+  "enabled": true,
+  "language": "en",
   "profile": "worldcover-deterministic-v1",
-  "reason": "TerriaMap renderer adapter begins in M2"
+  "renderer_version": "1.0.0",
+  "request_timeout_ms": 45000,
+  "viewport": {
+    "height": 768,
+    "width": 1024
+  }
 }

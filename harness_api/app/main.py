@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import re
@@ -44,8 +45,12 @@ from .v2.api import (
     error_response as v2_error_response,
     router as v2_router,
 )
+from .v2.artifacts import ArtifactStore
 from .v2.capabilities import TaskRegistry
 from .v2.domain import V2DomainError
+from .v2.evaluation import EvaluatorRegistry
+from .v2.renderer.base import RendererAdapter
+from .v2.renderer.terriamap import TerriaMapRenderer
 from .v2.schemas import V2ValidationIssue
 from .v2.store import V2EpisodeStore
 
@@ -118,6 +123,11 @@ def create_app(
     database_path: Optional[str] = None,
     v2_tasks_path: Optional[str] = None,
     v2_enabled: Optional[bool] = None,
+    v2_artifacts_path: Optional[str] = None,
+    v2_datasets_path: Optional[str] = None,
+    v2_renderer_config_path: Optional[str] = None,
+    v2_renderer: Optional[RendererAdapter] = None,
+    v2_evaluator_registry: Optional[EvaluatorRegistry] = None,
 ) -> FastAPI:
     resolved_database_path = database_path or DATABASE_PATH
     episode_store = EpisodeStore(resolved_database_path)
@@ -126,7 +136,8 @@ def create_app(
         if v2_enabled is None
         else v2_enabled
     )
-    source_tasks_path = FilePath(__file__).resolve().parents[2] / "tasks"
+    source_root = FilePath(__file__).resolve().parents[2]
+    source_tasks_path = source_root / "tasks"
     container_tasks_path = FilePath("/app/tasks")
     default_tasks_path = str(
         container_tasks_path if container_tasks_path.is_dir() else source_tasks_path
@@ -136,14 +147,59 @@ def create_app(
         or os.environ.get("EO_HARNESS_V2_TASKS")
         or default_tasks_path
     )
-    v2_store = (
-        V2EpisodeStore(
+    v2_store = None
+    if enabled:
+        default_artifacts_path = str(
+            FilePath(resolved_database_path).resolve().parent / "artifacts"
+        )
+        resolved_artifacts_path = (
+            v2_artifacts_path
+            or os.environ.get("EO_HARNESS_V2_ARTIFACTS")
+            or default_artifacts_path
+        )
+        resolved_datasets_path = (
+            v2_datasets_path
+            or os.environ.get("EO_HARNESS_DATASETS")
+            or str(source_root / "datasets")
+        )
+        resolved_renderer_config_path = FilePath(
+            v2_renderer_config_path
+            or os.environ.get("EO_HARNESS_V2_RENDERER_CONFIG")
+            or source_root / "config" / "v2" / "renderer.json"
+        )
+        renderer_config = {}
+        if resolved_renderer_config_path.is_file():
+            with resolved_renderer_config_path.open(encoding="utf-8") as stream:
+                renderer_config_value = json.load(stream)
+            if not isinstance(renderer_config_value, dict):
+                raise RuntimeError("V2 renderer config must contain a JSON object")
+            renderer_config = renderer_config_value
+
+        artifact_store = ArtifactStore(resolved_artifacts_path)
+        evaluator_registry = v2_evaluator_registry or EvaluatorRegistry(
+            resolved_datasets_path,
+            artifact_store,
+        )
+        renderer = v2_renderer
+        renderer_url = os.environ.get("EO_HARNESS_V2_RENDERER_URL")
+        if (
+            renderer is None
+            and renderer_url
+            and renderer_config.get("enabled", False)
+        ):
+            renderer = TerriaMapRenderer(
+                renderer_url,
+                artifact_store,
+                renderer_config,
+            )
+        v2_store = V2EpisodeStore(
             resolved_database_path,
             TaskRegistry(resolved_tasks_path),
+            artifact_store=artifact_store,
+            renderer=renderer,
+            evaluator_registry=evaluator_registry,
+            renderer_config=renderer_config,
         )
-        if enabled
-        else None
-    )
     application = FastAPI(
         title="EO Harness Environment API",
         version=__v1_openapi_version__,
@@ -155,12 +211,11 @@ def create_app(
     )
     application.state.episode_store = episode_store
     application.state.v2_store = v2_store
-    if enabled:
-        application.include_router(v2_router, include_in_schema=False)
+    application.include_router(v2_router, include_in_schema=False)
 
-        @application.get("/v2/openapi.json", include_in_schema=False)
-        def v2_openapi() -> JSONResponse:
-            return JSONResponse(content=build_v2_openapi_schema())
+    @application.get("/v2/openapi.json", include_in_schema=False)
+    def v2_openapi() -> JSONResponse:
+        return JSONResponse(content=build_v2_openapi_schema())
 
     @application.middleware("http")
     async def request_id_middleware(

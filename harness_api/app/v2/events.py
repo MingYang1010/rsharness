@@ -13,6 +13,7 @@ INSTANCE_KEYS = {
     "evidence_ids",
     "episode_id",
     "event_id",
+    "evaluation_id",
     "observation_id",
     "observation_refs",
     "request_id",

@@ -10,6 +10,7 @@ from .observations import build_structural_observation
 from .schemas import (
     AnswerRecord,
     AnswerSubmitAction,
+    ArtifactRef,
     AssetRef,
     EvidenceRef,
     GeoPoint,
@@ -98,6 +99,15 @@ def _bbox_from_center(
 
 def _asset_map(manifest: TaskManifest) -> Dict[str, AssetRef]:
     return {asset.asset_id: asset for asset in manifest.assets}
+
+
+def _evidence_sources(
+    manifest: TaskManifest,
+    artifacts: Optional[Dict[str, ArtifactRef]],
+) -> Dict[str, Any]:
+    sources: Dict[str, Any] = _asset_map(manifest)
+    sources.update(artifacts or {})
+    return sources
 
 
 def create_initial_state(
@@ -199,6 +209,11 @@ def _validate_answer(answer: Any, schema: Dict[str, Any]) -> None:
                 "invalid_answer",
                 "answer.%s must have JSON type %s" % (key, expected),
             )
+        if "enum" in definition and answer[key] not in definition["enum"]:
+            raise V2DomainError(
+                "invalid_answer",
+                "answer.%s is not an allowed value" % key,
+            )
         if isinstance(answer[key], bool) and expected == "number":
             raise V2DomainError(
                 "invalid_answer",
@@ -244,6 +259,7 @@ def apply_action(
     action: V2Action,
     manifest: TaskManifest,
     current_time: Optional[str] = None,
+    artifacts: Optional[Dict[str, ArtifactRef]] = None,
 ) -> Tuple[V2EpisodeState, Observation, Dict[str, Any]]:
     if current_state.status != "active":
         raise V2DomainError(
@@ -318,7 +334,10 @@ def apply_action(
                 status_code=409,
             )
         try:
-            validate_evidence(action.evidence, _asset_map(manifest))
+            validate_evidence(
+                action.evidence,
+                _evidence_sources(manifest, artifacts),
+            )
         except ValueError as error:
             raise V2DomainError(
                 "invalid_evidence",

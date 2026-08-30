@@ -1,15 +1,21 @@
 from typing import Annotated, Optional, Type, TypeVar
 
-from fastapi import APIRouter, FastAPI, Path, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, FastAPI, Header, Path, Query, Request
+from fastapi.responses import JSONResponse, Response
 
 from . import API_VERSION, IMPLEMENTATION_VERSION, SCHEMA_VERSION
+from .artifacts import ArtifactStoreError
 from .capabilities import build_capabilities
 from .domain import V2DomainError
 from .schemas import (
+    ARTIFACT_ID_PATTERN,
     EPISODE_ID_PATTERN,
+    OBSERVATION_ID_PATTERN,
     VERSION_PATTERN,
+    ArtifactResponse,
     CapabilitiesResponse,
+    EvaluationResponse,
+    ObservationResponse,
     ReplayResponse,
     ResetRequest,
     ResetResponse,
@@ -29,17 +35,21 @@ from .store import V2EpisodeStore
 
 
 EpisodePath = Annotated[str, Path(pattern=EPISODE_ID_PATTERN)]
+ObservationPath = Annotated[str, Path(pattern=OBSERVATION_ID_PATTERN)]
+ArtifactPath = Annotated[str, Path(pattern=ARTIFACT_ID_PATTERN)]
 TaskIdPath = Annotated[
     str,
     Path(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$"),
 ]
 TaskVersionPath = Annotated[str, Path(pattern=VERSION_PATTERN)]
+RangeHeader = Annotated[Optional[str], Header(alias="Range")]
 ResponseT = TypeVar("ResponseT", bound=V2SuccessResponse)
 
 V2_ERROR_RESPONSES = {
     403: {"model": V2ErrorResponse, "description": "Task policy rejected action"},
     404: {"model": V2ErrorResponse, "description": "V2 resource not found"},
     409: {"model": V2ErrorResponse, "description": "State or idempotency conflict"},
+    416: {"model": V2ErrorResponse, "description": "Artifact range is not satisfiable"},
     422: {"model": V2ErrorResponse, "description": "V2 request validation failed"},
     500: {"model": V2ErrorResponse, "description": "Internal service error"},
     503: {"model": V2ErrorResponse, "description": "V2 service unavailable"},
@@ -109,7 +119,12 @@ def error_response(
 )
 def capabilities(request: Request) -> CapabilitiesResponse:
     store = _store(request)
-    data = build_capabilities(store.task_registry)
+    data = build_capabilities(
+        store.task_registry,
+        store.schema_version(),
+        store.renderer_capability(),
+        store.evaluator_capability(),
+    )
     return success(
         CapabilitiesResponse,
         request,
@@ -168,6 +183,108 @@ def get_state(request: Request, episode_id: EpisodePath) -> StateResponse:
         StateResponse,
         request,
         "eo-harness.v2.state.response",
+        data,
+    )
+
+
+@router.get(
+    "/episodes/{episode_id}/observations/{observation_id}",
+    response_model=ObservationResponse,
+    responses=V2_ERROR_RESPONSES,
+)
+def get_observation(
+    request: Request,
+    episode_id: EpisodePath,
+    observation_id: ObservationPath,
+) -> ObservationResponse:
+    data = _store(request).get_observation(episode_id, observation_id)
+    return success(
+        ObservationResponse,
+        request,
+        "eo-harness.v2.observation.response",
+        data,
+    )
+
+
+@router.get(
+    "/artifacts/{artifact_id}",
+    response_model=ArtifactResponse,
+    responses=V2_ERROR_RESPONSES,
+)
+def get_artifact(request: Request, artifact_id: ArtifactPath) -> ArtifactResponse:
+    data = _store(request).get_artifact(artifact_id)
+    return success(
+        ArtifactResponse,
+        request,
+        "eo-harness.v2.artifact.response",
+        data,
+    )
+
+
+@router.get(
+    "/artifacts/{artifact_id}/content",
+    response_class=Response,
+    responses=V2_ERROR_RESPONSES,
+)
+def get_artifact_content(
+    request: Request,
+    artifact_id: ArtifactPath,
+    range_header: RangeHeader = None,
+) -> Response:
+    store = _store(request)
+    artifact = store.get_artifact(artifact_id).artifact
+    if store.artifact_store is None:
+        raise V2DomainError(
+            "artifact_store_unavailable",
+            "artifact content store is unavailable",
+            status_code=503,
+            retryable=True,
+            phase="artifact",
+        )
+    try:
+        content = store.artifact_store.read_content(artifact, range_header)
+    except ArtifactStoreError as error:
+        range_error = error.code in {"invalid_range", "range_not_satisfiable"}
+        raise V2DomainError(
+            error.code,
+            error.message,
+            status_code=416 if range_error else 503,
+            retryable=not range_error,
+            phase="artifact",
+        )
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Content-Length": str(len(content.content)),
+        "ETag": '"%s"' % artifact.sha256,
+    }
+    if content.partial:
+        headers["Content-Range"] = "bytes %s-%s/%s" % (
+            content.start,
+            content.end,
+            content.total,
+        )
+    return Response(
+        content=content.content,
+        status_code=206 if content.partial else 200,
+        media_type=artifact.media_type,
+        headers=headers,
+    )
+
+
+@router.get(
+    "/episodes/{episode_id}/evaluation",
+    response_model=EvaluationResponse,
+    responses=V2_ERROR_RESPONSES,
+)
+def get_evaluation(
+    request: Request,
+    episode_id: EpisodePath,
+) -> EvaluationResponse:
+    data = _store(request).get_evaluation(episode_id)
+    return success(
+        EvaluationResponse,
+        request,
+        "eo-harness.v2.evaluation.response",
         data,
     )
 

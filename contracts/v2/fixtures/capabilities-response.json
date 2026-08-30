@@ -29,13 +29,12 @@
     "enabled": true,
     "evaluator": {
       "details": {
-        "milestone": "M2",
-        "task_pack": "registered"
+        "reason": "dataset_root_missing"
       },
-      "status": "not_implemented",
+      "status": "unavailable",
       "version": null
     },
-    "implementation_version": "0.3.0",
+    "implementation_version": "0.4.0",
     "observation_types": [
       "map_state",
       "asset_metadata",
@@ -48,19 +47,18 @@
     ],
     "renderer": {
       "details": {
-        "milestone": "M2",
-        "observation": "structural_only"
+        "reason": "renderer_not_configured"
       },
-      "status": "not_implemented",
+      "status": "unavailable",
       "version": null
     },
-    "store_schema_version": 1,
+    "store_schema_version": 2,
     "structural_replay": {
       "details": {},
       "status": "available",
       "version": "1.0.0"
     },
-    "task_count": 1,
+    "task_count": 2,
     "tools": []
   },
   "meta": {

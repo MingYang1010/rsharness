@@ -11,26 +11,37 @@ services:
         http_proxy: "${http_proxy:-}"
         https_proxy: "${https_proxy:-}"
         no_proxy: "${no_proxy:-127.0.0.1,localhost}"
-    image: eo-harness/harness-api:0.3.0
+    image: eo-harness/harness-api:0.4.0
     container_name: eo-harness-api
     restart: "no"
     init: true
     read_only: true
     environment:
       EO_HARNESS_DB: /app/state/episodes.sqlite3
+      EO_HARNESS_DATASETS: /app/datasets
+      EO_HARNESS_V2_ARTIFACTS: /app/artifacts
       EO_HARNESS_V2_ENABLED: "1"
+      EO_HARNESS_V2_RENDERER_CONFIG: /app/config/v2/renderer.json
+      EO_HARNESS_V2_RENDERER_URL: http://renderer:8090
       EO_HARNESS_V2_TASKS: /app/tasks
+    depends_on:
+      renderer:
+        condition: service_healthy
     ports:
       - "127.0.0.1:${HARNESS_API_PORT:-8000}:8000"
     volumes:
       - /sata/yangm/eo-harness/state:/app/state:rw
       - /sata/yangm/eo-harness/artifacts:/app/artifacts:rw
+      - /sata/yangm/eo-harness/datasets:/app/datasets:ro
       - /sata/yangm/eo-harness/tasks:/app/tasks:ro
       - /sata/yangm/eo-harness/config/v2:/app/config/v2:ro
     tmpfs:
       - /tmp:size=64m,mode=1777
     cap_drop:
       - ALL
+    cpus: "2.0"
+    mem_limit: 2g
+    pids_limit: 256
     security_opt:
       - no-new-privileges:true
     stop_grace_period: 15s
@@ -54,6 +65,70 @@ services:
     labels:
       org.opencontainers.image.title: "EO Harness Environment API"
       io.eo-harness.component: "environment-api"
+    networks:
+      - harness-internal
+      - harness-published
+
+  renderer:
+    build:
+      context: ./harness_renderer
+      args:
+        HTTP_PROXY: "${HTTP_PROXY:-}"
+        HTTPS_PROXY: "${HTTPS_PROXY:-}"
+        NO_PROXY: "${NO_PROXY:-127.0.0.1,localhost}"
+        http_proxy: "${http_proxy:-}"
+        https_proxy: "${https_proxy:-}"
+        no_proxy: "${no_proxy:-127.0.0.1,localhost}"
+    image: eo-harness/renderer:0.4.0
+    container_name: eo-harness-renderer
+    restart: "no"
+    init: true
+    read_only: true
+    environment:
+      EO_RENDERER_PORT: "8090"
+      EO_RENDERER_TERRIA_URL: http://terriamap:3001/?lng=en
+      EO_RENDERER_TIMEOUT_MS: "45000"
+      EO_RENDERER_VIEWPORT_HEIGHT: "768"
+      EO_RENDERER_VIEWPORT_WIDTH: "1024"
+    depends_on:
+      terriamap:
+        condition: service_healthy
+    expose:
+      - "8090"
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    shm_size: 1g
+    cap_drop:
+      - ALL
+    cpus: "4.0"
+    mem_limit: 4g
+    pids_limit: 512
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 20s
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://127.0.0.1:8090/healthz')
+          .then(response => { if (!response.ok) process.exit(1); })
+          .catch(() => process.exit(1))
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      org.opencontainers.image.title: "EO Harness Deterministic Renderer"
+      io.eo-harness.component: "renderer"
+    networks:
+      - harness-internal
 
   terriamap:
     image: eo-harness/terriamap:0.4.6
@@ -87,6 +162,22 @@ services:
       - /sata/yangm/eo-harness/config/serverconfig.json:/app/serverconfig.json:ro
       - /sata/yangm/eo-harness/datasets/worldcover-2021:/app/wwwroot/data/worldcover-2021:ro
     stop_grace_period: 15s
+    cpus: "2.0"
+    mem_limit: 2g
+    pids_limit: 256
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://127.0.0.1:3001/')
+          .then(response => { if (!response.ok) process.exit(1); })
+          .catch(() => process.exit(1))
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
     logging:
       driver: json-file
       options:
@@ -95,3 +186,11 @@ services:
     labels:
       org.opencontainers.image.title: "EO Harness TerriaMap"
       io.eo-harness.component: "map-ui"
+    networks:
+      - harness-internal
+      - harness-published
+
+networks:
+  harness-internal:
+    internal: true
+  harness-published: {}

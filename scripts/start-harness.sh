@@ -6,7 +6,8 @@ DOCKER_CONTEXT="${EO_DOCKER_CONTEXT:-rootless}"
 TERRIA_PORT="${TERRIA_PORT:-3001}"
 HARNESS_API_PORT="${HARNESS_API_PORT:-8000}"
 TERRIA_IMAGE="eo-harness/terriamap:0.4.6"
-HARNESS_API_IMAGE="eo-harness/harness-api:0.3.0"
+HARNESS_API_IMAGE="eo-harness/harness-api:0.4.0"
+RENDERER_IMAGE="eo-harness/renderer:0.4.0"
 TERRIA_SOURCE_IMAGE="ghcr.io/terriajs/terriamap:0.4.6@sha256:0853ec153c53cef6ae926c99698ccc5cf4cc1a89906550068d3a36d95c3d54e0"
 
 "$PROJECT_ROOT/scripts/start-project-docker.sh"
@@ -26,6 +27,11 @@ if ! docker --context "$DOCKER_CONTEXT" image inspect \
   docker --context "$DOCKER_CONTEXT" compose \
     -f "$PROJECT_ROOT/compose.yaml" build harness-api
 fi
+if ! docker --context "$DOCKER_CONTEXT" image inspect \
+  "$RENDERER_IMAGE" >/dev/null 2>&1; then
+  docker --context "$DOCKER_CONTEXT" compose \
+    -f "$PROJECT_ROOT/compose.yaml" build renderer
+fi
 docker --context "$DOCKER_CONTEXT" compose \
   -f "$PROJECT_ROOT/compose.yaml" up -d
 docker --context "$DOCKER_CONTEXT" compose \
@@ -34,6 +40,7 @@ docker --context "$DOCKER_CONTEXT" compose \
 for attempt in $(seq 1 60); do
   terria_ready=false
   api_ready=false
+  renderer_ready=false
 
   if curl --noproxy '*' --fail --silent --show-error \
     "http://127.0.0.1:${TERRIA_PORT}/" >/dev/null 2>&1; then
@@ -43,11 +50,18 @@ for attempt in $(seq 1 60); do
     "http://127.0.0.1:${HARNESS_API_PORT}/healthz" >/dev/null 2>&1; then
     api_ready=true
   fi
+  if [[ "$(docker --context "$DOCKER_CONTEXT" inspect \
+    --format '{{.State.Health.Status}}' eo-harness-renderer 2>/dev/null || true)" \
+    == "healthy" ]]; then
+    renderer_ready=true
+  fi
 
-  if [[ "$terria_ready" == true && "$api_ready" == true ]]; then
+  if [[ "$terria_ready" == true && "$api_ready" == true && \
+    "$renderer_ready" == true ]]; then
     printf 'TerriaMap is ready: http://127.0.0.1:%s/\n' "$TERRIA_PORT"
     printf 'Harness API is ready: http://127.0.0.1:%s/docs\n' \
       "$HARNESS_API_PORT"
+    printf 'Renderer is healthy on the internal Compose network.\n'
     exit 0
   fi
   sleep 2

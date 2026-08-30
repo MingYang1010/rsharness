@@ -1,6 +1,6 @@
 # EO Harness Deployment
 
-The running stack contains TerriaMap and the stateful EO Harness Environment API. Both run in the `yangm` user's Rootless Docker daemon. Images, container snapshots, build cache, and daemon metadata are stored under `/sata`; the shared system daemon and `/var/lib/docker` are not used by this project.
+The stack contains TerriaMap, the stateful EO Harness Environment API, and an internal deterministic renderer. All three run in the `yangm` user's Rootless Docker daemon. Images, container snapshots, build cache, and daemon metadata are stored under `/sata`; the shared system daemon and `/var/lib/docker` are not used by this project.
 
 The Rootless Docker systemd service has a user-only proxy drop-in at `~/.config/systemd/user/docker.service.d/proxy.conf`. Proxy values are not stored in this project.
 
@@ -12,6 +12,7 @@ The Rootless Docker systemd service has a user-only proxy drop-in at `~/.config/
 - Docker socket: `/run/user/1017/docker.sock`
 - TerriaMap port while running: `3001`
 - Harness API port: `127.0.0.1:8000`
+- Renderer port: internal Compose network only, `8090`
 - Episode state: `/sata/yangm/eo-harness/state/episodes.sqlite3`
 - V2 artifact store: `/sata/yangm/eo-harness/artifacts`
 - V2 immutable task packs: `/sata/yangm/eo-harness/tasks`
@@ -21,11 +22,11 @@ The Rootless Docker systemd service has a user-only proxy drop-in at `~/.config/
 
 The active EO layer is the local RGB COG `ESA_WorldCover_10m_2021_v200_N30E120_Map_RGB.tif`, covering `120-123 E` and `30-33 N`. Compose mounts the dataset directory read-only at `/app/wwwroot/data/worldcover-2021`.
 
-TerriaMap serves the COG with HTTP Range support; the browser does not contact Terrascope or ESA S3 for WorldCover. The OpenStreetMap basemap is still external.
+TerriaMap serves the COG with HTTP Range support; the browser does not contact Terrascope or ESA S3 for WorldCover. The default basemap is the Natural Earth texture bundled with Cesium, so the deterministic renderer does not depend on OpenStreetMap.
 
 ## Interface Language
 
-The interface opens in Simplified Chinese for a fresh browser session. The globe button in the upper-right menu switches between `简体中文` and `English`; the selected language is stored in browser local storage and survives reloads. A URL can explicitly select a language with `?lng=zh_Hans` or `?lng=en`.
+The interface opens in English for a fresh browser session so the renderer profile has a fixed language. The globe button in the upper-right menu switches between `简体中文` and `English`; the selected language is stored in browser local storage and survives reloads. A URL can explicitly select a language with `?lng=zh_Hans` or `?lng=en`.
 
 This uses TerriaJS 8.12.2's bundled translations and built-in language panel. Project-scoped Chinese and English overrides fill the upstream keys used by upload, workbench, footer, and drag/drop controls. Both override directories are mounted read-only; no custom frontend image is required.
 
@@ -43,15 +44,15 @@ All success responses use a typed `meta + data` envelope; validation, domain, ro
 
 OpenAPI documentation is available at `http://127.0.0.1:8000/docs` on the server. The committed contract is [contracts/openapi-v1.json](contracts/openapi-v1.json), with golden examples under [contracts/fixtures](contracts/fixtures). See [docs/harness-api-v1.md](docs/harness-api-v1.md) for usage and [docs/api-compatibility-policy.md](docs/api-compatibility-policy.md) for the V1 change boundary.
 
-## Harness API V2 M1
+## Harness API V2 M2
 
-Environment API implementation `0.3.0` adds an independent V2 schema without changing the frozen V1 body contract or migrating V1 episodes. V2 schema version `2.0.0` provides immutable task lookup, reset, state, optimistic and idempotent step execution, cursor-paginated event traces, and structural replay. Metadata is stored in additive `v2_*` SQLite tables in the existing SATA database.
+Environment API implementation `0.4.0` exposes independent V2 body schema `2.0.0` without changing the frozen V1 body contract or migrating V1 episodes. SQLite schema `2` adds observation, artifact, and evaluation associations through additive `v2_*` tables in the existing SATA database.
 
-The registered M1 task is `worldcover-grounded-vqa@1.0.0`. It pins the local WorldCover asset by SHA-256 and currently emits structural map-state observations. TerriaMap projection, deterministic rendered observations, tool execution, artifact HTTP endpoints, and evaluator execution remain gated to M2 or M3 and are reported as unavailable by `/v2/capabilities`.
+The immutable M1 task `worldcover-grounded-vqa@1.0.0` remains structural. M2 adds `worldcover-grounded-vqa@1.1.0`: map actions are projected into TerriaMap, read back, checked for stable nonblank output, and captured as content-addressed PNG artifacts. The WorldCover evaluator computes `task.accuracy`, `evidence.faithfulness`, and `process.efficiency` from a fixed AOI and a checksum-pinned canonical class raster. `/v2/capabilities` reports the renderer and evaluator as available; executable raster tools remain a later milestone.
 
 The V2 OpenAPI document is served at `http://127.0.0.1:8000/v2/openapi.json` and committed at [contracts/v2/openapi-v2.json](contracts/v2/openapi-v2.json). Golden V2 requests and responses are under [contracts/v2/fixtures](contracts/v2/fixtures). See [docs/harness-api-v2.md](docs/harness-api-v2.md) for the endpoint and retry contract.
 
-Set `EO_HARNESS_V2_ENABLED=0` on the API container to disable V2 route registration. This does not remove V2 tables or artifacts and leaves V1 available. The default Compose configuration enables V2 and mounts `tasks/` and `config/v2/` read-only.
+Set `EO_HARNESS_V2_ENABLED=0` on the API container to disable the V2 runtime. V2 routes remain registered and return typed HTTP `503 v2_disabled`; this does not remove V2 tables or artifacts and leaves V1 available. The default Compose configuration enables V2 and mounts `tasks/`, `config/v2/`, and datasets read-only while mounting the artifact store read-write.
 
 ## Start
 
@@ -59,7 +60,14 @@ Set `EO_HARNESS_V2_ENABLED=0` on the API container to disable V2 route registrat
 /sata/yangm/eo-harness/scripts/start-harness.sh
 ```
 
-The script verifies the Rootless Docker data root, builds the pinned API image when it is absent, starts both services, and waits for TerriaMap and API health responses. `start-terriamap.sh` remains as a compatibility wrapper and now starts the complete stack. After changing API source, rebuild explicitly with `docker --context rootless compose -f /sata/yangm/eo-harness/compose.yaml build harness-api`.
+The script verifies the Rootless Docker data root, builds missing API and renderer images, starts all three services, and waits for TerriaMap, renderer, and API health responses. `start-terriamap.sh` remains as a compatibility wrapper and starts the complete stack. After changing source, rebuild the affected service explicitly:
+
+```bash
+docker --context rootless compose \
+  -f /sata/yangm/eo-harness/compose.yaml build harness-api
+docker --context rootless compose \
+  -f /sata/yangm/eo-harness/compose.yaml build renderer
+```
 
 ## Test
 
@@ -69,7 +77,7 @@ Run the complete V1 and V2 regression suite from the source root:
 PYTHON=python3 /sata/yangm/eo-harness/scripts/test-harness.sh
 ```
 
-The current gate contains 15 frozen V1 tests and 23 V2 tests. It checks contract snapshots, typed errors, idempotency, optimistic concurrency, cursor pagination, semantic hashes, additive migration rollback, evidence selectors, artifact integrity, and structural replay.
+The current Python gate contains 15 frozen V1 tests and 29 V2 tests. It checks contract snapshots, typed errors, idempotency, optimistic concurrency, cursor pagination, semantic hashes, additive migration rollback, evidence selectors, rendered observations, artifact integrity and Range reads, WorldCover evaluation, restart persistence, and structural replay. The renderer has four Node tests for map-state validation, capture-quality rejection, PNG hashing, and offline request routing.
 
 ## Inspect
 
@@ -90,7 +98,7 @@ curl --noproxy '*' -fsS http://127.0.0.1:8000/healthz
 /sata/yangm/eo-harness/scripts/stop-all.sh
 ```
 
-`stop-all.sh` removes only this Compose project's TerriaMap/API containers and network. It deliberately leaves the shared Rootless Docker service running because other user projects may use it. Episode state under `/sata/yangm/eo-harness/state` is retained.
+`stop-all.sh` removes only this Compose project's TerriaMap, renderer, API containers, and networks. It deliberately leaves the shared Rootless Docker service running because other user projects may use it. Episode state and artifacts under `/sata/yangm/eo-harness` are retained.
 
 ## Persistence
 
