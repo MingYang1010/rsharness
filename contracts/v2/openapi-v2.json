@@ -1,0 +1,3270 @@
+{
+  "components": {
+    "schemas": {
+      "AnswerAbstainAction": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence_ids": {
+            "items": {
+              "pattern": "^ev-[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "rationale": {
+            "maxLength": 10000,
+            "minLength": 1,
+            "title": "Rationale",
+            "type": "string"
+          },
+          "type": {
+            "const": "answer.abstain",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "rationale"
+        ],
+        "title": "AnswerAbstainAction",
+        "type": "object"
+      },
+      "AnswerHumanReviewAction": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence_ids": {
+            "items": {
+              "pattern": "^ev-[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "rationale": {
+            "maxLength": 10000,
+            "minLength": 1,
+            "title": "Rationale",
+            "type": "string"
+          },
+          "type": {
+            "const": "answer.request_human_review",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "rationale"
+        ],
+        "title": "AnswerHumanReviewAction",
+        "type": "object"
+      },
+      "AnswerRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "answer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JsonValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "evidence_ids": {
+            "items": {
+              "pattern": "^ev-[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "outcome": {
+            "enum": [
+              "submitted",
+              "abstained",
+              "human_review_requested"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rationale"
+          }
+        },
+        "required": [
+          "outcome",
+          "evidence_ids"
+        ],
+        "title": "AnswerRecord",
+        "type": "object"
+      },
+      "AnswerSubmitAction": {
+        "additionalProperties": false,
+        "properties": {
+          "answer": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "evidence_ids": {
+            "items": {
+              "pattern": "^ev-[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "type": {
+            "const": "answer.submit",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "answer",
+          "evidence_ids"
+        ],
+        "title": "AnswerSubmitAction",
+        "type": "object"
+      },
+      "AssetQuality": {
+        "additionalProperties": false,
+        "properties": {
+          "cloud_cover_percent": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cloud Cover Percent"
+          },
+          "coverage_fraction": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Fraction"
+          },
+          "nodata_fraction": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nodata Fraction"
+          }
+        },
+        "title": "AssetQuality",
+        "type": "object"
+      },
+      "AssetRef": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Asset Id",
+            "type": "string"
+          },
+          "bands": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Bands",
+            "type": "array"
+          },
+          "instrument": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instrument"
+          },
+          "license": {
+            "minLength": 1,
+            "title": "License",
+            "type": "string"
+          },
+          "media_type": {
+            "minLength": 1,
+            "title": "Media Type",
+            "type": "string"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform"
+          },
+          "polarizations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Polarizations",
+            "type": "array"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/AssetQuality"
+          },
+          "roles": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Roles",
+            "type": "array"
+          },
+          "sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "minimum": 0.0,
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "source": {
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          },
+          "source_snapshot_hash": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Snapshot Hash"
+          },
+          "spatial": {
+            "$ref": "#/components/schemas/SpatialExtent"
+          },
+          "temporal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TemporalExtent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uri": {
+            "minLength": 1,
+            "title": "Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset_id",
+          "uri",
+          "media_type",
+          "roles",
+          "sha256",
+          "size_bytes",
+          "spatial",
+          "license",
+          "source"
+        ],
+        "title": "AssetRef",
+        "type": "object"
+      },
+      "BudgetCounter": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "minimum": 0.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "remaining": {
+            "minimum": 0.0,
+            "title": "Remaining",
+            "type": "integer"
+          },
+          "used": {
+            "minimum": 0.0,
+            "title": "Used",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "used",
+          "remaining"
+        ],
+        "title": "BudgetCounter",
+        "type": "object"
+      },
+      "BudgetCounters": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_bytes": {
+            "$ref": "#/components/schemas/BudgetCounter"
+          },
+          "input_bytes": {
+            "$ref": "#/components/schemas/BudgetCounter"
+          },
+          "steps": {
+            "$ref": "#/components/schemas/BudgetCounter"
+          },
+          "tool_calls": {
+            "$ref": "#/components/schemas/BudgetCounter"
+          },
+          "wall_time_ms": {
+            "$ref": "#/components/schemas/BudgetCounter"
+          }
+        },
+        "required": [
+          "steps",
+          "tool_calls",
+          "wall_time_ms",
+          "input_bytes",
+          "artifact_bytes"
+        ],
+        "title": "BudgetCounters",
+        "type": "object"
+      },
+      "BudgetSpec": {
+        "additionalProperties": false,
+        "properties": {
+          "max_artifact_bytes": {
+            "maximum": 1099511627776.0,
+            "minimum": 0.0,
+            "title": "Max Artifact Bytes",
+            "type": "integer"
+          },
+          "max_input_bytes": {
+            "maximum": 1099511627776.0,
+            "minimum": 0.0,
+            "title": "Max Input Bytes",
+            "type": "integer"
+          },
+          "max_steps": {
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Max Steps",
+            "type": "integer"
+          },
+          "max_tool_calls": {
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Max Tool Calls",
+            "type": "integer"
+          },
+          "max_wall_time_ms": {
+            "maximum": 86400000.0,
+            "minimum": 1.0,
+            "title": "Max Wall Time Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "max_steps",
+          "max_tool_calls",
+          "max_wall_time_ms",
+          "max_input_bytes",
+          "max_artifact_bytes"
+        ],
+        "title": "BudgetSpec",
+        "type": "object"
+      },
+      "CapabilitiesData": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "declared_actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Declared Actions",
+            "type": "array"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "evaluator": {
+            "$ref": "#/components/schemas/CapabilityStatus"
+          },
+          "implementation_version": {
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+            "title": "Implementation Version",
+            "type": "string"
+          },
+          "observation_types": {
+            "items": {
+              "enum": [
+                "map_state",
+                "rendered_view",
+                "raster_chip",
+                "temporal_stack",
+                "vector_features",
+                "table",
+                "tool_result",
+                "asset_metadata"
+              ],
+              "type": "string"
+            },
+            "title": "Observation Types",
+            "type": "array"
+          },
+          "renderer": {
+            "$ref": "#/components/schemas/CapabilityStatus"
+          },
+          "store_schema_version": {
+            "minimum": 1.0,
+            "title": "Store Schema Version",
+            "type": "integer"
+          },
+          "structural_replay": {
+            "$ref": "#/components/schemas/CapabilityStatus"
+          },
+          "task_count": {
+            "minimum": 0.0,
+            "title": "Task Count",
+            "type": "integer"
+          },
+          "tools": {
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "type": "string"
+            },
+            "title": "Tools",
+            "type": "array"
+          }
+        },
+        "required": [
+          "implementation_version",
+          "store_schema_version",
+          "enabled",
+          "task_count",
+          "actions",
+          "declared_actions",
+          "observation_types",
+          "tools",
+          "renderer",
+          "evaluator",
+          "structural_replay"
+        ],
+        "title": "CapabilitiesData",
+        "type": "object"
+      },
+      "CapabilitiesResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CapabilitiesData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/V2ApiMeta"
+          }
+        },
+        "required": [
+          "meta",
+          "data"
+        ],
+        "title": "CapabilitiesResponse",
+        "type": "object"
+      },
+      "CapabilityStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "details": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Details",
+            "type": "object"
+          },
+          "status": {
+            "enum": [
+              "available",
+              "unavailable",
+              "not_implemented"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "CapabilityStatus",
+        "type": "object"
+      },
+      "EpisodeResultData": {
+        "additionalProperties": false,
+        "properties": {
+          "episode_id": {
+            "pattern": "^ep2-[a-f0-9]{32}$",
+            "title": "Episode Id",
+            "type": "string"
+          },
+          "observation": {
+            "$ref": "#/components/schemas/Observation"
+          },
+          "state": {
+            "$ref": "#/components/schemas/V2EpisodeState"
+          },
+          "task_manifest_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Task Manifest Hash",
+            "type": "string"
+          },
+          "terminated": {
+            "title": "Terminated",
+            "type": "boolean"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "episode_id",
+          "task_manifest_hash",
+          "state",
+          "observation",
+          "terminated",
+          "truncated"
+        ],
+        "title": "EpisodeResultData",
+        "type": "object"
+      },
+      "EvaluatorSpec": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregate_weights": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Aggregate Weights",
+            "type": "object"
+          },
+          "config": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Config",
+            "type": "object"
+          },
+          "evaluator_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Evaluator Id",
+            "type": "string"
+          },
+          "evaluator_version": {
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+            "title": "Evaluator Version",
+            "type": "string"
+          },
+          "metric_names": {
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "type": "string"
+            },
+            "title": "Metric Names",
+            "type": "array"
+          }
+        },
+        "required": [
+          "evaluator_id",
+          "evaluator_version",
+          "metric_names"
+        ],
+        "title": "EvaluatorSpec",
+        "type": "object"
+      },
+      "EventRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Created At",
+            "type": "string"
+          },
+          "episode_id": {
+            "pattern": "^ep2-[a-f0-9]{32}$",
+            "title": "Episode Id",
+            "type": "string"
+          },
+          "event_id": {
+            "pattern": "^evt-[a-f0-9]{32}$",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "event_type": {
+            "enum": [
+              "episode.created",
+              "action.accepted",
+              "action.completed",
+              "action.failed",
+              "observation.emitted",
+              "artifact.created",
+              "artifact.failed",
+              "evidence.saved",
+              "evaluation.completed",
+              "evaluation.failed",
+              "episode.terminated",
+              "episode.truncated",
+              "episode.failed"
+            ],
+            "title": "Event Type",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Payload",
+            "type": "object"
+          },
+          "sequence": {
+            "minimum": 0.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "state_version": {
+            "minimum": 0.0,
+            "title": "State Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "event_id",
+          "episode_id",
+          "sequence",
+          "event_type",
+          "state_version",
+          "created_at",
+          "payload"
+        ],
+        "title": "EventRecord",
+        "type": "object"
+      },
+      "EvidenceRef-Input": {
+        "additionalProperties": false,
+        "properties": {
+          "claim_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Claim Id",
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 10000,
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "evidence_id": {
+            "pattern": "^ev-[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "frozen_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Frozen Sha256",
+            "type": "string"
+          },
+          "selector": {
+            "$ref": "#/components/schemas/EvidenceSelector"
+          },
+          "source_ref": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Source Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "evidence_id",
+          "claim_id",
+          "source_ref",
+          "selector",
+          "description",
+          "frozen_sha256"
+        ],
+        "title": "EvidenceRef",
+        "type": "object"
+      },
+      "EvidenceRef-Output": {
+        "additionalProperties": false,
+        "properties": {
+          "claim_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Claim Id",
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 10000,
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "evidence_id": {
+            "pattern": "^ev-[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "frozen_sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Frozen Sha256",
+            "type": "string"
+          },
+          "selector": {
+            "$ref": "#/components/schemas/EvidenceSelector"
+          },
+          "source_ref": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Source Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "evidence_id",
+          "claim_id",
+          "source_ref",
+          "selector",
+          "description",
+          "frozen_sha256"
+        ],
+        "title": "EvidenceRef",
+        "type": "object"
+      },
+      "EvidenceSelector": {
+        "additionalProperties": false,
+        "properties": {
+          "bands": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Bands",
+            "type": "array"
+          },
+          "bbox": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpatialBoundingBox"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "geometry": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geometry"
+          },
+          "pixel_window": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "maxItems": 4,
+                "minItems": 4,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pixel Window"
+          },
+          "time_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TemporalExtent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "EvidenceSelector",
+        "type": "object"
+      },
+      "GeoPoint": {
+        "additionalProperties": false,
+        "properties": {
+          "latitude": {
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Longitude",
+            "type": "number"
+          }
+        },
+        "required": [
+          "longitude",
+          "latitude"
+        ],
+        "title": "GeoPoint",
+        "type": "object"
+      },
+      "JsonValue": {},
+      "MapLayerOpacityAction": {
+        "additionalProperties": false,
+        "properties": {
+          "layer_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Layer Id",
+            "type": "string"
+          },
+          "opacity": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Opacity",
+            "type": "number"
+          },
+          "type": {
+            "const": "map.layer.set_opacity",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "layer_id",
+          "opacity"
+        ],
+        "title": "MapLayerOpacityAction",
+        "type": "object"
+      },
+      "MapLayerState": {
+        "additionalProperties": false,
+        "properties": {
+          "asset_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Asset Id",
+            "type": "string"
+          },
+          "layer_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Layer Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "opacity": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Opacity",
+            "type": "number"
+          },
+          "style_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Style Id",
+            "type": "string"
+          },
+          "time_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TemporalExtent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "visible": {
+            "title": "Visible",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "layer_id",
+          "asset_id",
+          "name",
+          "visible",
+          "opacity",
+          "style_id"
+        ],
+        "title": "MapLayerState",
+        "type": "object"
+      },
+      "MapLayerVisibilityAction": {
+        "additionalProperties": false,
+        "properties": {
+          "layer_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Layer Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "map.layer.set_visibility",
+            "title": "Type",
+            "type": "string"
+          },
+          "visible": {
+            "title": "Visible",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "type",
+          "layer_id",
+          "visible"
+        ],
+        "title": "MapLayerVisibilityAction",
+        "type": "object"
+      },
+      "MapPanAction": {
+        "additionalProperties": false,
+        "properties": {
+          "delta_latitude": {
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Delta Latitude",
+            "type": "number"
+          },
+          "delta_longitude": {
+            "maximum": 360.0,
+            "minimum": -360.0,
+            "title": "Delta Longitude",
+            "type": "number"
+          },
+          "type": {
+            "const": "map.pan",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "delta_longitude",
+          "delta_latitude"
+        ],
+        "title": "MapPanAction",
+        "type": "object"
+      },
+      "MapSetViewAction": {
+        "additionalProperties": false,
+        "properties": {
+          "bbox": {
+            "$ref": "#/components/schemas/SpatialBoundingBox"
+          },
+          "type": {
+            "const": "map.set_view",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "bbox"
+        ],
+        "title": "MapSetViewAction",
+        "type": "object"
+      },
+      "MapState": {
+        "additionalProperties": false,
+        "properties": {
+          "active_time_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TemporalExtent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bbox": {
+            "$ref": "#/components/schemas/SpatialBoundingBox"
+          },
+          "center": {
+            "$ref": "#/components/schemas/GeoPoint"
+          },
+          "layers": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MapLayerState"
+            },
+            "title": "Layers",
+            "type": "object"
+          }
+        },
+        "required": [
+          "bbox",
+          "center",
+          "layers"
+        ],
+        "title": "MapState",
+        "type": "object"
+      },
+      "MapTimeRangeAction": {
+        "additionalProperties": false,
+        "properties": {
+          "time_range": {
+            "$ref": "#/components/schemas/TemporalExtent"
+          },
+          "type": {
+            "const": "map.time.set_range",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "time_range"
+        ],
+        "title": "MapTimeRangeAction",
+        "type": "object"
+      },
+      "MapZoomAction": {
+        "additionalProperties": false,
+        "properties": {
+          "direction": {
+            "enum": [
+              "in",
+              "out"
+            ],
+            "title": "Direction",
+            "type": "string"
+          },
+          "factor": {
+            "default": 2.0,
+            "exclusiveMinimum": 1.0,
+            "maximum": 8.0,
+            "title": "Factor",
+            "type": "number"
+          },
+          "type": {
+            "const": "map.zoom",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "direction"
+        ],
+        "title": "MapZoomAction",
+        "type": "object"
+      },
+      "MemoryBookmarkAoiAction": {
+        "additionalProperties": false,
+        "properties": {
+          "bbox": {
+            "$ref": "#/components/schemas/SpatialBoundingBox"
+          },
+          "bookmark_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Bookmark Id",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "type": {
+            "const": "memory.bookmark_aoi",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "bookmark_id",
+          "bbox",
+          "label"
+        ],
+        "title": "MemoryBookmarkAoiAction",
+        "type": "object"
+      },
+      "MemorySaveEvidenceAction": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence": {
+            "$ref": "#/components/schemas/EvidenceRef-Input"
+          },
+          "type": {
+            "const": "memory.save_evidence",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "evidence"
+        ],
+        "title": "MemorySaveEvidenceAction",
+        "type": "object"
+      },
+      "Metric": {
+        "additionalProperties": false,
+        "properties": {
+          "diagnostics": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Diagnostics",
+            "type": "object"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Name",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          }
+        },
+        "required": [
+          "name",
+          "value"
+        ],
+        "title": "Metric",
+        "type": "object"
+      },
+      "MetricResult": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregate_reward": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aggregate Reward"
+          },
+          "diagnostics": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Diagnostics",
+            "type": "object"
+          },
+          "evaluation_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Evaluation Id",
+            "type": "string"
+          },
+          "evaluator_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Evaluator Id",
+            "type": "string"
+          },
+          "evaluator_version": {
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+            "title": "Evaluator Version",
+            "type": "string"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/Metric"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "completed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "evaluation_id",
+          "status",
+          "metrics",
+          "evaluator_id",
+          "evaluator_version"
+        ],
+        "title": "MetricResult",
+        "type": "object"
+      },
+      "Observation": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ObservationItem"
+            },
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "observation_id": {
+            "pattern": "^obs-[a-f0-9]{32}$",
+            "title": "Observation Id",
+            "type": "string"
+          },
+          "primary_type": {
+            "enum": [
+              "map_state",
+              "rendered_view",
+              "raster_chip",
+              "temporal_stack",
+              "vector_features",
+              "table",
+              "tool_result",
+              "asset_metadata"
+            ],
+            "title": "Primary Type",
+            "type": "string"
+          },
+          "provenance": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Provenance",
+            "type": "object"
+          },
+          "semantic_state_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Semantic State Hash",
+            "type": "string"
+          },
+          "sequence": {
+            "minimum": 0.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "state_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "State Hash",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "observation_id",
+          "sequence",
+          "primary_type",
+          "items",
+          "state_hash",
+          "semantic_state_hash",
+          "provenance",
+          "warnings"
+        ],
+        "title": "Observation",
+        "type": "object"
+      },
+      "ObservationItem": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_ref": {
+            "anyOf": [
+              {
+                "pattern": "^art-[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Ref"
+          },
+          "asset_refs": {
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "type": "string"
+            },
+            "title": "Asset Refs",
+            "type": "array"
+          },
+          "inline": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inline"
+          },
+          "type": {
+            "enum": [
+              "map_state",
+              "rendered_view",
+              "raster_chip",
+              "temporal_stack",
+              "vector_features",
+              "table",
+              "tool_result",
+              "asset_metadata"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "ObservationItem",
+        "type": "object"
+      },
+      "ReplayCheck": {
+        "additionalProperties": false,
+        "properties": {
+          "actual": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual"
+          },
+          "expected": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Name",
+            "type": "string"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "passed"
+        ],
+        "title": "ReplayCheck",
+        "type": "object"
+      },
+      "ReplayData": {
+        "additionalProperties": false,
+        "properties": {
+          "checked_event_count": {
+            "minimum": 0.0,
+            "title": "Checked Event Count",
+            "type": "integer"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/ReplayCheck"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "episode_id": {
+            "pattern": "^ep2-[a-f0-9]{32}$",
+            "title": "Episode Id",
+            "type": "string"
+          },
+          "mode": {
+            "const": "structural",
+            "title": "Mode",
+            "type": "string"
+          },
+          "semantic_trace_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Semantic Trace Hash",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "passed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "trace_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Trace Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "episode_id",
+          "mode",
+          "status",
+          "checked_event_count",
+          "checks",
+          "trace_hash",
+          "semantic_trace_hash"
+        ],
+        "title": "ReplayData",
+        "type": "object"
+      },
+      "ReplayResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReplayData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/V2ApiMeta"
+          }
+        },
+        "required": [
+          "meta",
+          "data"
+        ],
+        "title": "ReplayResponse",
+        "type": "object"
+      },
+      "ResetRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "seed": {
+            "anyOf": [
+              {
+                "maximum": 2147483647.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "task_ref": {
+            "$ref": "#/components/schemas/TaskRef"
+          }
+        },
+        "required": [
+          "task_ref"
+        ],
+        "title": "ResetRequest",
+        "type": "object"
+      },
+      "ResetResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EpisodeResultData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/V2ApiMeta"
+          }
+        },
+        "required": [
+          "meta",
+          "data"
+        ],
+        "title": "ResetResponse",
+        "type": "object"
+      },
+      "ScenarioProfile": {
+        "additionalProperties": false,
+        "properties": {
+          "abstention_allowed": {
+            "title": "Abstention Allowed",
+            "type": "boolean"
+          },
+          "allowed_actions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Actions",
+            "type": "array"
+          },
+          "allowed_tools": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Tools",
+            "type": "array"
+          },
+          "data_cutoff": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Data Cutoff",
+            "type": "string"
+          },
+          "domain": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Domain",
+            "type": "string"
+          },
+          "evidence_required": {
+            "title": "Evidence Required",
+            "type": "boolean"
+          },
+          "freshness_max_age_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Freshness Max Age Seconds"
+          },
+          "human_review_policy": {
+            "enum": [
+              "never",
+              "allowed",
+              "high_risk_or_low_confidence"
+            ],
+            "title": "Human Review Policy",
+            "type": "string"
+          },
+          "network_policy": {
+            "enum": [
+              "none",
+              "catalog_only",
+              "allowlisted"
+            ],
+            "title": "Network Policy",
+            "type": "string"
+          },
+          "profile_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Profile Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "profile_id",
+          "domain",
+          "data_cutoff",
+          "allowed_actions",
+          "allowed_tools",
+          "network_policy",
+          "evidence_required",
+          "abstention_allowed",
+          "human_review_policy"
+        ],
+        "title": "ScenarioProfile",
+        "type": "object"
+      },
+      "SpatialBoundingBox": {
+        "additionalProperties": false,
+        "properties": {
+          "east": {
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "East",
+            "type": "number"
+          },
+          "north": {
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "North",
+            "type": "number"
+          },
+          "south": {
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "South",
+            "type": "number"
+          },
+          "west": {
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "West",
+            "type": "number"
+          }
+        },
+        "required": [
+          "west",
+          "south",
+          "east",
+          "north"
+        ],
+        "title": "SpatialBoundingBox",
+        "type": "object"
+      },
+      "SpatialExtent": {
+        "additionalProperties": false,
+        "properties": {
+          "bbox": {
+            "$ref": "#/components/schemas/SpatialBoundingBox"
+          },
+          "crs": {
+            "minLength": 1,
+            "title": "Crs",
+            "type": "string"
+          },
+          "geometry": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geometry"
+          },
+          "gsd_meters": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gsd Meters"
+          },
+          "shape": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "maxItems": 3,
+                "minItems": 2,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shape"
+          }
+        },
+        "required": [
+          "crs",
+          "bbox"
+        ],
+        "title": "SpatialExtent",
+        "type": "object"
+      },
+      "StateData": {
+        "additionalProperties": false,
+        "properties": {
+          "episode_id": {
+            "pattern": "^ep2-[a-f0-9]{32}$",
+            "title": "Episode Id",
+            "type": "string"
+          },
+          "semantic_state_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Semantic State Hash",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/V2EpisodeState"
+          },
+          "state_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "State Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "episode_id",
+          "state",
+          "state_hash",
+          "semantic_state_hash"
+        ],
+        "title": "StateData",
+        "type": "object"
+      },
+      "StateResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StateData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/V2ApiMeta"
+          }
+        },
+        "required": [
+          "meta",
+          "data"
+        ],
+        "title": "StateResponse",
+        "type": "object"
+      },
+      "StepRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "discriminator": {
+              "mapping": {
+                "answer.abstain": "#/components/schemas/AnswerAbstainAction",
+                "answer.request_human_review": "#/components/schemas/AnswerHumanReviewAction",
+                "answer.submit": "#/components/schemas/AnswerSubmitAction",
+                "map.layer.set_opacity": "#/components/schemas/MapLayerOpacityAction",
+                "map.layer.set_visibility": "#/components/schemas/MapLayerVisibilityAction",
+                "map.pan": "#/components/schemas/MapPanAction",
+                "map.set_view": "#/components/schemas/MapSetViewAction",
+                "map.time.set_range": "#/components/schemas/MapTimeRangeAction",
+                "map.zoom": "#/components/schemas/MapZoomAction",
+                "memory.bookmark_aoi": "#/components/schemas/MemoryBookmarkAoiAction",
+                "memory.save_evidence": "#/components/schemas/MemorySaveEvidenceAction",
+                "tool.invoke": "#/components/schemas/ToolInvokeAction"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MapSetViewAction"
+              },
+              {
+                "$ref": "#/components/schemas/MapPanAction"
+              },
+              {
+                "$ref": "#/components/schemas/MapZoomAction"
+              },
+              {
+                "$ref": "#/components/schemas/MapLayerVisibilityAction"
+              },
+              {
+                "$ref": "#/components/schemas/MapLayerOpacityAction"
+              },
+              {
+                "$ref": "#/components/schemas/MapTimeRangeAction"
+              },
+              {
+                "$ref": "#/components/schemas/MemorySaveEvidenceAction"
+              },
+              {
+                "$ref": "#/components/schemas/MemoryBookmarkAoiAction"
+              },
+              {
+                "$ref": "#/components/schemas/ToolInvokeAction"
+              },
+              {
+                "$ref": "#/components/schemas/AnswerSubmitAction"
+              },
+              {
+                "$ref": "#/components/schemas/AnswerAbstainAction"
+              },
+              {
+                "$ref": "#/components/schemas/AnswerHumanReviewAction"
+              }
+            ],
+            "title": "Action"
+          },
+          "client_action_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "title": "Client Action Id",
+            "type": "string"
+          },
+          "expected_state_version": {
+            "minimum": 0.0,
+            "title": "Expected State Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "client_action_id",
+          "expected_state_version",
+          "action"
+        ],
+        "title": "StepRequest",
+        "type": "object"
+      },
+      "StepResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EpisodeResultData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/V2ApiMeta"
+          }
+        },
+        "required": [
+          "meta",
+          "data"
+        ],
+        "title": "StepResponse",
+        "type": "object"
+      },
+      "TaskData": {
+        "additionalProperties": false,
+        "properties": {
+          "manifest": {
+            "$ref": "#/components/schemas/TaskManifest"
+          }
+        },
+        "required": [
+          "manifest"
+        ],
+        "title": "TaskData",
+        "type": "object"
+      },
+      "TaskManifest": {
+        "additionalProperties": false,
+        "properties": {
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/AssetRef"
+            },
+            "title": "Assets",
+            "type": "array"
+          },
+          "evaluator": {
+            "$ref": "#/components/schemas/EvaluatorSpec"
+          },
+          "scenario": {
+            "$ref": "#/components/schemas/ScenarioProfile"
+          },
+          "task": {
+            "$ref": "#/components/schemas/TaskSpec"
+          },
+          "task_manifest_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Task Manifest Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task",
+          "scenario",
+          "assets",
+          "evaluator",
+          "task_manifest_hash"
+        ],
+        "title": "TaskManifest",
+        "type": "object"
+      },
+      "TaskRef": {
+        "additionalProperties": false,
+        "properties": {
+          "task_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Task Id",
+            "type": "string"
+          },
+          "task_version": {
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+            "title": "Task Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "task_version"
+        ],
+        "title": "TaskRef",
+        "type": "object"
+      },
+      "TaskResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TaskData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/V2ApiMeta"
+          }
+        },
+        "required": [
+          "meta",
+          "data"
+        ],
+        "title": "TaskResponse",
+        "type": "object"
+      },
+      "TaskSpec": {
+        "additionalProperties": false,
+        "properties": {
+          "answer_schema": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Answer Schema",
+            "type": "object"
+          },
+          "budget": {
+            "$ref": "#/components/schemas/BudgetSpec"
+          },
+          "evaluator": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Evaluator",
+            "type": "string"
+          },
+          "family": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Family",
+            "type": "string"
+          },
+          "inputs": {
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Inputs",
+            "type": "array"
+          },
+          "metadata": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Metadata",
+            "type": "object"
+          },
+          "metric_aggregation": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Metric Aggregation",
+            "type": "object"
+          },
+          "prompt": {
+            "maxLength": 50000,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "scenario_profile": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Scenario Profile",
+            "type": "string"
+          },
+          "seed": {
+            "maximum": 2147483647.0,
+            "minimum": 0.0,
+            "title": "Seed",
+            "type": "integer"
+          },
+          "task_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Task Id",
+            "type": "string"
+          },
+          "task_version": {
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+            "title": "Task Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "task_version",
+          "family",
+          "prompt",
+          "inputs",
+          "scenario_profile",
+          "answer_schema",
+          "evaluator",
+          "budget",
+          "seed"
+        ],
+        "title": "TaskSpec",
+        "type": "object"
+      },
+      "TemporalExtent": {
+        "additionalProperties": false,
+        "properties": {
+          "end": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "End",
+            "type": "string"
+          },
+          "start": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "TemporalExtent",
+        "type": "object"
+      },
+      "ToolInvokeAction": {
+        "additionalProperties": false,
+        "properties": {
+          "arguments": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Arguments",
+            "type": "object"
+          },
+          "tool_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Tool Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "tool.invoke",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "tool_id",
+          "arguments"
+        ],
+        "title": "ToolInvokeAction",
+        "type": "object"
+      },
+      "TraceData": {
+        "additionalProperties": false,
+        "properties": {
+          "episode_id": {
+            "pattern": "^ep2-[a-f0-9]{32}$",
+            "title": "Episode Id",
+            "type": "string"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/EventRecord"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "hash_algorithm": {
+            "const": "sha256",
+            "title": "Hash Algorithm",
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "semantic_trace_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Semantic Trace Hash",
+            "type": "string"
+          },
+          "total_events": {
+            "minimum": 0.0,
+            "title": "Total Events",
+            "type": "integer"
+          },
+          "trace_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Trace Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "episode_id",
+          "events",
+          "limit",
+          "next_cursor",
+          "has_more",
+          "total_events",
+          "hash_algorithm",
+          "trace_hash",
+          "semantic_trace_hash"
+        ],
+        "title": "TraceData",
+        "type": "object"
+      },
+      "TraceResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TraceData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/V2ApiMeta"
+          }
+        },
+        "required": [
+          "meta",
+          "data"
+        ],
+        "title": "TraceResponse",
+        "type": "object"
+      },
+      "V2ApiError": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Code",
+            "type": "string"
+          },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/V2ValidationIssue"
+            },
+            "title": "Details",
+            "type": "array"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "phase": {
+            "enum": [
+              "request",
+              "policy",
+              "state",
+              "tool",
+              "renderer",
+              "artifact",
+              "evaluation",
+              "service"
+            ],
+            "title": "Phase",
+            "type": "string"
+          },
+          "retryable": {
+            "title": "Retryable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "retryable",
+          "phase"
+        ],
+        "title": "V2ApiError",
+        "type": "object"
+      },
+      "V2ApiMeta": {
+        "additionalProperties": false,
+        "properties": {
+          "api_version": {
+            "const": "v2",
+            "title": "Api Version",
+            "type": "string"
+          },
+          "request_id": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "schema": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Schema",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": "2.0.0",
+            "title": "Schema Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "api_version",
+          "schema_version",
+          "schema",
+          "request_id"
+        ],
+        "title": "V2ApiMeta",
+        "type": "object"
+      },
+      "V2EpisodeState": {
+        "additionalProperties": false,
+        "properties": {
+          "accessible_asset_refs": {
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "type": "string"
+            },
+            "title": "Accessible Asset Refs",
+            "type": "array"
+          },
+          "budget": {
+            "$ref": "#/components/schemas/BudgetCounters"
+          },
+          "created_at": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Created At",
+            "type": "string"
+          },
+          "episode_id": {
+            "pattern": "^ep2-[a-f0-9]{32}$",
+            "title": "Episode Id",
+            "type": "string"
+          },
+          "evaluation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence_refs": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRef-Output"
+            },
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "final_answer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnswerRecord"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "map": {
+            "$ref": "#/components/schemas/MapState"
+          },
+          "observation_refs": {
+            "items": {
+              "pattern": "^obs-[a-f0-9]{32}$",
+              "type": "string"
+            },
+            "title": "Observation Refs",
+            "type": "array"
+          },
+          "seed": {
+            "maximum": 2147483647.0,
+            "minimum": 0.0,
+            "title": "Seed",
+            "type": "integer"
+          },
+          "state_version": {
+            "minimum": 0.0,
+            "title": "State Version",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "terminated",
+              "truncated",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "step_count": {
+            "minimum": 0.0,
+            "title": "Step Count",
+            "type": "integer"
+          },
+          "task_manifest_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Task Manifest Hash",
+            "type": "string"
+          },
+          "task_ref": {
+            "$ref": "#/components/schemas/TaskRef"
+          },
+          "updated_at": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "episode_id",
+          "task_ref",
+          "task_manifest_hash",
+          "seed",
+          "state_version",
+          "status",
+          "step_count",
+          "map",
+          "budget",
+          "accessible_asset_refs",
+          "observation_refs",
+          "evidence_refs",
+          "final_answer",
+          "evaluation",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "V2EpisodeState",
+        "type": "object"
+      },
+      "V2ErrorResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/V2ApiError"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/V2ApiMeta"
+          }
+        },
+        "required": [
+          "meta",
+          "error"
+        ],
+        "title": "V2ErrorResponse",
+        "type": "object"
+      },
+      "V2ValidationIssue": {
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "location": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "tool_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Id"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "location",
+          "message",
+          "type"
+        ],
+        "title": "V2ValidationIssue",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Task-driven, evidence-native EO agent environment contract. Schema version 2.0.0.",
+    "title": "EO Harness Environment API V2",
+    "version": "0.3.0",
+    "x-api-version": "v2",
+    "x-schema-version": "2.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/v2/capabilities": {
+      "get": {
+        "operationId": "capabilities_v2_capabilities_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilitiesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "Task policy rejected action"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "V2 resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "State or idempotency conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "V2 request validation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal service error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "V2 service unavailable"
+          }
+        },
+        "summary": "Capabilities",
+        "tags": [
+          "V2 Environment"
+        ]
+      }
+    },
+    "/v2/episodes/{episode_id}/replay": {
+      "post": {
+        "operationId": "replay_v2_episodes__episode_id__replay_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episode_id",
+            "required": true,
+            "schema": {
+              "pattern": "^ep2-[a-f0-9]{32}$",
+              "title": "Episode Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "Task policy rejected action"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "V2 resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "State or idempotency conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "V2 request validation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal service error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "V2 service unavailable"
+          }
+        },
+        "summary": "Replay",
+        "tags": [
+          "V2 Environment"
+        ]
+      }
+    },
+    "/v2/episodes/{episode_id}/state": {
+      "get": {
+        "operationId": "get_state_v2_episodes__episode_id__state_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episode_id",
+            "required": true,
+            "schema": {
+              "pattern": "^ep2-[a-f0-9]{32}$",
+              "title": "Episode Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "Task policy rejected action"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "V2 resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "State or idempotency conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "V2 request validation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal service error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "V2 service unavailable"
+          }
+        },
+        "summary": "Get State",
+        "tags": [
+          "V2 Environment"
+        ]
+      }
+    },
+    "/v2/episodes/{episode_id}/step": {
+      "post": {
+        "operationId": "step_v2_episodes__episode_id__step_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episode_id",
+            "required": true,
+            "schema": {
+              "pattern": "^ep2-[a-f0-9]{32}$",
+              "title": "Episode Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "Task policy rejected action"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "V2 resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "State or idempotency conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "V2 request validation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal service error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "V2 service unavailable"
+          }
+        },
+        "summary": "Step",
+        "tags": [
+          "V2 Environment"
+        ]
+      }
+    },
+    "/v2/episodes/{episode_id}/trace": {
+      "get": {
+        "operationId": "get_trace_v2_episodes__episode_id__trace_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episode_id",
+            "required": true,
+            "schema": {
+              "pattern": "^ep2-[a-f0-9]{32}$",
+              "title": "Episode Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "Task policy rejected action"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "V2 resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "State or idempotency conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "V2 request validation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal service error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "V2 service unavailable"
+          }
+        },
+        "summary": "Get Trace",
+        "tags": [
+          "V2 Environment"
+        ]
+      }
+    },
+    "/v2/reset": {
+      "post": {
+        "operationId": "reset_v2_reset_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResetResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "Task policy rejected action"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "V2 resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "State or idempotency conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "V2 request validation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal service error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "V2 service unavailable"
+          }
+        },
+        "summary": "Reset",
+        "tags": [
+          "V2 Environment"
+        ]
+      }
+    },
+    "/v2/tasks/{task_id}/versions/{task_version}": {
+      "get": {
+        "operationId": "get_task_v2_tasks__task_id__versions__task_version__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$",
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "task_version",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+              "title": "Task Version",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "Task policy rejected action"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "V2 resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "State or idempotency conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "V2 request validation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal service error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ErrorResponse"
+                }
+              }
+            },
+            "description": "V2 service unavailable"
+          }
+        },
+        "summary": "Get Task",
+        "tags": [
+          "V2 Environment"
+        ]
+      }
+    }
+  }
+}

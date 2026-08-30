@@ -1,0 +1,28 @@
+{
+  "error": {
+    "code": "validation_error",
+    "details": [
+      {
+        "field": "factor",
+        "location": [
+          "body",
+          "action",
+          "map.zoom",
+          "factor"
+        ],
+        "message": "Input should be a valid number",
+        "tool_id": null,
+        "type": "float_type"
+      }
+    ],
+    "message": "V2 request validation failed",
+    "phase": "request",
+    "retryable": false
+  },
+  "meta": {
+    "api_version": "v2",
+    "request_id": "req-v2-error",
+    "schema": "eo-harness.v2.error.response",
+    "schema_version": "2.0.0"
+  }
+}

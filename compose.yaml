@@ -11,17 +11,22 @@ services:
         http_proxy: "${http_proxy:-}"
         https_proxy: "${https_proxy:-}"
         no_proxy: "${no_proxy:-127.0.0.1,localhost}"
-    image: eo-harness/harness-api:0.2.0
+    image: eo-harness/harness-api:0.3.0
     container_name: eo-harness-api
     restart: "no"
     init: true
     read_only: true
     environment:
       EO_HARNESS_DB: /app/state/episodes.sqlite3
+      EO_HARNESS_V2_ENABLED: "1"
+      EO_HARNESS_V2_TASKS: /app/tasks
     ports:
       - "127.0.0.1:${HARNESS_API_PORT:-8000}:8000"
     volumes:
       - /sata/yangm/eo-harness/state:/app/state:rw
+      - /sata/yangm/eo-harness/artifacts:/app/artifacts:rw
+      - /sata/yangm/eo-harness/tasks:/app/tasks:ro
+      - /sata/yangm/eo-harness/config/v2:/app/config/v2:ro
     tmpfs:
       - /tmp:size=64m,mode=1777
     cap_drop:

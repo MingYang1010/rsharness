@@ -1,0 +1,7 @@
+{
+  "seed": 42,
+  "task_ref": {
+    "task_id": "worldcover-grounded-vqa",
+    "task_version": "1.0.0"
+  }
+}

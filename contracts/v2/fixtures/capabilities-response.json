@@ -1,0 +1,72 @@
+{
+  "data": {
+    "actions": [
+      "answer.abstain",
+      "answer.request_human_review",
+      "answer.submit",
+      "map.layer.set_opacity",
+      "map.layer.set_visibility",
+      "map.pan",
+      "map.set_view",
+      "map.time.set_range",
+      "map.zoom",
+      "memory.save_evidence"
+    ],
+    "declared_actions": [
+      "answer.abstain",
+      "answer.request_human_review",
+      "answer.submit",
+      "map.layer.set_opacity",
+      "map.layer.set_visibility",
+      "map.pan",
+      "map.set_view",
+      "map.time.set_range",
+      "map.zoom",
+      "memory.save_evidence",
+      "memory.bookmark_aoi",
+      "tool.invoke"
+    ],
+    "enabled": true,
+    "evaluator": {
+      "details": {
+        "milestone": "M2",
+        "task_pack": "registered"
+      },
+      "status": "not_implemented",
+      "version": null
+    },
+    "implementation_version": "0.3.0",
+    "observation_types": [
+      "map_state",
+      "asset_metadata",
+      "rendered_view",
+      "raster_chip",
+      "temporal_stack",
+      "vector_features",
+      "table",
+      "tool_result"
+    ],
+    "renderer": {
+      "details": {
+        "milestone": "M2",
+        "observation": "structural_only"
+      },
+      "status": "not_implemented",
+      "version": null
+    },
+    "store_schema_version": 1,
+    "structural_replay": {
+      "details": {},
+      "status": "available",
+      "version": "1.0.0"
+    },
+    "task_count": 1,
+    "tools": []
+  },
+  "meta": {
+    "api_version": "v2",
+    "request_id": "req-v2-capabilities",
+    "schema": "eo-harness.v2.capabilities.response",
+    "schema_version": "2.0.0"
+  }
+}

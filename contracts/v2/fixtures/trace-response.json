@@ -1,0 +1,661 @@
+{
+  "data": {
+    "episode_id": "ep2-00000000000000000000000000000000",
+    "events": [
+      {
+        "created_at": "2026-01-01T00:00:00Z",
+        "episode_id": "ep2-00000000000000000000000000000000",
+        "event_id": "evt-00000000000000000000000000000000",
+        "event_type": "episode.created",
+        "payload": {
+          "observation": {
+            "items": [
+              {
+                "artifact_ref": null,
+                "asset_refs": [],
+                "inline": {
+                  "active_time_range": {
+                    "end": "2021-12-31T23:59:59Z",
+                    "start": "2021-01-01T00:00:00Z"
+                  },
+                  "bbox": {
+                    "east": 122.9,
+                    "north": 32.9,
+                    "south": 30.1,
+                    "west": 120.1
+                  },
+                  "center": {
+                    "latitude": 31.5,
+                    "longitude": 121.5
+                  },
+                  "layers": {
+                    "layer-asset-worldcover-n30e120": {
+                      "asset_id": "asset-worldcover-n30e120",
+                      "layer_id": "layer-asset-worldcover-n30e120",
+                      "name": "ESA WorldCover 2021 N30E120",
+                      "opacity": 0.85,
+                      "style_id": "worldcover-official-rgb-v1",
+                      "time_range": {
+                        "end": "2021-12-31T23:59:59Z",
+                        "start": "2021-01-01T00:00:00Z"
+                      },
+                      "visible": true
+                    }
+                  }
+                },
+                "type": "map_state"
+              },
+              {
+                "artifact_ref": null,
+                "asset_refs": [
+                  "asset-worldcover-n30e120"
+                ],
+                "inline": null,
+                "type": "asset_metadata"
+              }
+            ],
+            "observation_id": "obs-00000000000000000000000000000000",
+            "primary_type": "map_state",
+            "provenance": {
+              "builder": "structural-map-state",
+              "builder_version": "1.0.0",
+              "reason": "episode.reset",
+              "task_manifest_hash": "d640caf8c5647aaa94eb05b7399fb40056cc7c5081512e038d973c7eb1661b14"
+            },
+            "semantic_state_hash": "a65e3500d96d560da067cacf557a1f860d2ea51e9494fc82e4662cae39a25655",
+            "sequence": 0,
+            "state_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+            "warnings": [
+              "rendered_view is unavailable until milestone M2"
+            ]
+          },
+          "seed": 42,
+          "state": {
+            "accessible_asset_refs": [
+              "asset-worldcover-n30e120"
+            ],
+            "budget": {
+              "artifact_bytes": {
+                "limit": 52428800,
+                "remaining": 52428800,
+                "used": 0
+              },
+              "input_bytes": {
+                "limit": 104857600,
+                "remaining": 104857600,
+                "used": 0
+              },
+              "steps": {
+                "limit": 20,
+                "remaining": 20,
+                "used": 0
+              },
+              "tool_calls": {
+                "limit": 10,
+                "remaining": 10,
+                "used": 0
+              },
+              "wall_time_ms": {
+                "limit": 120000,
+                "remaining": 120000,
+                "used": 0
+              }
+            },
+            "created_at": "2026-01-01T00:00:00Z",
+            "episode_id": "ep2-00000000000000000000000000000000",
+            "evaluation": null,
+            "evidence_refs": [],
+            "final_answer": null,
+            "map": {
+              "active_time_range": {
+                "end": "2021-12-31T23:59:59Z",
+                "start": "2021-01-01T00:00:00Z"
+              },
+              "bbox": {
+                "east": 122.9,
+                "north": 32.9,
+                "south": 30.1,
+                "west": 120.1
+              },
+              "center": {
+                "latitude": 31.5,
+                "longitude": 121.5
+              },
+              "layers": {
+                "layer-asset-worldcover-n30e120": {
+                  "asset_id": "asset-worldcover-n30e120",
+                  "layer_id": "layer-asset-worldcover-n30e120",
+                  "name": "ESA WorldCover 2021 N30E120",
+                  "opacity": 0.85,
+                  "style_id": "worldcover-official-rgb-v1",
+                  "time_range": {
+                    "end": "2021-12-31T23:59:59Z",
+                    "start": "2021-01-01T00:00:00Z"
+                  },
+                  "visible": true
+                }
+              }
+            },
+            "observation_refs": [
+              "obs-00000000000000000000000000000000"
+            ],
+            "seed": 42,
+            "state_version": 0,
+            "status": "active",
+            "step_count": 0,
+            "task_manifest_hash": "d640caf8c5647aaa94eb05b7399fb40056cc7c5081512e038d973c7eb1661b14",
+            "task_ref": {
+              "task_id": "worldcover-grounded-vqa",
+              "task_version": "1.0.0"
+            },
+            "updated_at": "2026-01-01T00:00:00Z"
+          },
+          "task_manifest_hash": "d640caf8c5647aaa94eb05b7399fb40056cc7c5081512e038d973c7eb1661b14"
+        },
+        "sequence": 0,
+        "state_version": 0
+      },
+      {
+        "created_at": "2026-01-01T00:00:00Z",
+        "episode_id": "ep2-00000000000000000000000000000000",
+        "event_id": "evt-00000000000000000000000000000000",
+        "event_type": "observation.emitted",
+        "payload": {
+          "observation": {
+            "items": [
+              {
+                "artifact_ref": null,
+                "asset_refs": [],
+                "inline": {
+                  "active_time_range": {
+                    "end": "2021-12-31T23:59:59Z",
+                    "start": "2021-01-01T00:00:00Z"
+                  },
+                  "bbox": {
+                    "east": 122.9,
+                    "north": 32.9,
+                    "south": 30.1,
+                    "west": 120.1
+                  },
+                  "center": {
+                    "latitude": 31.5,
+                    "longitude": 121.5
+                  },
+                  "layers": {
+                    "layer-asset-worldcover-n30e120": {
+                      "asset_id": "asset-worldcover-n30e120",
+                      "layer_id": "layer-asset-worldcover-n30e120",
+                      "name": "ESA WorldCover 2021 N30E120",
+                      "opacity": 0.85,
+                      "style_id": "worldcover-official-rgb-v1",
+                      "time_range": {
+                        "end": "2021-12-31T23:59:59Z",
+                        "start": "2021-01-01T00:00:00Z"
+                      },
+                      "visible": true
+                    }
+                  }
+                },
+                "type": "map_state"
+              },
+              {
+                "artifact_ref": null,
+                "asset_refs": [
+                  "asset-worldcover-n30e120"
+                ],
+                "inline": null,
+                "type": "asset_metadata"
+              }
+            ],
+            "observation_id": "obs-00000000000000000000000000000000",
+            "primary_type": "map_state",
+            "provenance": {
+              "builder": "structural-map-state",
+              "builder_version": "1.0.0",
+              "reason": "episode.reset",
+              "task_manifest_hash": "d640caf8c5647aaa94eb05b7399fb40056cc7c5081512e038d973c7eb1661b14"
+            },
+            "semantic_state_hash": "a65e3500d96d560da067cacf557a1f860d2ea51e9494fc82e4662cae39a25655",
+            "sequence": 0,
+            "state_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+            "warnings": [
+              "rendered_view is unavailable until milestone M2"
+            ]
+          }
+        },
+        "sequence": 1,
+        "state_version": 0
+      },
+      {
+        "created_at": "2026-01-01T00:00:00Z",
+        "episode_id": "ep2-00000000000000000000000000000000",
+        "event_id": "evt-00000000000000000000000000000000",
+        "event_type": "action.accepted",
+        "payload": {
+          "action": {
+            "direction": "in",
+            "factor": 2.0,
+            "type": "map.zoom"
+          },
+          "client_action_id": "fixture-zoom-1",
+          "expected_state_version": 0
+        },
+        "sequence": 2,
+        "state_version": 0
+      },
+      {
+        "created_at": "2026-01-01T00:00:00Z",
+        "episode_id": "ep2-00000000000000000000000000000000",
+        "event_id": "evt-00000000000000000000000000000000",
+        "event_type": "action.completed",
+        "payload": {
+          "action_type": "map.zoom",
+          "observation_id": "obs-00000000000000000000000000000000",
+          "semantic_state_hash": "46749a75e8baba953800192df028ddc19b4a587aa86c77a26c91accf25e7c399",
+          "state_hash": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sequence": 3,
+        "state_version": 1
+      },
+      {
+        "created_at": "2026-01-01T00:00:00Z",
+        "episode_id": "ep2-00000000000000000000000000000000",
+        "event_id": "evt-00000000000000000000000000000000",
+        "event_type": "observation.emitted",
+        "payload": {
+          "observation": {
+            "items": [
+              {
+                "artifact_ref": null,
+                "asset_refs": [],
+                "inline": {
+                  "active_time_range": {
+                    "end": "2021-12-31T23:59:59Z",
+                    "start": "2021-01-01T00:00:00Z"
+                  },
+                  "bbox": {
+                    "east": 122.2,
+                    "north": 32.2,
+                    "south": 30.8,
+                    "west": 120.8
+                  },
+                  "center": {
+                    "latitude": 31.5,
+                    "longitude": 121.5
+                  },
+                  "layers": {
+                    "layer-asset-worldcover-n30e120": {
+                      "asset_id": "asset-worldcover-n30e120",
+                      "layer_id": "layer-asset-worldcover-n30e120",
+                      "name": "ESA WorldCover 2021 N30E120",
+                      "opacity": 0.85,
+                      "style_id": "worldcover-official-rgb-v1",
+                      "time_range": {
+                        "end": "2021-12-31T23:59:59Z",
+                        "start": "2021-01-01T00:00:00Z"
+                      },
+                      "visible": true
+                    }
+                  }
+                },
+                "type": "map_state"
+              },
+              {
+                "artifact_ref": null,
+                "asset_refs": [
+                  "asset-worldcover-n30e120"
+                ],
+                "inline": null,
+                "type": "asset_metadata"
+              }
+            ],
+            "observation_id": "obs-00000000000000000000000000000000",
+            "primary_type": "map_state",
+            "provenance": {
+              "builder": "structural-map-state",
+              "builder_version": "1.0.0",
+              "reason": "map.zoom",
+              "task_manifest_hash": "d640caf8c5647aaa94eb05b7399fb40056cc7c5081512e038d973c7eb1661b14"
+            },
+            "semantic_state_hash": "46749a75e8baba953800192df028ddc19b4a587aa86c77a26c91accf25e7c399",
+            "sequence": 1,
+            "state_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+            "warnings": [
+              "rendered_view is unavailable until milestone M2"
+            ]
+          }
+        },
+        "sequence": 4,
+        "state_version": 1
+      },
+      {
+        "created_at": "2026-01-01T00:00:00Z",
+        "episode_id": "ep2-00000000000000000000000000000000",
+        "event_id": "evt-00000000000000000000000000000000",
+        "event_type": "action.accepted",
+        "payload": {
+          "action": {
+            "evidence": {
+              "claim_id": "claim-1",
+              "description": "Frozen WorldCover evidence for the selected AOI.",
+              "evidence_id": "ev-fixture-aoi",
+              "frozen_sha256": "9f376abaca38815c5c743126147aeffd1916bb1907ad98929d341d4e6c87381c",
+              "selector": {
+                "bands": [
+                  "visual"
+                ],
+                "bbox": {
+                  "east": 121.0,
+                  "north": 31.0,
+                  "south": 30.5,
+                  "west": 120.5
+                },
+                "geometry": null,
+                "pixel_window": null,
+                "time_range": null
+              },
+              "source_ref": "asset-worldcover-n30e120"
+            },
+            "type": "memory.save_evidence"
+          },
+          "client_action_id": "fixture-evidence-1",
+          "expected_state_version": 1
+        },
+        "sequence": 5,
+        "state_version": 1
+      },
+      {
+        "created_at": "2026-01-01T00:00:00Z",
+        "episode_id": "ep2-00000000000000000000000000000000",
+        "event_id": "evt-00000000000000000000000000000000",
+        "event_type": "action.completed",
+        "payload": {
+          "action_type": "memory.save_evidence",
+          "evidence": {
+            "claim_id": "claim-1",
+            "description": "Frozen WorldCover evidence for the selected AOI.",
+            "evidence_id": "ev-fixture-aoi",
+            "frozen_sha256": "9f376abaca38815c5c743126147aeffd1916bb1907ad98929d341d4e6c87381c",
+            "selector": {
+              "bands": [
+                "visual"
+              ],
+              "bbox": {
+                "east": 121.0,
+                "north": 31.0,
+                "south": 30.5,
+                "west": 120.5
+              },
+              "geometry": null,
+              "pixel_window": null,
+              "time_range": null
+            },
+            "source_ref": "asset-worldcover-n30e120"
+          },
+          "observation_id": "obs-00000000000000000000000000000000",
+          "semantic_state_hash": "2dcc37b4c3d61a67e638d4cb74f89f6978a0fd36b338f7fbe88535d4ce8319d2",
+          "state_hash": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sequence": 6,
+        "state_version": 2
+      },
+      {
+        "created_at": "2026-01-01T00:00:00Z",
+        "episode_id": "ep2-00000000000000000000000000000000",
+        "event_id": "evt-00000000000000000000000000000000",
+        "event_type": "evidence.saved",
+        "payload": {
+          "evidence": {
+            "claim_id": "claim-1",
+            "description": "Frozen WorldCover evidence for the selected AOI.",
+            "evidence_id": "ev-fixture-aoi",
+            "frozen_sha256": "9f376abaca38815c5c743126147aeffd1916bb1907ad98929d341d4e6c87381c",
+            "selector": {
+              "bands": [
+                "visual"
+              ],
+              "bbox": {
+                "east": 121.0,
+                "north": 31.0,
+                "south": 30.5,
+                "west": 120.5
+              },
+              "geometry": null,
+              "pixel_window": null,
+              "time_range": null
+            },
+            "source_ref": "asset-worldcover-n30e120"
+          }
+        },
+        "sequence": 7,
+        "state_version": 2
+      },
+      {
+        "created_at": "2026-01-01T00:00:00Z",
+        "episode_id": "ep2-00000000000000000000000000000000",
+        "event_id": "evt-00000000000000000000000000000000",
+        "event_type": "observation.emitted",
+        "payload": {
+          "observation": {
+            "items": [
+              {
+                "artifact_ref": null,
+                "asset_refs": [],
+                "inline": {
+                  "active_time_range": {
+                    "end": "2021-12-31T23:59:59Z",
+                    "start": "2021-01-01T00:00:00Z"
+                  },
+                  "bbox": {
+                    "east": 122.2,
+                    "north": 32.2,
+                    "south": 30.8,
+                    "west": 120.8
+                  },
+                  "center": {
+                    "latitude": 31.5,
+                    "longitude": 121.5
+                  },
+                  "layers": {
+                    "layer-asset-worldcover-n30e120": {
+                      "asset_id": "asset-worldcover-n30e120",
+                      "layer_id": "layer-asset-worldcover-n30e120",
+                      "name": "ESA WorldCover 2021 N30E120",
+                      "opacity": 0.85,
+                      "style_id": "worldcover-official-rgb-v1",
+                      "time_range": {
+                        "end": "2021-12-31T23:59:59Z",
+                        "start": "2021-01-01T00:00:00Z"
+                      },
+                      "visible": true
+                    }
+                  }
+                },
+                "type": "map_state"
+              },
+              {
+                "artifact_ref": null,
+                "asset_refs": [
+                  "asset-worldcover-n30e120"
+                ],
+                "inline": null,
+                "type": "asset_metadata"
+              }
+            ],
+            "observation_id": "obs-00000000000000000000000000000000",
+            "primary_type": "map_state",
+            "provenance": {
+              "builder": "structural-map-state",
+              "builder_version": "1.0.0",
+              "reason": "memory.save_evidence",
+              "task_manifest_hash": "d640caf8c5647aaa94eb05b7399fb40056cc7c5081512e038d973c7eb1661b14"
+            },
+            "semantic_state_hash": "2dcc37b4c3d61a67e638d4cb74f89f6978a0fd36b338f7fbe88535d4ce8319d2",
+            "sequence": 2,
+            "state_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+            "warnings": [
+              "rendered_view is unavailable until milestone M2"
+            ]
+          }
+        },
+        "sequence": 8,
+        "state_version": 2
+      },
+      {
+        "created_at": "2026-01-01T00:00:00Z",
+        "episode_id": "ep2-00000000000000000000000000000000",
+        "event_id": "evt-00000000000000000000000000000000",
+        "event_type": "action.accepted",
+        "payload": {
+          "action": {
+            "answer": {
+              "claims": [
+                {
+                  "claim_id": "claim-1",
+                  "text": "Built-up is dominant."
+                }
+              ],
+              "confidence": 0.84,
+              "label": "built-up"
+            },
+            "confidence": 0.84,
+            "evidence_ids": [
+              "ev-fixture-aoi"
+            ],
+            "type": "answer.submit"
+          },
+          "client_action_id": "fixture-answer-1",
+          "expected_state_version": 2
+        },
+        "sequence": 9,
+        "state_version": 2
+      },
+      {
+        "created_at": "2026-01-01T00:00:00Z",
+        "episode_id": "ep2-00000000000000000000000000000000",
+        "event_id": "evt-00000000000000000000000000000000",
+        "event_type": "action.completed",
+        "payload": {
+          "action_type": "answer.submit",
+          "observation_id": "obs-00000000000000000000000000000000",
+          "semantic_state_hash": "9775029b3a4d80990ff62b8d55ea1826f155cc98846063a79fde026366a84efc",
+          "state_hash": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sequence": 10,
+        "state_version": 3
+      },
+      {
+        "created_at": "2026-01-01T00:00:00Z",
+        "episode_id": "ep2-00000000000000000000000000000000",
+        "event_id": "evt-00000000000000000000000000000000",
+        "event_type": "observation.emitted",
+        "payload": {
+          "observation": {
+            "items": [
+              {
+                "artifact_ref": null,
+                "asset_refs": [],
+                "inline": {
+                  "active_time_range": {
+                    "end": "2021-12-31T23:59:59Z",
+                    "start": "2021-01-01T00:00:00Z"
+                  },
+                  "bbox": {
+                    "east": 122.2,
+                    "north": 32.2,
+                    "south": 30.8,
+                    "west": 120.8
+                  },
+                  "center": {
+                    "latitude": 31.5,
+                    "longitude": 121.5
+                  },
+                  "layers": {
+                    "layer-asset-worldcover-n30e120": {
+                      "asset_id": "asset-worldcover-n30e120",
+                      "layer_id": "layer-asset-worldcover-n30e120",
+                      "name": "ESA WorldCover 2021 N30E120",
+                      "opacity": 0.85,
+                      "style_id": "worldcover-official-rgb-v1",
+                      "time_range": {
+                        "end": "2021-12-31T23:59:59Z",
+                        "start": "2021-01-01T00:00:00Z"
+                      },
+                      "visible": true
+                    }
+                  }
+                },
+                "type": "map_state"
+              },
+              {
+                "artifact_ref": null,
+                "asset_refs": [
+                  "asset-worldcover-n30e120"
+                ],
+                "inline": null,
+                "type": "asset_metadata"
+              }
+            ],
+            "observation_id": "obs-00000000000000000000000000000000",
+            "primary_type": "map_state",
+            "provenance": {
+              "builder": "structural-map-state",
+              "builder_version": "1.0.0",
+              "reason": "answer.submit",
+              "task_manifest_hash": "d640caf8c5647aaa94eb05b7399fb40056cc7c5081512e038d973c7eb1661b14"
+            },
+            "semantic_state_hash": "9775029b3a4d80990ff62b8d55ea1826f155cc98846063a79fde026366a84efc",
+            "sequence": 3,
+            "state_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+            "warnings": [
+              "rendered_view is unavailable until milestone M2"
+            ]
+          }
+        },
+        "sequence": 11,
+        "state_version": 3
+      },
+      {
+        "created_at": "2026-01-01T00:00:00Z",
+        "episode_id": "ep2-00000000000000000000000000000000",
+        "event_id": "evt-00000000000000000000000000000000",
+        "event_type": "episode.terminated",
+        "payload": {
+          "final_answer": {
+            "answer": {
+              "claims": [
+                {
+                  "claim_id": "claim-1",
+                  "text": "Built-up is dominant."
+                }
+              ],
+              "confidence": 0.84,
+              "label": "built-up"
+            },
+            "confidence": 0.84,
+            "evidence_ids": [
+              "ev-fixture-aoi"
+            ],
+            "outcome": "submitted",
+            "rationale": null
+          }
+        },
+        "sequence": 12,
+        "state_version": 3
+      }
+    ],
+    "has_more": false,
+    "hash_algorithm": "sha256",
+    "limit": 100,
+    "next_cursor": null,
+    "semantic_trace_hash": "2014e554ebd0e2902931043a50add607c29c04806d674bb6151bbd2aec3f4915",
+    "total_events": 13,
+    "trace_hash": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "meta": {
+    "api_version": "v2",
+    "request_id": "req-v2-trace",
+    "schema": "eo-harness.v2.trace.response",
+    "schema_version": "2.0.0"
+  }
+}

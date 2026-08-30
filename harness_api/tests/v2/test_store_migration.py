@@ -1,0 +1,98 @@
+import json
+import sqlite3
+import tempfile
+import unittest
+from pathlib import Path
+
+from app.store import EpisodeStore
+from app.v2.capabilities import TaskRegistry
+from app.v2.store import V2EpisodeStore
+
+from .helpers import TASKS_ROOT
+
+
+class FailingMigrationStore(V2EpisodeStore):
+    def _migration_statements(self):
+        return [
+            "CREATE TABLE migration_should_rollback(value TEXT)",
+            "THIS IS NOT VALID SQLITE",
+        ]
+
+
+class V2StoreMigrationTests(unittest.TestCase):
+    def setUp(self):
+        self.tempdir = tempfile.TemporaryDirectory()
+        self.database = Path(self.tempdir.name) / "episodes.sqlite3"
+        self.registry = TaskRegistry(str(TASKS_ROOT))
+
+    def tearDown(self):
+        self.tempdir.cleanup()
+
+    def table_names(self):
+        with sqlite3.connect(self.database) as connection:
+            return {
+                row[0]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+
+    def test_empty_database_migrates_idempotently(self):
+        first = V2EpisodeStore(str(self.database), self.registry)
+        self.assertEqual(first.schema_version(), 1)
+        expected_tables = {
+            "v2_episodes",
+            "v2_events",
+            "v2_action_results",
+            "v2_observations",
+            "v2_artifacts",
+            "v2_evidence",
+            "v2_tool_runs",
+            "v2_evaluations",
+        }
+        self.assertTrue(expected_tables.issubset(self.table_names()))
+        second = V2EpisodeStore(str(self.database), self.registry)
+        self.assertEqual(second.schema_version(), 1)
+        with sqlite3.connect(self.database) as connection:
+            count = connection.execute(
+                "SELECT COUNT(*) FROM v2_schema_migrations"
+            ).fetchone()[0]
+        self.assertEqual(count, 1)
+
+    def test_existing_v1_rows_are_not_read_or_modified(self):
+        v1_store = EpisodeStore(str(self.database))
+        reset = v1_store.create_episode(
+            {"task_id": "v1-preserve", "prompt": "Do not modify me."}
+        )
+        episode_id = reset["episode_id"]
+        with sqlite3.connect(self.database) as connection:
+            before = connection.execute(
+                "SELECT state_json FROM episodes WHERE episode_id = ?",
+                (episode_id,),
+            ).fetchone()[0]
+        V2EpisodeStore(str(self.database), self.registry)
+        with sqlite3.connect(self.database) as connection:
+            after = connection.execute(
+                "SELECT state_json FROM episodes WHERE episode_id = ?",
+                (episode_id,),
+            ).fetchone()[0]
+            v2_count = connection.execute(
+                "SELECT COUNT(*) FROM v2_episodes"
+            ).fetchone()[0]
+        self.assertEqual(json.loads(before), json.loads(after))
+        self.assertEqual(before, after)
+        self.assertEqual(v2_count, 0)
+
+    def test_failed_migration_does_not_advance_version_or_leave_partial_table(self):
+        with self.assertRaises(sqlite3.OperationalError):
+            FailingMigrationStore(str(self.database), self.registry)
+        self.assertNotIn("migration_should_rollback", self.table_names())
+        with sqlite3.connect(self.database) as connection:
+            version = connection.execute(
+                "SELECT COALESCE(MAX(version), 0) FROM v2_schema_migrations"
+            ).fetchone()[0]
+        self.assertEqual(version, 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

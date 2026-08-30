@@ -1,0 +1,21 @@
+{
+  "action": {
+    "answer": {
+      "claims": [
+        {
+          "claim_id": "claim-1",
+          "text": "Built-up is dominant."
+        }
+      ],
+      "confidence": 0.84,
+      "label": "built-up"
+    },
+    "confidence": 0.84,
+    "evidence_ids": [
+      "ev-fixture-aoi"
+    ],
+    "type": "answer.submit"
+  },
+  "client_action_id": "fixture-answer-1",
+  "expected_state_version": 2
+}

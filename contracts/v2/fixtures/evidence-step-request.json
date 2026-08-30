@@ -1,0 +1,28 @@
+{
+  "action": {
+    "evidence": {
+      "claim_id": "claim-1",
+      "description": "Frozen WorldCover evidence for the selected AOI.",
+      "evidence_id": "ev-fixture-aoi",
+      "frozen_sha256": "9f376abaca38815c5c743126147aeffd1916bb1907ad98929d341d4e6c87381c",
+      "selector": {
+        "bands": [
+          "visual"
+        ],
+        "bbox": {
+          "east": 121.0,
+          "north": 31.0,
+          "south": 30.5,
+          "west": 120.5
+        },
+        "geometry": null,
+        "pixel_window": null,
+        "time_range": null
+      },
+      "source_ref": "asset-worldcover-n30e120"
+    },
+    "type": "memory.save_evidence"
+  },
+  "client_action_id": "fixture-evidence-1",
+  "expected_state_version": 1
+}

@@ -1,0 +1,42 @@
+{
+  "data": {
+    "checked_event_count": 13,
+    "checks": [
+      {
+        "actual": "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]",
+        "expected": "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]",
+        "name": "sequence.contiguous",
+        "passed": true
+      },
+      {
+        "actual": null,
+        "expected": null,
+        "name": "event_id.unique",
+        "passed": true
+      },
+      {
+        "actual": null,
+        "expected": null,
+        "name": "state_version.monotonic",
+        "passed": true
+      },
+      {
+        "actual": "d640caf8c5647aaa94eb05b7399fb40056cc7c5081512e038d973c7eb1661b14",
+        "expected": "d640caf8c5647aaa94eb05b7399fb40056cc7c5081512e038d973c7eb1661b14",
+        "name": "task_manifest.pinned",
+        "passed": true
+      }
+    ],
+    "episode_id": "ep2-00000000000000000000000000000000",
+    "mode": "structural",
+    "semantic_trace_hash": "2014e554ebd0e2902931043a50add607c29c04806d674bb6151bbd2aec3f4915",
+    "status": "passed",
+    "trace_hash": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "meta": {
+    "api_version": "v2",
+    "request_id": "req-v2-replay",
+    "schema": "eo-harness.v2.replay.response",
+    "schema_version": "2.0.0"
+  }
+}

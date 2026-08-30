@@ -1,0 +1,18 @@
+{
+  "aggregate_weights": {
+    "evidence.faithfulness": 0.3,
+    "process.efficiency": 0.1,
+    "task.accuracy": 0.6
+  },
+  "config": {
+    "implementation_status": "M2",
+    "label_source": "ESA WorldCover 2021 class map"
+  },
+  "evaluator_id": "worldcover-grounded-v1",
+  "evaluator_version": "1.0.0",
+  "metric_names": [
+    "task.accuracy",
+    "evidence.faithfulness",
+    "process.efficiency"
+  ]
+}

@@ -3,6 +3,7 @@ import os
 import re
 import uuid
 from collections.abc import Awaitable, Callable
+from pathlib import Path as FilePath
 from typing import Annotated, Optional, Type, TypeVar
 
 from fastapi import Depends, FastAPI, Header, Path, Request
@@ -11,7 +12,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 
-from . import __version__
+from . import __v1_openapi_version__, __version__
 from .contracts import public_episode_result, public_state_result, public_trace
 from .domain import ACTION_SPACE, DomainError
 from .schemas import (
@@ -38,6 +39,15 @@ from .schemas import (
     ValidationIssue,
 )
 from .store import EpisodeStore
+from .v2.api import (
+    build_openapi_schema as build_v2_openapi_schema,
+    error_response as v2_error_response,
+    router as v2_router,
+)
+from .v2.capabilities import TaskRegistry
+from .v2.domain import V2DomainError
+from .v2.schemas import V2ValidationIssue
+from .v2.store import V2EpisodeStore
 
 
 LOGGER = logging.getLogger(__name__)
@@ -104,11 +114,39 @@ def _error(
     )
 
 
-def create_app(database_path: Optional[str] = None) -> FastAPI:
-    episode_store = EpisodeStore(database_path or DATABASE_PATH)
+def create_app(
+    database_path: Optional[str] = None,
+    v2_tasks_path: Optional[str] = None,
+    v2_enabled: Optional[bool] = None,
+) -> FastAPI:
+    resolved_database_path = database_path or DATABASE_PATH
+    episode_store = EpisodeStore(resolved_database_path)
+    enabled = (
+        os.environ.get("EO_HARNESS_V2_ENABLED", "1") not in {"0", "false", "False"}
+        if v2_enabled is None
+        else v2_enabled
+    )
+    source_tasks_path = FilePath(__file__).resolve().parents[2] / "tasks"
+    container_tasks_path = FilePath("/app/tasks")
+    default_tasks_path = str(
+        container_tasks_path if container_tasks_path.is_dir() else source_tasks_path
+    )
+    resolved_tasks_path = (
+        v2_tasks_path
+        or os.environ.get("EO_HARNESS_V2_TASKS")
+        or default_tasks_path
+    )
+    v2_store = (
+        V2EpisodeStore(
+            resolved_database_path,
+            TaskRegistry(resolved_tasks_path),
+        )
+        if enabled
+        else None
+    )
     application = FastAPI(
         title="EO Harness Environment API",
-        version=__version__,
+        version=__v1_openapi_version__,
         description=(
             "Stateful, deterministic map-operation environment for Earth-observation "
             "agent episodes. TerriaMap is a renderer; this API owns episode state."
@@ -116,6 +154,13 @@ def create_app(database_path: Optional[str] = None) -> FastAPI:
         dependencies=[Depends(_validate_request_id)],
     )
     application.state.episode_store = episode_store
+    application.state.v2_store = v2_store
+    if enabled:
+        application.include_router(v2_router, include_in_schema=False)
+
+        @application.get("/v2/openapi.json", include_in_schema=False)
+        def v2_openapi() -> JSONResponse:
+            return JSONResponse(content=build_v2_openapi_schema())
 
     @application.middleware("http")
     async def request_id_middleware(
@@ -130,9 +175,28 @@ def create_app(database_path: Optional[str] = None) -> FastAPI:
         )
         response = await call_next(request)
         response.headers["X-Request-ID"] = request.state.request_id
-        response.headers["X-EO-Harness-API-Version"] = API_VERSION
-        response.headers["X-EO-Harness-Schema-Version"] = SCHEMA_VERSION
+        is_v2 = request.url.path.startswith("/v2")
+        response.headers["X-EO-Harness-API-Version"] = "v2" if is_v2 else API_VERSION
+        response.headers["X-EO-Harness-Schema-Version"] = (
+            "2.0.0" if is_v2 else SCHEMA_VERSION
+        )
         return response
+
+    @application.exception_handler(V2DomainError)
+    async def v2_domain_error_handler(
+        request: Request,
+        error: V2DomainError,
+    ) -> JSONResponse:
+        details = [V2ValidationIssue.model_validate(item) for item in error.details]
+        return v2_error_response(
+            request,
+            status_code=error.status_code,
+            code=error.code,
+            message=error.message,
+            retryable=error.retryable,
+            phase=error.phase,
+            details=details,
+        )
 
     @application.exception_handler(DomainError)
     async def domain_error_handler(
@@ -149,6 +213,25 @@ def create_app(database_path: Optional[str] = None) -> FastAPI:
     async def validation_error_handler(
         request: Request, error: RequestValidationError
     ) -> JSONResponse:
+        if request.url.path.startswith("/v2"):
+            v2_details = [
+                V2ValidationIssue(
+                    location=list(item["loc"]),
+                    message=item["msg"],
+                    type=item["type"],
+                    field=str(item["loc"][-1]) if item["loc"] else None,
+                )
+                for item in error.errors()
+            ]
+            return v2_error_response(
+                request,
+                status_code=422,
+                code="validation_error",
+                message="V2 request validation failed",
+                retryable=False,
+                phase="request",
+                details=v2_details,
+            )
         details = [
             ValidationIssue(
                 location=list(item["loc"]),
@@ -169,6 +252,24 @@ def create_app(database_path: Optional[str] = None) -> FastAPI:
     async def http_error_handler(
         request: Request, error: StarletteHTTPException
     ) -> JSONResponse:
+        if request.url.path.startswith("/v2"):
+            code = {
+                404: "not_found",
+                405: "method_not_allowed",
+            }.get(error.status_code, "http_error")
+            message = (
+                error.detail
+                if isinstance(error.detail, str)
+                else "V2 HTTP request failed"
+            )
+            return v2_error_response(
+                request,
+                status_code=error.status_code,
+                code=code,
+                message=message,
+                retryable=False,
+                phase="request",
+            )
         code = {
             404: "not_found",
             405: "method_not_allowed",
@@ -179,6 +280,15 @@ def create_app(database_path: Optional[str] = None) -> FastAPI:
     @application.exception_handler(Exception)
     async def internal_error_handler(request: Request, error: Exception) -> JSONResponse:
         LOGGER.exception("Unhandled EO Harness API error")
+        if request.url.path.startswith("/v2"):
+            return v2_error_response(
+                request,
+                status_code=500,
+                code="internal_error",
+                message="The V2 service could not complete the request",
+                retryable=False,
+                phase="service",
+            )
         return _error(
             request,
             status_code=500,

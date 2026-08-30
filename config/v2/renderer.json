@@ -1,0 +1,5 @@
+{
+  "enabled": false,
+  "profile": "worldcover-deterministic-v1",
+  "reason": "TerriaMap renderer adapter begins in M2"
+}

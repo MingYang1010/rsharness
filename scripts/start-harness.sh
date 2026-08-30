@@ -6,13 +6,13 @@ DOCKER_CONTEXT="${EO_DOCKER_CONTEXT:-rootless}"
 TERRIA_PORT="${TERRIA_PORT:-3001}"
 HARNESS_API_PORT="${HARNESS_API_PORT:-8000}"
 TERRIA_IMAGE="eo-harness/terriamap:0.4.6"
-HARNESS_API_IMAGE="eo-harness/harness-api:0.2.0"
+HARNESS_API_IMAGE="eo-harness/harness-api:0.3.0"
 TERRIA_SOURCE_IMAGE="ghcr.io/terriajs/terriamap:0.4.6@sha256:0853ec153c53cef6ae926c99698ccc5cf4cc1a89906550068d3a36d95c3d54e0"
 
 "$PROJECT_ROOT/scripts/start-project-docker.sh"
 unset DOCKER_HOST
 
-mkdir -p "$PROJECT_ROOT/state"
+mkdir -p "$PROJECT_ROOT/state" "$PROJECT_ROOT/artifacts"
 
 if ! docker --context "$DOCKER_CONTEXT" image inspect \
   "$TERRIA_IMAGE" >/dev/null 2>&1; then

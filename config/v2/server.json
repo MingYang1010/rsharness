@@ -1,0 +1,6 @@
+{
+  "enabled": true,
+  "store_schema_version": 1,
+  "trace_default_limit": 100,
+  "trace_max_limit": 1000
+}

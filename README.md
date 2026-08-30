@@ -13,6 +13,8 @@ The Rootless Docker systemd service has a user-only proxy drop-in at `~/.config/
 - TerriaMap port while running: `3001`
 - Harness API port: `127.0.0.1:8000`
 - Episode state: `/sata/yangm/eo-harness/state/episodes.sqlite3`
+- V2 artifact store: `/sata/yangm/eo-harness/artifacts`
+- V2 immutable task packs: `/sata/yangm/eo-harness/tasks`
 - Local WorldCover directory: `/sata/yangm/eo-harness/datasets/worldcover-2021`
 
 ## Local Dataset
@@ -41,6 +43,16 @@ All success responses use a typed `meta + data` envelope; validation, domain, ro
 
 OpenAPI documentation is available at `http://127.0.0.1:8000/docs` on the server. The committed contract is [contracts/openapi-v1.json](contracts/openapi-v1.json), with golden examples under [contracts/fixtures](contracts/fixtures). See [docs/harness-api-v1.md](docs/harness-api-v1.md) for usage and [docs/api-compatibility-policy.md](docs/api-compatibility-policy.md) for the V1 change boundary.
 
+## Harness API V2 M1
+
+Environment API implementation `0.3.0` adds an independent V2 schema without changing the frozen V1 body contract or migrating V1 episodes. V2 schema version `2.0.0` provides immutable task lookup, reset, state, optimistic and idempotent step execution, cursor-paginated event traces, and structural replay. Metadata is stored in additive `v2_*` SQLite tables in the existing SATA database.
+
+The registered M1 task is `worldcover-grounded-vqa@1.0.0`. It pins the local WorldCover asset by SHA-256 and currently emits structural map-state observations. TerriaMap projection, deterministic rendered observations, tool execution, artifact HTTP endpoints, and evaluator execution remain gated to M2 or M3 and are reported as unavailable by `/v2/capabilities`.
+
+The V2 OpenAPI document is served at `http://127.0.0.1:8000/v2/openapi.json` and committed at [contracts/v2/openapi-v2.json](contracts/v2/openapi-v2.json). Golden V2 requests and responses are under [contracts/v2/fixtures](contracts/v2/fixtures). See [docs/harness-api-v2.md](docs/harness-api-v2.md) for the endpoint and retry contract.
+
+Set `EO_HARNESS_V2_ENABLED=0` on the API container to disable V2 route registration. This does not remove V2 tables or artifacts and leaves V1 available. The default Compose configuration enables V2 and mounts `tasks/` and `config/v2/` read-only.
+
 ## Start
 
 ```bash
@@ -48,6 +60,16 @@ OpenAPI documentation is available at `http://127.0.0.1:8000/docs` on the server
 ```
 
 The script verifies the Rootless Docker data root, builds the pinned API image when it is absent, starts both services, and waits for TerriaMap and API health responses. `start-terriamap.sh` remains as a compatibility wrapper and now starts the complete stack. After changing API source, rebuild explicitly with `docker --context rootless compose -f /sata/yangm/eo-harness/compose.yaml build harness-api`.
+
+## Test
+
+Run the complete V1 and V2 regression suite from the source root:
+
+```bash
+PYTHON=python3 /sata/yangm/eo-harness/scripts/test-harness.sh
+```
+
+The current gate contains 15 frozen V1 tests and 23 V2 tests. It checks contract snapshots, typed errors, idempotency, optimistic concurrency, cursor pagination, semantic hashes, additive migration rollback, evidence selectors, artifact integrity, and structural replay.
 
 ## Inspect
 
