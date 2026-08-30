@@ -1,0 +1,60 @@
+{
+  "data": {
+    "actions": [
+      {
+        "description": "Replace the active map bounding box.",
+        "fields": {
+          "bbox": "{west, south, east, north}"
+        },
+        "type": "set_view"
+      },
+      {
+        "description": "Shift the active bounding box in decimal degrees.",
+        "fields": {
+          "delta_latitude": "float",
+          "delta_longitude": "float"
+        },
+        "type": "pan"
+      },
+      {
+        "description": "Zoom around the current center.",
+        "fields": {
+          "direction": "in | out",
+          "factor": "1 < float <= 8"
+        },
+        "type": "zoom"
+      },
+      {
+        "description": "Show or hide a catalog layer.",
+        "fields": {
+          "layer_id": "string",
+          "visible": "boolean"
+        },
+        "type": "set_layer_visibility"
+      },
+      {
+        "description": "Set a catalog layer opacity.",
+        "fields": {
+          "layer_id": "string",
+          "opacity": "0 <= float <= 1"
+        },
+        "type": "set_layer_opacity"
+      },
+      {
+        "description": "Finish the episode with an evidence-linked answer.",
+        "fields": {
+          "answer": "string",
+          "evidence_refs": "string[]"
+        },
+        "type": "submit_answer"
+      }
+    ],
+    "version": "v1"
+  },
+  "meta": {
+    "api_version": "v1",
+    "request_id": "req-contract-actions",
+    "schema": "eo-harness.action-space.response",
+    "schema_version": "1.0.0"
+  }
+}

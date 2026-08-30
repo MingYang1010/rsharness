@@ -1,0 +1,92 @@
+name: eo-harness
+
+services:
+  harness-api:
+    build:
+      context: ./harness_api
+      args:
+        HTTP_PROXY: "${HTTP_PROXY:-}"
+        HTTPS_PROXY: "${HTTPS_PROXY:-}"
+        NO_PROXY: "${NO_PROXY:-127.0.0.1,localhost}"
+        http_proxy: "${http_proxy:-}"
+        https_proxy: "${https_proxy:-}"
+        no_proxy: "${no_proxy:-127.0.0.1,localhost}"
+    image: eo-harness/harness-api:0.2.0
+    container_name: eo-harness-api
+    restart: "no"
+    init: true
+    read_only: true
+    environment:
+      EO_HARNESS_DB: /app/state/episodes.sqlite3
+    ports:
+      - "127.0.0.1:${HARNESS_API_PORT:-8000}:8000"
+    volumes:
+      - /sata/yangm/eo-harness/state:/app/state:rw
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 15s
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2).read()
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      org.opencontainers.image.title: "EO Harness Environment API"
+      io.eo-harness.component: "environment-api"
+
+  terriamap:
+    image: eo-harness/terriamap:0.4.6
+    pull_policy: never
+    container_name: eo-harness-terriamap
+    restart: "no"
+    init: true
+    dns:
+      - 8.8.8.8
+      - 210.28.129.251
+      - 210.28.129.252
+    environment:
+      HTTP_PROXY: "${HTTP_PROXY:-}"
+      HTTPS_PROXY: "${HTTPS_PROXY:-}"
+      NO_PROXY: "${NO_PROXY:-127.0.0.1,localhost}"
+      http_proxy: "${http_proxy:-}"
+      https_proxy: "${https_proxy:-}"
+      no_proxy: "${no_proxy:-127.0.0.1,localhost}"
+      ALL_PROXY: "${ALL_PROXY:-}"
+      all_proxy: "${all_proxy:-}"
+    ports:
+      - "${TERRIA_PORT:-3001}:3001"
+    volumes:
+      - /sata/yangm/eo-harness/ui/index.html:/app/wwwroot/index.html:ro
+      - /sata/yangm/eo-harness/ui/eo-harness.css:/app/wwwroot/eo-harness.css:ro
+      - /sata/yangm/eo-harness/ui/eo-harness-ui.js:/app/wwwroot/eo-harness-ui.js:ro
+      - /sata/yangm/eo-harness/config/languages/zh_Hans:/app/wwwroot/languages/zh_Hans:ro
+      - /sata/yangm/eo-harness/config/languages/en:/app/wwwroot/languages/en:ro
+      - /sata/yangm/eo-harness/config/config.json:/app/wwwroot/config.json:ro
+      - /sata/yangm/eo-harness/config/eo-harness.json:/app/wwwroot/init/eo-harness.json:ro
+      - /sata/yangm/eo-harness/config/serverconfig.json:/app/serverconfig.json:ro
+      - /sata/yangm/eo-harness/datasets/worldcover-2021:/app/wwwroot/data/worldcover-2021:ro
+    stop_grace_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      org.opencontainers.image.title: "EO Harness TerriaMap"
+      io.eo-harness.component: "map-ui"

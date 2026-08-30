@@ -1,0 +1,64 @@
+{
+  "homeCamera": {
+    "west": 120.1,
+    "south": 30.1,
+    "east": 122.9,
+    "north": 32.9
+  },
+  "initialCamera": {
+    "west": 120.1,
+    "south": 30.1,
+    "east": 122.9,
+    "north": 32.9
+  },
+  "elements": {
+    "AR_TOOL": {"visible": false},
+    "AR_TOOL_hover": {"visible": false},
+    "AR_TOOL_realign": {"visible": false},
+    "pedestrian-mode": {"visible": false}
+  },
+  "workbench": ["esa-worldcover-2021"],
+  "catalog": [
+    {
+      "id": "eo-harness-open-data",
+      "type": "group",
+      "name": "EO Harness Open Data",
+      "isOpen": true,
+      "members": [
+        {
+          "id": "esa-worldcover-2021",
+          "type": "cog",
+          "name": "ESA WorldCover 2021 (10 m, Local N30E120)",
+          "url": "data/worldcover-2021/ESA_WorldCover_10m_2021_v200_N30E120_Map_RGB.tif",
+          "opacity": 0.85,
+          "renderOptions": {
+            "nodata": 0,
+            "convertToRGB": true,
+            "resampleMethod": "nearest"
+          },
+          "rectangle": {
+            "west": 120,
+            "south": 30,
+            "east": 123,
+            "north": 33
+          },
+          "info": [
+            {
+              "name": "License",
+              "content": "Creative Commons Attribution 4.0 International (CC BY 4.0)."
+            },
+            {
+              "name": "Source",
+              "content": "Local official ESA WorldCover 2021 v200 COG tile N30E120. Original source: https://esa-worldcover.org/en/data-access"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "viewerMode": "3dSmooth",
+  "baseMaps": {
+    "defaultBaseMapId": "basemap-openstreetmap",
+    "previewBaseMapId": "basemap-natural-earth-II"
+  }
+}

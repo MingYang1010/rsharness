@@ -1,0 +1,8 @@
+{
+  "action": {
+    "direction": "in",
+    "factor": 2.0,
+    "type": "zoom"
+  },
+  "client_action_id": "fixture-zoom-1"
+}

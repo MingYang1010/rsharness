@@ -1,0 +1,20 @@
+{
+  "models": {
+    "catalog": {
+      "upload": "Upload data"
+    }
+  },
+  "workbench": {
+    "disableAll": "Hide all"
+  },
+  "map": {
+    "extraCreditLinks": {
+      "termsOfUse": "Terms of use",
+      "credits": "Credits"
+    }
+  },
+  "dragDrop": {
+    "notification": "<0>\"{{fileNames}}\"</0> was added to <4>My Data</4>.",
+    "notification_plural": "<0>\"{{fileNames}}\"</0> were added to <4>My Data</4>."
+  }
+}

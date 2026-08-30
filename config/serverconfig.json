@@ -1,0 +1,13 @@
+{
+  "port": 3001,
+  "allowProxyFor": [
+    "githubusercontent.com",
+    "earth-search.aws.element84.com",
+    "stac.dataspace.copernicus.eu",
+    "stac.overturemaps.org",
+    "titiler.terrascope.be",
+    "wmts.terrascope.be",
+    "esa-worldcover.s3.eu-central-1.amazonaws.com",
+    "tile.openstreetmap.org"
+  ]
+}

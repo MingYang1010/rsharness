@@ -1,0 +1,20 @@
+{
+  "models": {
+    "catalog": {
+      "upload": "上传数据"
+    }
+  },
+  "workbench": {
+    "disableAll": "全部隐藏"
+  },
+  "map": {
+    "extraCreditLinks": {
+      "termsOfUse": "使用条款",
+      "credits": "致谢"
+    }
+  },
+  "dragDrop": {
+    "notification": "<0>\"{{fileNames}}\"</0> 已添加到 <4>我的数据</4>。",
+    "notification_plural": "<0>\"{{fileNames}}\"</0> 已添加到 <4>我的数据</4>。"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "max_steps": 4,
+  "metadata": {
+    "split": "contract"
+  },
+  "prompt": "Inspect the active WorldCover layer.",
+  "seed": 42,
+  "task_id": "contract-fixture"
+}

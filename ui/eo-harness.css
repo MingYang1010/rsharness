@@ -1,0 +1,130 @@
+:root {
+  --eo-control-size: 44px;
+  --eo-control-width: 46px;
+  --eo-control-bg: #111827;
+  --eo-control-border: #3d4a5c;
+}
+
+html,
+body,
+#ui {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+button,
+a,
+span {
+  letter-spacing: 0;
+}
+
+/* Keep the desktop toolbar compact while preserving its accessible name. */
+@media (min-width: 768px) {
+  .tjs-menu-bar__langBtn {
+    align-items: center !important;
+    display: inline-flex !important;
+    justify-content: center !important;
+    min-width: 44px !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    width: 44px !important;
+  }
+
+  .tjs-menu-bar__langBtn > span {
+    clip: rect(0 0 0 0) !important;
+    clip-path: inset(50%) !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    position: absolute !important;
+    white-space: nowrap !important;
+    width: 1px !important;
+  }
+
+  .tjs-menu-bar__langBtn > svg {
+    margin: 0 !important;
+  }
+}
+
+/* Terria's default zoom hit areas are about 20 x 23 px. */
+[class*="ZoomControl__StyledZoomControl"] {
+  border-radius: 8px !important;
+  overflow: hidden;
+  width: 48px !important;
+}
+
+[class*="ZoomControl__StyledZoomControl"] ul,
+[class*="ZoomControl__StyledZoomControl"] li {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+}
+
+[class*="ZoomControl__StyledZoomControl"] li + li {
+  border-top: 1px solid var(--eo-control-border);
+}
+
+[class*="ZoomControl__StyledZoomControl"] button {
+  align-items: center;
+  background: var(--eo-control-bg);
+  display: flex;
+  height: var(--eo-control-size);
+  justify-content: center;
+  min-height: var(--eo-control-size);
+  min-width: var(--eo-control-width);
+  transition: background-color 120ms ease;
+  width: var(--eo-control-width);
+}
+
+[class*="ZoomControl__StyledZoomControl"] button:hover {
+  background: #263449;
+}
+
+[class*="ZoomControl__StyledZoomControl"] button:focus-visible {
+  box-shadow: inset 0 0 0 3px #5fd4f4;
+  outline: none;
+}
+
+[class*="ZoomControl__StyledZoomControl"] button svg {
+  height: 22px !important;
+  width: 22px !important;
+}
+
+/* CJK labels should wrap inside controls instead of widening the panel. */
+[class*="SidePanel"] button,
+[class*="Workbench"] button {
+  line-height: 1.35;
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  [class*="MapNavigationItem__Control"]:has(
+      > [class*="ZoomControl__StyledZoomControl"]
+    ) {
+    padding-right: 6px !important;
+  }
+
+  [class*="ZoomControl__StyledZoomControl"] {
+    margin-top: 0 !important;
+  }
+
+  /* Keep attribution and the scale visible without overflowing the map. */
+  [class*="LocationBar___StyledBox"] {
+    display: none !important;
+  }
+
+  [class*="CreditsContainer"] > a[href="https://terria.io/"] {
+    display: none !important;
+  }
+
+  [class*="CreditsContainer"] > span,
+  [class*="CreditsContainer"] > a:nth-of-type(n + 4) {
+    display: none !important;
+  }
+
+  [class*="CreditsContainer"],
+  [class*="CreditsContainer"] > a,
+  [class*="CreditsContainer"] > span {
+    min-width: 0 !important;
+    white-space: nowrap !important;
+  }
+}

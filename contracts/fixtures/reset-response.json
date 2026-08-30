@@ -1,0 +1,89 @@
+{
+  "data": {
+    "episode_id": "ep-00000000000000000000000000000000",
+    "info": {
+      "client_action_id": null,
+      "remaining_steps": 4,
+      "semantic_state_hash": "29a973be12d909e809ed09393a3e03429822bb75320e9457e8d018130265abbe",
+      "state_hash": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "observation": {
+      "message": "Episode reset",
+      "observation_type": "map_state",
+      "semantic_state_hash": "29a973be12d909e809ed09393a3e03429822bb75320e9457e8d018130265abbe",
+      "sequence": 0,
+      "state_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "view": {
+        "bbox": {
+          "east": 122.9,
+          "north": 32.9,
+          "south": 30.1,
+          "west": 120.1
+        },
+        "center": {
+          "latitude": 31.5,
+          "longitude": 121.5
+        }
+      },
+      "visible_layers": [
+        {
+          "kind": "cog",
+          "layer_id": "esa-worldcover-2021",
+          "name": "ESA WorldCover 2021 (10 m, Local N30E120)",
+          "opacity": 0.85,
+          "source": "data/worldcover-2021/ESA_WorldCover_10m_2021_v200_N30E120_Map_RGB.tif",
+          "visible": true
+        }
+      ]
+    },
+    "reward": null,
+    "state": {
+      "created_at": "2026-01-01T00:00:00Z",
+      "episode_id": "ep-00000000000000000000000000000000",
+      "final_answer": null,
+      "layers": {
+        "esa-worldcover-2021": {
+          "kind": "cog",
+          "layer_id": "esa-worldcover-2021",
+          "name": "ESA WorldCover 2021 (10 m, Local N30E120)",
+          "opacity": 0.85,
+          "source": "data/worldcover-2021/ESA_WorldCover_10m_2021_v200_N30E120_Map_RGB.tif",
+          "visible": true
+        }
+      },
+      "max_steps": 4,
+      "state_version": 0,
+      "status": "active",
+      "step_count": 0,
+      "task": {
+        "metadata": {
+          "split": "contract"
+        },
+        "prompt": "Inspect the active WorldCover layer.",
+        "seed": 42,
+        "task_id": "contract-fixture"
+      },
+      "updated_at": "2026-01-01T00:00:00Z",
+      "view": {
+        "bbox": {
+          "east": 122.9,
+          "north": 32.9,
+          "south": 30.1,
+          "west": 120.1
+        },
+        "center": {
+          "latitude": 31.5,
+          "longitude": 121.5
+        }
+      }
+    },
+    "terminated": false,
+    "truncated": false
+  },
+  "meta": {
+    "api_version": "v1",
+    "request_id": "req-contract-reset",
+    "schema": "eo-harness.reset.response",
+    "schema_version": "1.0.0"
+  }
+}

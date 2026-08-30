@@ -1,0 +1,1837 @@
+{
+  "components": {
+    "schemas": {
+      "ActionDescriptor": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Fields",
+            "type": "object"
+          },
+          "type": {
+            "enum": [
+              "set_view",
+              "pan",
+              "zoom",
+              "set_layer_visibility",
+              "set_layer_opacity",
+              "submit_answer"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "description",
+          "fields"
+        ],
+        "title": "ActionDescriptor",
+        "type": "object"
+      },
+      "ActionSpaceData": {
+        "additionalProperties": false,
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDescriptor"
+            },
+            "title": "Actions",
+            "type": "array"
+          },
+          "version": {
+            "const": "v1",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "actions"
+        ],
+        "title": "ActionSpaceData",
+        "type": "object"
+      },
+      "ActionSpaceResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ActionSpaceData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        },
+        "required": [
+          "meta",
+          "data"
+        ],
+        "title": "ActionSpaceResponse",
+        "type": "object"
+      },
+      "ApiError": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationIssue"
+            },
+            "title": "Details",
+            "type": "array"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ApiError",
+        "type": "object"
+      },
+      "ApiMeta": {
+        "additionalProperties": false,
+        "properties": {
+          "api_version": {
+            "const": "v1",
+            "title": "Api Version",
+            "type": "string"
+          },
+          "request_id": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "schema": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Schema",
+            "type": "string"
+          },
+          "schema_version": {
+            "const": "1.0.0",
+            "title": "Schema Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "api_version",
+          "schema_version",
+          "schema",
+          "request_id"
+        ],
+        "title": "ApiMeta",
+        "type": "object"
+      },
+      "BoundingBox": {
+        "additionalProperties": false,
+        "properties": {
+          "east": {
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "East",
+            "type": "number"
+          },
+          "north": {
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "North",
+            "type": "number"
+          },
+          "south": {
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "South",
+            "type": "number"
+          },
+          "west": {
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "West",
+            "type": "number"
+          }
+        },
+        "required": [
+          "west",
+          "south",
+          "east",
+          "north"
+        ],
+        "title": "BoundingBox",
+        "type": "object"
+      },
+      "EpisodeResultData": {
+        "additionalProperties": false,
+        "properties": {
+          "episode_id": {
+            "pattern": "^ep-[a-f0-9]{32}$",
+            "title": "Episode Id",
+            "type": "string"
+          },
+          "info": {
+            "$ref": "#/components/schemas/StepInfo"
+          },
+          "observation": {
+            "$ref": "#/components/schemas/MapObservation"
+          },
+          "reward": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reward"
+          },
+          "state": {
+            "$ref": "#/components/schemas/EpisodeState"
+          },
+          "terminated": {
+            "title": "Terminated",
+            "type": "boolean"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "episode_id",
+          "state",
+          "observation",
+          "reward",
+          "terminated",
+          "truncated",
+          "info"
+        ],
+        "title": "EpisodeResultData",
+        "type": "object"
+      },
+      "EpisodeState": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Created At",
+            "type": "string"
+          },
+          "episode_id": {
+            "pattern": "^ep-[a-f0-9]{32}$",
+            "title": "Episode Id",
+            "type": "string"
+          },
+          "final_answer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FinalAnswer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "layers": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/LayerState"
+            },
+            "title": "Layers",
+            "type": "object"
+          },
+          "max_steps": {
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Max Steps",
+            "type": "integer"
+          },
+          "state_version": {
+            "minimum": 0.0,
+            "title": "State Version",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "terminated",
+              "truncated"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "step_count": {
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Step Count",
+            "type": "integer"
+          },
+          "task": {
+            "$ref": "#/components/schemas/TaskState"
+          },
+          "updated_at": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "view": {
+            "$ref": "#/components/schemas/MapView"
+          }
+        },
+        "required": [
+          "episode_id",
+          "state_version",
+          "status",
+          "step_count",
+          "max_steps",
+          "task",
+          "view",
+          "layers",
+          "final_answer",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "EpisodeState",
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        },
+        "required": [
+          "meta",
+          "error"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
+      "FinalAnswer": {
+        "additionalProperties": false,
+        "properties": {
+          "answer": {
+            "minLength": 1,
+            "title": "Answer",
+            "type": "string"
+          },
+          "evidence_refs": {
+            "items": {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Evidence Refs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "answer",
+          "evidence_refs"
+        ],
+        "title": "FinalAnswer",
+        "type": "object"
+      },
+      "GeoPoint": {
+        "additionalProperties": false,
+        "properties": {
+          "latitude": {
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Longitude",
+            "type": "number"
+          }
+        },
+        "required": [
+          "longitude",
+          "latitude"
+        ],
+        "title": "GeoPoint",
+        "type": "object"
+      },
+      "HealthData": {
+        "additionalProperties": false,
+        "properties": {
+          "database": {
+            "const": "ok",
+            "title": "Database",
+            "type": "string"
+          },
+          "status": {
+            "const": "ok",
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "version",
+          "database"
+        ],
+        "title": "HealthData",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HealthData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        },
+        "required": [
+          "meta",
+          "data"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "JsonValue": {},
+      "LayerState": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "layer_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Layer Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "opacity": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Opacity",
+            "type": "number"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "visible": {
+            "title": "Visible",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "layer_id",
+          "name",
+          "kind",
+          "source",
+          "visible",
+          "opacity"
+        ],
+        "title": "LayerState",
+        "type": "object"
+      },
+      "MapObservation": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "observation_type": {
+            "const": "map_state",
+            "title": "Observation Type",
+            "type": "string"
+          },
+          "semantic_state_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Semantic State Hash",
+            "type": "string"
+          },
+          "sequence": {
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "state_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "State Hash",
+            "type": "string"
+          },
+          "view": {
+            "$ref": "#/components/schemas/MapView"
+          },
+          "visible_layers": {
+            "items": {
+              "$ref": "#/components/schemas/LayerState"
+            },
+            "title": "Visible Layers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "observation_type",
+          "sequence",
+          "message",
+          "view",
+          "visible_layers",
+          "state_hash",
+          "semantic_state_hash"
+        ],
+        "title": "MapObservation",
+        "type": "object"
+      },
+      "MapView": {
+        "additionalProperties": false,
+        "properties": {
+          "bbox": {
+            "$ref": "#/components/schemas/BoundingBox"
+          },
+          "center": {
+            "$ref": "#/components/schemas/GeoPoint"
+          }
+        },
+        "required": [
+          "bbox",
+          "center"
+        ],
+        "title": "MapView",
+        "type": "object"
+      },
+      "PanAction": {
+        "additionalProperties": false,
+        "properties": {
+          "delta_latitude": {
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Delta Latitude",
+            "type": "number"
+          },
+          "delta_longitude": {
+            "maximum": 360.0,
+            "minimum": -360.0,
+            "title": "Delta Longitude",
+            "type": "number"
+          },
+          "type": {
+            "const": "pan",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "delta_longitude",
+          "delta_latitude"
+        ],
+        "title": "PanAction",
+        "type": "object"
+      },
+      "ResetRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "initial_view": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BoundingBox"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max_steps": {
+            "default": 20,
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Max Steps",
+            "type": "integer"
+          },
+          "metadata": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Metadata",
+            "type": "object"
+          },
+          "prompt": {
+            "default": "Inspect the active Earth-observation layers.",
+            "maxLength": 10000,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "seed": {
+            "default": 0,
+            "maximum": 2147483647.0,
+            "minimum": 0.0,
+            "title": "Seed",
+            "type": "integer"
+          },
+          "task_id": {
+            "default": "interactive-map-task",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "title": "ResetRequest",
+        "type": "object"
+      },
+      "ResetResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EpisodeResultData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        },
+        "required": [
+          "meta",
+          "data"
+        ],
+        "title": "ResetResponse",
+        "type": "object"
+      },
+      "ServiceInfoData": {
+        "additionalProperties": false,
+        "properties": {
+          "docs": {
+            "const": "/docs",
+            "title": "Docs",
+            "type": "string"
+          },
+          "health": {
+            "const": "/healthz",
+            "title": "Health",
+            "type": "string"
+          },
+          "service": {
+            "const": "eo-harness-environment-api",
+            "title": "Service",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "version",
+          "docs",
+          "health"
+        ],
+        "title": "ServiceInfoData",
+        "type": "object"
+      },
+      "ServiceInfoResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ServiceInfoData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        },
+        "required": [
+          "meta",
+          "data"
+        ],
+        "title": "ServiceInfoResponse",
+        "type": "object"
+      },
+      "SetLayerOpacityAction": {
+        "additionalProperties": false,
+        "properties": {
+          "layer_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Layer Id",
+            "type": "string"
+          },
+          "opacity": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Opacity",
+            "type": "number"
+          },
+          "type": {
+            "const": "set_layer_opacity",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "layer_id",
+          "opacity"
+        ],
+        "title": "SetLayerOpacityAction",
+        "type": "object"
+      },
+      "SetLayerVisibilityAction": {
+        "additionalProperties": false,
+        "properties": {
+          "layer_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Layer Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "set_layer_visibility",
+            "title": "Type",
+            "type": "string"
+          },
+          "visible": {
+            "title": "Visible",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "type",
+          "layer_id",
+          "visible"
+        ],
+        "title": "SetLayerVisibilityAction",
+        "type": "object"
+      },
+      "SetViewAction": {
+        "additionalProperties": false,
+        "properties": {
+          "bbox": {
+            "$ref": "#/components/schemas/BoundingBox"
+          },
+          "type": {
+            "const": "set_view",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "bbox"
+        ],
+        "title": "SetViewAction",
+        "type": "object"
+      },
+      "StateData": {
+        "additionalProperties": false,
+        "properties": {
+          "episode_id": {
+            "pattern": "^ep-[a-f0-9]{32}$",
+            "title": "Episode Id",
+            "type": "string"
+          },
+          "semantic_state_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Semantic State Hash",
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/EpisodeState"
+          },
+          "state_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "State Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "episode_id",
+          "state",
+          "state_hash",
+          "semantic_state_hash"
+        ],
+        "title": "StateData",
+        "type": "object"
+      },
+      "StateResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StateData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        },
+        "required": [
+          "meta",
+          "data"
+        ],
+        "title": "StateResponse",
+        "type": "object"
+      },
+      "StepInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "client_action_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Action Id"
+          },
+          "remaining_steps": {
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Remaining Steps",
+            "type": "integer"
+          },
+          "semantic_state_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Semantic State Hash",
+            "type": "string"
+          },
+          "state_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "State Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_action_id",
+          "remaining_steps",
+          "state_hash",
+          "semantic_state_hash"
+        ],
+        "title": "StepInfo",
+        "type": "object"
+      },
+      "StepRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "discriminator": {
+              "mapping": {
+                "pan": "#/components/schemas/PanAction",
+                "set_layer_opacity": "#/components/schemas/SetLayerOpacityAction",
+                "set_layer_visibility": "#/components/schemas/SetLayerVisibilityAction",
+                "set_view": "#/components/schemas/SetViewAction",
+                "submit_answer": "#/components/schemas/SubmitAnswerAction",
+                "zoom": "#/components/schemas/ZoomAction"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SetViewAction"
+              },
+              {
+                "$ref": "#/components/schemas/PanAction"
+              },
+              {
+                "$ref": "#/components/schemas/ZoomAction"
+              },
+              {
+                "$ref": "#/components/schemas/SetLayerVisibilityAction"
+              },
+              {
+                "$ref": "#/components/schemas/SetLayerOpacityAction"
+              },
+              {
+                "$ref": "#/components/schemas/SubmitAnswerAction"
+              }
+            ],
+            "title": "Action"
+          },
+          "client_action_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Action Id"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "StepRequest",
+        "type": "object"
+      },
+      "StepResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EpisodeResultData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        },
+        "required": [
+          "meta",
+          "data"
+        ],
+        "title": "StepResponse",
+        "type": "object"
+      },
+      "SubmitAnswerAction": {
+        "additionalProperties": false,
+        "properties": {
+          "answer": {
+            "maxLength": 50000,
+            "minLength": 1,
+            "title": "Answer",
+            "type": "string"
+          },
+          "evidence_refs": {
+            "items": {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "type": {
+            "const": "submit_answer",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "answer"
+        ],
+        "title": "SubmitAnswerAction",
+        "type": "object"
+      },
+      "TaskState": {
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Metadata",
+            "type": "object"
+          },
+          "prompt": {
+            "title": "Prompt",
+            "type": "string"
+          },
+          "seed": {
+            "maximum": 2147483647.0,
+            "minimum": 0.0,
+            "title": "Seed",
+            "type": "integer"
+          },
+          "task_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "prompt",
+          "seed",
+          "metadata"
+        ],
+        "title": "TaskState",
+        "type": "object"
+      },
+      "TraceData": {
+        "additionalProperties": false,
+        "properties": {
+          "episode_id": {
+            "pattern": "^ep-[a-f0-9]{32}$",
+            "title": "Episode Id",
+            "type": "string"
+          },
+          "final_state": {
+            "$ref": "#/components/schemas/EpisodeState"
+          },
+          "hash_algorithm": {
+            "const": "sha256",
+            "title": "Hash Algorithm",
+            "type": "string"
+          },
+          "initial_state": {
+            "$ref": "#/components/schemas/EpisodeState"
+          },
+          "semantic_trace_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Semantic Trace Hash",
+            "type": "string"
+          },
+          "trace_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Trace Hash",
+            "type": "string"
+          },
+          "transition_count": {
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Transition Count",
+            "type": "integer"
+          },
+          "transitions": {
+            "items": {
+              "$ref": "#/components/schemas/TraceTransition"
+            },
+            "maxItems": 1000,
+            "title": "Transitions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "episode_id",
+          "initial_state",
+          "transitions",
+          "final_state",
+          "transition_count",
+          "hash_algorithm",
+          "trace_hash",
+          "semantic_trace_hash"
+        ],
+        "title": "TraceData",
+        "type": "object"
+      },
+      "TraceResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TraceData"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        },
+        "required": [
+          "meta",
+          "data"
+        ],
+        "title": "TraceResponse",
+        "type": "object"
+      },
+      "TraceTransition": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "discriminator": {
+              "mapping": {
+                "pan": "#/components/schemas/PanAction",
+                "set_layer_opacity": "#/components/schemas/SetLayerOpacityAction",
+                "set_layer_visibility": "#/components/schemas/SetLayerVisibilityAction",
+                "set_view": "#/components/schemas/SetViewAction",
+                "submit_answer": "#/components/schemas/SubmitAnswerAction",
+                "zoom": "#/components/schemas/ZoomAction"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SetViewAction"
+              },
+              {
+                "$ref": "#/components/schemas/PanAction"
+              },
+              {
+                "$ref": "#/components/schemas/ZoomAction"
+              },
+              {
+                "$ref": "#/components/schemas/SetLayerVisibilityAction"
+              },
+              {
+                "$ref": "#/components/schemas/SetLayerOpacityAction"
+              },
+              {
+                "$ref": "#/components/schemas/SubmitAnswerAction"
+              }
+            ],
+            "title": "Action"
+          },
+          "client_action_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Action Id"
+          },
+          "created_at": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Created At",
+            "type": "string"
+          },
+          "observation": {
+            "$ref": "#/components/schemas/MapObservation"
+          },
+          "semantic_state_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Semantic State Hash",
+            "type": "string"
+          },
+          "sequence": {
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "state": {
+            "$ref": "#/components/schemas/EpisodeState"
+          },
+          "state_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "State Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sequence",
+          "client_action_id",
+          "created_at",
+          "action",
+          "observation",
+          "state_hash",
+          "semantic_state_hash",
+          "state"
+        ],
+        "title": "TraceTransition",
+        "type": "object"
+      },
+      "ValidationIssue": {
+        "additionalProperties": false,
+        "properties": {
+          "location": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "location",
+          "message",
+          "type"
+        ],
+        "title": "ValidationIssue",
+        "type": "object"
+      },
+      "ZoomAction": {
+        "additionalProperties": false,
+        "properties": {
+          "direction": {
+            "enum": [
+              "in",
+              "out"
+            ],
+            "title": "Direction",
+            "type": "string"
+          },
+          "factor": {
+            "default": 2.0,
+            "exclusiveMinimum": 1.0,
+            "maximum": 8.0,
+            "title": "Factor",
+            "type": "number"
+          },
+          "type": {
+            "const": "zoom",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "direction"
+        ],
+        "title": "ZoomAction",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Stateful, deterministic map-operation environment for Earth-observation agent episodes. TerriaMap is a renderer; this API owns episode state.",
+    "title": "EO Harness Environment API",
+    "version": "0.2.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "service_info__get",
+        "parameters": [
+          {
+            "description": "Optional caller request ID echoed in the response body and header.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional caller request ID echoed in the response body and header.",
+              "title": "X-Request-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceInfoResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Episode or idempotency conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal service error"
+          }
+        },
+        "summary": "Service Info"
+      }
+    },
+    "/healthz": {
+      "get": {
+        "operationId": "health_healthz_get",
+        "parameters": [
+          {
+            "description": "Optional caller request ID echoed in the response body and header.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional caller request ID echoed in the response body and header.",
+              "title": "X-Request-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Episode or idempotency conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal service error"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/v1/action-space": {
+      "get": {
+        "operationId": "action_space_v1_action_space_get",
+        "parameters": [
+          {
+            "description": "Optional caller request ID echoed in the response body and header.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional caller request ID echoed in the response body and header.",
+              "title": "X-Request-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionSpaceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Episode or idempotency conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal service error"
+          }
+        },
+        "summary": "Action Space"
+      }
+    },
+    "/v1/episodes/{episode_id}/state": {
+      "get": {
+        "operationId": "get_state_v1_episodes__episode_id__state_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episode_id",
+            "required": true,
+            "schema": {
+              "pattern": "^ep-[a-f0-9]{32}$",
+              "title": "Episode Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional caller request ID echoed in the response body and header.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional caller request ID echoed in the response body and header.",
+              "title": "X-Request-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Episode or idempotency conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal service error"
+          }
+        },
+        "summary": "Get State"
+      }
+    },
+    "/v1/episodes/{episode_id}/step": {
+      "post": {
+        "operationId": "step_v1_episodes__episode_id__step_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episode_id",
+            "required": true,
+            "schema": {
+              "pattern": "^ep-[a-f0-9]{32}$",
+              "title": "Episode Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional caller request ID echoed in the response body and header.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional caller request ID echoed in the response body and header.",
+              "title": "X-Request-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Episode or idempotency conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal service error"
+          }
+        },
+        "summary": "Step"
+      }
+    },
+    "/v1/episodes/{episode_id}/trace": {
+      "get": {
+        "operationId": "get_trace_v1_episodes__episode_id__trace_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "episode_id",
+            "required": true,
+            "schema": {
+              "pattern": "^ep-[a-f0-9]{32}$",
+              "title": "Episode Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional caller request ID echoed in the response body and header.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional caller request ID echoed in the response body and header.",
+              "title": "X-Request-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Episode or idempotency conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal service error"
+          }
+        },
+        "summary": "Get Trace"
+      }
+    },
+    "/v1/reset": {
+      "post": {
+        "operationId": "reset_v1_reset_post",
+        "parameters": [
+          {
+            "description": "Optional caller request ID echoed in the response body and header.",
+            "in": "header",
+            "name": "X-Request-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional caller request ID echoed in the response body and header.",
+              "title": "X-Request-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResetResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Episode or idempotency conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal service error"
+          }
+        },
+        "summary": "Reset"
+      }
+    }
+  }
+}
