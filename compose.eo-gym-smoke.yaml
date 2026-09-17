@@ -22,9 +22,9 @@ services:
       - ./scripts/eo_gym_crop_worker.py:/worker.py:ro
       - ./runtime/eo-gym/upstream:/upstream:ro
       - ./runtime/eo-gym/python:/deps:ro
-      - ./runtime/eo-gym-smoke/inputs:/inputs:ro
-      - ./runtime/eo-gym-smoke/inputs.json:/inputs.json:ro
-      - ./runtime/eo-gym-smoke/provider-out:/outputs:rw
+      - ${EO_SMOKE_ROOT:-./runtime/eo-gym-smoke}/inputs:/inputs:ro
+      - ${EO_SMOKE_ROOT:-./runtime/eo-gym-smoke}/inputs.json:/inputs.json:ro
+      - ${EO_SMOKE_ROOT:-./runtime/eo-gym-smoke}/provider-out:/outputs:rw
     tmpfs: ["/tmp:size=128m"]
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
@@ -56,9 +56,9 @@ services:
       EO_HARNESS_EO_GYM_URL: http://provider:8081
     volumes:
       - ./harness_api:/harness:ro
-      - ./runtime/eo-gym-smoke/tasks:/tasks:ro
-      - ./runtime/eo-gym-smoke/state:/state:rw
-      - ./runtime/eo-gym-smoke/artifacts:/artifacts:rw
+      - ${EO_SMOKE_ROOT:-./runtime/eo-gym-smoke}/tasks:/tasks:ro
+      - ${EO_SMOKE_ROOT:-./runtime/eo-gym-smoke}/state:/state:rw
+      - ${EO_SMOKE_ROOT:-./runtime/eo-gym-smoke}/artifacts:/artifacts:rw
     tmpfs: ["/tmp:size=128m"]
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
@@ -76,8 +76,8 @@ services:
     command: ["python", "/verify.py"]
     volumes:
       - ./scripts/verify_eo_gym_smoke.py:/verify.py:ro
-      - ./runtime/eo-gym-smoke/job.json:/smoke/job.json:ro
-      - ./runtime/eo-gym-smoke/reports:/reports:rw
+      - ${EO_SMOKE_ROOT:-./runtime/eo-gym-smoke}/job.json:/smoke/job.json:ro
+      - ${EO_SMOKE_ROOT:-./runtime/eo-gym-smoke}/reports:/reports:rw
     tmpfs: ["/tmp:size=32m"]
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]

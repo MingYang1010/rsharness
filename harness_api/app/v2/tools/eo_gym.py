@@ -12,7 +12,7 @@ from ...eo_gym_bridge import CropArguments, REVISION
 from ..artifacts import ArtifactStore
 from ..domain import V2DomainError
 from ..events import sha256_json
-from ..schemas import ArtifactLineage, ArtifactRef, AssetRef, TaskManifest, ToolInvokeAction
+from ..schemas import ArtifactLineage, ArtifactRef, PixelAssetRef, TaskAsset, TaskManifest, ToolInvokeAction
 
 
 @dataclass(frozen=True)
@@ -32,7 +32,7 @@ class EOGymExecutor:
         self.artifacts = artifacts
         self.transport = transport
 
-    def prepare(self, action: ToolInvokeAction, manifest: TaskManifest) -> tuple[CropArguments, AssetRef]:
+    def prepare(self, action: ToolInvokeAction, manifest: TaskManifest) -> tuple[CropArguments, TaskAsset]:
         if action.tool_id != self.tool_id or action.tool_id not in manifest.scenario.allowed_tools:
             raise V2DomainError("policy_rejected", "tool is not allowed by this task", 403, phase="policy")
         try:
@@ -71,6 +71,15 @@ class EOGymExecutor:
                     raise ValueError("unexpected provider or simulation")
                 if result["input_sha256"] != asset.sha256 or result["input_asset_id"] != asset.asset_id:
                     raise ValueError("provider input mismatch")
+                if result["aoi_norm"] != list(arguments.aoi):
+                    raise ValueError("provider AOI mismatch")
+                if isinstance(asset, PixelAssetRef):
+                    expected_bbox = [round(v * dimension) for v, dimension in zip(
+                        arguments.aoi, (asset.pixel.width, asset.pixel.height, asset.pixel.width, asset.pixel.height))]
+                    if result["bbox_px"] != expected_bbox:
+                        raise ValueError("provider crop disagrees with declared pixel dimensions")
+                    if (result["width"], result["height"]) != (expected_bbox[2] - expected_bbox[0], expected_bbox[3] - expected_bbox[1]):
+                        raise ValueError("provider crop shape disagrees with pixel window")
                 digest = result["sha256"]
                 if not isinstance(digest, str) or len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
                     raise ValueError("invalid artifact hash")

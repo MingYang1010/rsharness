@@ -1680,6 +1680,173 @@
         "title": "ObservationResponse",
         "type": "object"
       },
+      "PixelAssetRef": {
+        "additionalProperties": false,
+        "description": "Separate variant keeps legacy georeferenced asset JSON byte-compatible.",
+        "properties": {
+          "asset_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Asset Id",
+            "type": "string"
+          },
+          "bands": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Bands",
+            "type": "array"
+          },
+          "instrument": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instrument"
+          },
+          "license": {
+            "minLength": 1,
+            "title": "License",
+            "type": "string"
+          },
+          "media_type": {
+            "minLength": 1,
+            "title": "Media Type",
+            "type": "string"
+          },
+          "pixel": {
+            "$ref": "#/components/schemas/PixelExtent"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform"
+          },
+          "polarizations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Polarizations",
+            "type": "array"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/AssetQuality"
+          },
+          "roles": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Roles",
+            "type": "array"
+          },
+          "sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "minimum": 0.0,
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "source": {
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          },
+          "source_snapshot_hash": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Snapshot Hash"
+          },
+          "spatial": {
+            "title": "Spatial",
+            "type": "null"
+          },
+          "temporal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TemporalExtent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uri": {
+            "minLength": 1,
+            "title": "Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset_id",
+          "uri",
+          "media_type",
+          "roles",
+          "sha256",
+          "size_bytes",
+          "license",
+          "source",
+          "pixel"
+        ],
+        "title": "PixelAssetRef",
+        "type": "object"
+      },
+      "PixelExtent": {
+        "additionalProperties": false,
+        "description": "Image coordinates: origin top-left, x right, y down, half-open windows.",
+        "properties": {
+          "channels": {
+            "exclusiveMinimum": 0.0,
+            "title": "Channels",
+            "type": "integer"
+          },
+          "coordinate_system": {
+            "const": "pixel",
+            "title": "Coordinate System",
+            "type": "string"
+          },
+          "height": {
+            "exclusiveMinimum": 0.0,
+            "title": "Height",
+            "type": "integer"
+          },
+          "width": {
+            "exclusiveMinimum": 0.0,
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "coordinate_system",
+          "width",
+          "height",
+          "channels"
+        ],
+        "title": "PixelExtent",
+        "type": "object"
+      },
       "ReplayCheck": {
         "additionalProperties": false,
         "properties": {
@@ -2192,7 +2359,14 @@
         "properties": {
           "assets": {
             "items": {
-              "$ref": "#/components/schemas/AssetRef"
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AssetRef"
+                },
+                {
+                  "$ref": "#/components/schemas/PixelAssetRef"
+                }
+              ]
             },
             "title": "Assets",
             "type": "array"
@@ -2639,7 +2813,14 @@
             ]
           },
           "map": {
-            "$ref": "#/components/schemas/MapState"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MapState"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "observation_refs": {
             "items": {

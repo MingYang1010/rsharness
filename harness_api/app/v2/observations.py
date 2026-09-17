@@ -20,7 +20,7 @@ def build_structural_observation(
     asset_refs: List[str],
     reason: str,
 ) -> Observation:
-    if not state.map.layers:
+    if state.map is None or not state.map.layers:
         return Observation(
             observation_id=observation_id, sequence=sequence, primary_type="asset_metadata",
             items=[ObservationItem(type="asset_metadata", asset_refs=asset_refs)],

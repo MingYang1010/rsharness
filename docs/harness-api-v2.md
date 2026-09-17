@@ -1,4 +1,4 @@
-# EO Harness Environment API V2 M2
+# EO Harness Environment API V2
 
 ## Contract Boundary
 
@@ -37,7 +37,37 @@ Every validation, policy, state, routing, and internal error uses `meta + error`
 | `POST` | `/v2/episodes/{episode_id}/replay` | Run structural replay checks |
 | `GET` | `/v2/openapi.json` | Read the standalone V2 OpenAPI document |
 
-The implemented action set is `map.set_view`, `map.pan`, `map.zoom`, layer visibility and opacity, map time range, `memory.save_evidence`, and the three answer outcomes. `memory.bookmark_aoi` and `tool.invoke` are declared contract variants but return a typed policy rejection until their milestone is implemented.
+The implemented action set is `map.set_view`, `map.pan`, `map.zoom`, layer visibility and opacity, map time range, `memory.save_evidence`, and the three answer outcomes. Setting `EO_HARNESS_EO_GYM_URL` additionally enables `tool.invoke` for the task-allowlisted `eo_gym.crop` provider. `memory.bookmark_aoi` remains unimplemented. Geographic actions return `coordinate_system_mismatch` for episodes without geographic map state.
+
+## Pixel-only Inputs
+
+Georeferenced `AssetRef` retains its original JSON representation. A separate
+`PixelAssetRef` variant has `spatial: null` and a required `pixel` object:
+
+```json
+{"coordinate_system": "pixel", "width": 1024, "height": 768, "channels": 3}
+```
+
+Dimensions are positive integers, never strings, booleans or rounded floats.
+Pixel coordinates have top-left origin, x right and y down; evidence windows use
+`[x, y, width, height]`, with the right and bottom boundaries excluded. Pixel-only
+assets cannot also declare CRS/bbox. Missing both coordinate variants is invalid.
+
+Tasks with pixel-only or mixed inputs must declare
+`metadata.observation_profile: headless-tools-v1` and cannot allow `map.*`
+actions. Their episode `map` is null and observations reference input assets
+without creating a renderer. Evidence windows on pixel input assets must lie
+inside the declared dimensions; geographic bbox/geometry selectors are rejected.
+The provider crop must agree with the pinned input hash, requested AOI and
+declared image dimensions. Source image dimensions must be audited when admitting
+an asset; the smoke preparer re-reads them before staging the input.
+
+This is an additive task variant, not a rewrite of existing WorldCover task
+versions. Original task JSON, manifest hashes, state shapes and golden fixtures
+are unchanged; V2 OpenAPI includes the additional variant and nullable map.
+Crop artifacts still use the existing pixel metadata in tool observations;
+persisting typed artifact dimensions and validating their evidence windows is
+separate remaining work.
 
 ## Example Episode
 
@@ -115,7 +145,11 @@ Set `EO_HARNESS_V2_ENABLED=0` to start the application in V1-only runtime mode w
 
 ## Current Limit
 
-M2 proves one fixed WorldCover rendered-observation and evaluation loop. It does not implement executable raster tools, catalog or STAC adapters, Sentinel-2 temporal tasks, agent adapters, batch execution, or resume. `/v2/capabilities` therefore keeps the executable tool list empty even though renderer and evaluator are available.
+The fixed WorldCover rendered-observation/evaluation loop and opt-in isolated
+EO-Gym crop are implemented. Durable tool retries and pixel-only task inputs are
+supported. Catalog/STAC adapters, the remaining raster tools, Sentinel-2 temporal
+tasks, agent batch/resume, execution replay and Qwen model acceptance remain
+incomplete. The crop smoke is scripted, not semantic task evaluation.
 
 ## Contract Verification
 
@@ -125,4 +159,4 @@ python -m unittest discover -s harness_api/tests -p 'test_*.py' -v
 cd harness_renderer && npm test
 ```
 
-The committed V1 OpenAPI and eight V1 fixtures must remain byte-identical while V2 changes are developed. The M2 gate is 44 Python tests plus four renderer tests.
+The committed V1 OpenAPI and eight V1 fixtures must remain byte-identical while V2 changes are developed. Preserve the original 44 Python regressions and four renderer tests, plus the added provider, execution and pixel-coordinate tests. Contract exports must not change old WorldCover fixtures.

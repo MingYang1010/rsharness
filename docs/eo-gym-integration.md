@@ -58,8 +58,10 @@ module imports ground-truth helpers: mounting no label files is mandatory.
   duplicate execution. Executed failures consume one step and tool call. Input
   accounting is logical asset bytes; failed-call physical I/O is not measured.
 - PNG outputs retain pixel coordinates and source lineage, not invented spatial
-  bounds. The current main TaskManifest still requires georeferenced input assets;
-  pixel-only dataset task integration remains future work.
+  bounds. TaskManifest supports explicit PixelAssetRef inputs with audited width,
+  height and channels. Pixel-only/mixed episodes have no geographic map state and
+  reject geographic actions/evidence. Artifact dimensions remain tool metadata;
+  typed artifact-coordinate contracts still need implementation.
 - Same content with conflicting provenance is rejected and recorded, rather than
   overwriting existing artifact metadata. Multiple derivations per content object
   require a future provenance model extension.
@@ -93,7 +95,7 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
 
 ## Verified results and unfinished scope
 
-- A800: 64 Python tests pass, including the 44 original regressions and real
+- A800: 72 Python tests pass, including the 44 original regressions and real
   upstream CPU tests. Synthetic test fixtures are not counted as dataset coverage.
 - Live HTTP smoke: real FAIR1M2 image, 400x300 crop, one tool call, frozen evidence,
   answer submission and passed structural checks. Container recreation preserves
@@ -108,6 +110,27 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
 - This is scripted interaction acceptance, NOT Qwen inference, semantic task
   accuracy, full dataset integration or execution replay. `replay` remains the
   existing structural verifier. The smoke task intentionally has no semantic score.
-- Still needed: pixel-only tasks, packed-dataset adapters, reviewed asset access,
+- Still needed: typed pixel artifact dimensions, packed-dataset adapters, reviewed asset access,
   remaining raster/STAC tools, public imagery subsets, semantic evaluators and
   the Qwen runner. A800 GPU allocation remains blocked by occupied cards/DRAIN.
+
+## Pixel-only smoke variants
+
+The preparer accepts `--dataset-id`, `--sample-index` and a fresh `--output-name`
+under runtime. It verifies the pinned checksum and actual image dimensions and
+does not discard existing CRS. Pixel-only source images receive no invented bbox.
+Use `EO_SMOKE_ROOT=./runtime/<output-name> docker --context rootless compose
+-p <distinct-smoke-project> -f compose.eo-gym-smoke.yaml ...` for every command of
+that run. This preserves previous smoke databases and reports. The verifier
+checks the null map, pixel contract, real crop, retry, evidence and submission;
+the existing `--resume-check` verifies persisted hashes after Harness recreation.
+Only staged approved images are mounted, never dataset labels or whole roots.
+
+Verified on A800: three seeded DOTA_V2_patched_nilsleh images (512x512 RGB,
+without CRS) each produced a real 256x256 crop, idempotent retry, frozen evidence
+and answer submission. All three Harness recreations preserved state, trace and
+artifact hashes. Reports remain under `runtime/pixel-dota-20260917-{0,1,2}/reports/`;
+all three smoke projects were stopped and removed. No dataset-wide admission,
+Qwen inference or semantic accuracy is claimed. Original imagery was read-only.
+The four renderer tests also pass; V1 contracts, old V2 fixtures and immutable
+WorldCover tasks have no Git diff.

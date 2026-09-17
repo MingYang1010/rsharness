@@ -1,9 +1,9 @@
 from typing import Dict, Union
 
-from .schemas import ArtifactRef, AssetRef, EvidenceRef, SpatialBoundingBox
+from .schemas import ArtifactRef, EvidenceRef, PixelAssetRef, SpatialBoundingBox, TaskAsset
 
 
-EvidenceSource = Union[AssetRef, ArtifactRef]
+EvidenceSource = Union[TaskAsset, ArtifactRef]
 
 
 def _contains(
@@ -27,6 +27,15 @@ def validate_evidence(
         raise ValueError("evidence source_ref is not an accessible source")
     if evidence.frozen_sha256 != source.sha256:
         raise ValueError("evidence frozen_sha256 does not match the source")
+    if evidence.selector.geometry is not None and source.spatial is None:
+        raise ValueError("geographic geometry requires a georeferenced source")
+    if isinstance(source, PixelAssetRef) and evidence.selector.pixel_window is not None:
+        x, y, width, height = evidence.selector.pixel_window
+        if x + width > source.pixel.width or y + height > source.pixel.height:
+            raise ValueError("evidence pixel_window is outside the source image")
+    if isinstance(source, PixelAssetRef) and evidence.selector.bands:
+        if not set(evidence.selector.bands).issubset(source.bands):
+            raise ValueError("evidence bands are not declared by the source")
     if evidence.selector.bbox is not None:
         if source.spatial is None or not _contains(
             source.spatial.bbox,

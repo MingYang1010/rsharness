@@ -180,6 +180,25 @@ class AssetRef(V2ContractModel):
     source_snapshot_hash: Optional[Sha256] = None
 
 
+class PixelExtent(V2ContractModel):
+    """Image coordinates: origin top-left, x right, y down, half-open windows."""
+
+    coordinate_system: Literal["pixel"]
+    width: int = Field(gt=0, strict=True)
+    height: int = Field(gt=0, strict=True)
+    channels: int = Field(gt=0, strict=True)
+
+
+class PixelAssetRef(AssetRef):
+    """Separate variant keeps legacy georeferenced asset JSON byte-compatible."""
+
+    spatial: None = None
+    pixel: PixelExtent
+
+
+TaskAsset = Union[AssetRef, PixelAssetRef]
+
+
 class EvaluatorSpec(V2ContractModel):
     evaluator_id: Identifier
     evaluator_version: SemanticVersion
@@ -196,9 +215,26 @@ class TaskRef(V2ContractModel):
 class TaskManifest(V2ContractModel):
     task: TaskSpec
     scenario: ScenarioProfile
-    assets: List[AssetRef]
+    assets: List[TaskAsset]
     evaluator: EvaluatorSpec
     task_manifest_hash: Sha256
+
+    @model_validator(mode="after")
+    def validate_asset_coordinates(self) -> "TaskManifest":
+        asset_ids = [asset.asset_id for asset in self.assets]
+        if len(asset_ids) != len(set(asset_ids)):
+            raise ValueError("duplicate asset IDs are ambiguous")
+        if len(self.task.inputs) != len(set(self.task.inputs)):
+            raise ValueError("duplicate task inputs are ambiguous")
+        if not set(self.task.inputs).issubset(asset_ids):
+            raise ValueError("task inputs must refer to manifest assets")
+        inputs = [asset for asset in self.assets if asset.asset_id in self.task.inputs]
+        if any(isinstance(asset, PixelAssetRef) for asset in inputs):
+            if self.task.metadata.get("observation_profile") != "headless-tools-v1":
+                raise ValueError("pixel-only inputs require headless-tools-v1")
+            if any(action.startswith("map.") for action in self.scenario.allowed_actions):
+                raise ValueError("pixel-only tasks cannot allow geographic map actions")
+        return self
 
 
 class ArtifactLineage(V2ContractModel):
@@ -225,7 +261,7 @@ class EvidenceSelector(V2ContractModel):
     bbox: Optional[SpatialBoundingBox] = None
     time_range: Optional[TemporalExtent] = None
     bands: List[str] = Field(default_factory=list)
-    pixel_window: Optional[List[int]] = Field(default=None, min_length=4, max_length=4)
+    pixel_window: Optional[List[Annotated[int, Field(strict=True)]]] = Field(default=None, min_length=4, max_length=4)
 
     @model_validator(mode="after")
     def validate_selector(self) -> "EvidenceSelector":
@@ -371,7 +407,7 @@ class V2EpisodeState(V2ContractModel):
     state_version: int = Field(ge=0)
     status: Literal["active", "terminated", "truncated", "failed"]
     step_count: int = Field(ge=0)
-    map: MapState
+    map: Optional[MapState]
     budget: BudgetCounters
     accessible_asset_refs: List[Identifier]
     observation_refs: List[ObservationId]

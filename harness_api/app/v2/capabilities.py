@@ -2,10 +2,12 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional, Tuple
 
+from pydantic import TypeAdapter
+
 from . import IMPLEMENTATION_VERSION
 from .events import sha256_json
 from .schemas import (
-    AssetRef,
+    TaskAsset,
     CapabilitiesData,
     CapabilityStatus,
     EvaluatorSpec,
@@ -72,7 +74,7 @@ class TaskRegistry:
             assets_value = self._read_json(directory / "assets.json")
             if not isinstance(assets_value, list):
                 raise RuntimeError("assets.json must contain an array")
-            assets = [AssetRef.model_validate(item) for item in assets_value]
+            assets = [TypeAdapter(TaskAsset).validate_python(item) for item in assets_value]
             self._validate_links(task, scenario, evaluator, assets)
             manifest_body = {
                 "task": task.model_dump(mode="json"),
@@ -96,7 +98,7 @@ class TaskRegistry:
         task: TaskSpec,
         scenario: ScenarioProfile,
         evaluator: EvaluatorSpec,
-        assets: Iterable[AssetRef],
+        assets: Iterable[TaskAsset],
     ) -> None:
         if task.scenario_profile != scenario.profile_id:
             raise RuntimeError("TaskSpec scenario_profile does not match scenario.json")

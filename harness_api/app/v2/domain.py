@@ -11,7 +11,7 @@ from .schemas import (
     AnswerRecord,
     AnswerSubmitAction,
     ArtifactRef,
-    AssetRef,
+    TaskAsset,
     EvidenceRef,
     GeoPoint,
     MapLayerState,
@@ -97,7 +97,7 @@ def _bbox_from_center(
     return SpatialBoundingBox(west=west, south=south, east=east, north=north)
 
 
-def _asset_map(manifest: TaskManifest) -> Dict[str, AssetRef]:
+def _asset_map(manifest: TaskManifest) -> Dict[str, TaskAsset]:
     return {asset.asset_id: asset for asset in manifest.assets if asset.asset_id in manifest.task.inputs}
 
 
@@ -117,7 +117,8 @@ def create_initial_state(
     timestamp: Optional[str] = None,
 ) -> Tuple[V2EpisodeState, Observation]:
     created_at = timestamp or utc_now()
-    primary_asset = manifest.assets[0]
+    input_assets = _asset_map(manifest)
+    primary_asset = input_assets[manifest.task.inputs[0]]
     layer_id = "layer-%s" % primary_asset.asset_id
     observation_id = "obs-%s" % uuid.uuid4().hex
     state = V2EpisodeState(
@@ -157,9 +158,13 @@ def create_initial_state(
         updated_at=created_at,
     )
     if manifest.task.metadata.get("observation_profile") == "headless-tools-v1":
-        state.map.layers = {}
-        state.map.bbox = primary_asset.spatial.bbox
-        state.map.center = _center(primary_asset.spatial.bbox)
+        if any(asset.spatial is None for asset in input_assets.values()):
+            # No fabricated geographic state for pixel-only or mixed inputs.
+            state.map = None
+        else:
+            state.map.layers = {}
+            state.map.bbox = primary_asset.spatial.bbox
+            state.map.center = _center(primary_asset.spatial.bbox)
     observation = build_structural_observation(
         state=state,
         observation_id=observation_id,
@@ -274,6 +279,13 @@ def apply_action(
         )
 
     action_type = action.type
+    if action_type.startswith("map.") and current_state.map is None:
+        raise V2DomainError(
+            "coordinate_system_mismatch",
+            "geographic map actions are unavailable for pixel-only inputs",
+            status_code=403,
+            phase="policy",
+        )
     if action_type not in IMPLEMENTED_ACTIONS or not _action_allowed(
         action_type,
         manifest.scenario.allowed_actions,

@@ -45,6 +45,14 @@ def main():
         capabilities = request("GET", "/v2/capabilities")
         assert "eo_gym.crop" in capabilities["tools"]
         reset = request("POST", "/v2/reset", json={"task_ref": job["task_ref"], "seed": job["seed"]})
+        if job.get("coordinate_system") == "pixel":
+            assert reset["state"]["map"] is None
+            assert reset["observation"]["primary_type"] == "asset_metadata"
+            task_ref = job["task_ref"]
+            manifest = request("GET", f"/v2/tasks/{task_ref['task_id']}/versions/{task_ref['task_version']}")["manifest"]
+            asset = next(a for a in manifest["assets"] if a["asset_id"] == job["asset_id"])
+            assert asset["spatial"] is None and asset["pixel"]["coordinate_system"] == "pixel"
+            assert (asset["pixel"]["width"], asset["pixel"]["height"]) == (job["source_width"], job["source_height"])
         episode = reset["episode_id"]
         path = f"/v2/episodes/{episode}/step"
         action = {"client_action_id": "smoke-crop", "expected_state_version": 0,
