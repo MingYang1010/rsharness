@@ -1,0 +1,15 @@
+{
+  "dataset_base": "/sata/yangm/datasets",
+  "roots": [
+    "Earth-Bench", "GeoLLaVA-Data", "LRS-GRO", "LRS-VQA",
+    "MME-RealWorld/remote_sensing", "OpenEarthMap_with_xBD",
+    "XLRS-Bench-lite", "XLRS-Bench_caption_en", "XLRS-Bench_visual_grounding_en"
+  ],
+  "expand_children": ["source_datasets"],
+  "extra_roots": {
+    "worldcover-2021": "/sata/yangm/eo-harness/datasets/worldcover-2021"
+  },
+  "sample_count": 3,
+  "sample_seed": 42,
+  "sample_max_file_bytes": 536870912
+}
