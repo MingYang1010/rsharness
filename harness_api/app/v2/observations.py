@@ -20,6 +20,14 @@ def build_structural_observation(
     asset_refs: List[str],
     reason: str,
 ) -> Observation:
+    if not state.map.layers:
+        return Observation(
+            observation_id=observation_id, sequence=sequence, primary_type="asset_metadata",
+            items=[ObservationItem(type="asset_metadata", asset_refs=asset_refs)],
+            state_hash=state_hash(state), semantic_state_hash=semantic_state_hash(state),
+            provenance={"builder": "headless-assets", "builder_version": "1.0.0",
+                        "reason": reason, "task_manifest_hash": state.task_manifest_hash}, warnings=[],
+        )
     map_payload: Dict[str, Any] = state.map.model_dump(mode="json")
     return Observation(
         observation_id=observation_id,

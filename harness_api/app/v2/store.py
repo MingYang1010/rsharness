@@ -24,6 +24,7 @@ from .events import (
 )
 from .observations import add_rendered_view, semantic_state_hash, state_hash
 from .renderer.base import RendererAdapter
+from .tool_execution import ToolExecutionMixin
 from .schemas import (
     ArtifactData,
     ArtifactRef,
@@ -189,7 +190,7 @@ MIGRATIONS = {
 }
 
 
-class V2EpisodeStore:
+class V2EpisodeStore(ToolExecutionMixin):
     def __init__(
         self,
         database_path: str,
@@ -198,6 +199,7 @@ class V2EpisodeStore:
         renderer: Optional[RendererAdapter] = None,
         evaluator_registry: Optional[EvaluatorRegistry] = None,
         renderer_config: Optional[Dict[str, Any]] = None,
+        tool_executor=None,
     ):
         self.database_path = str(database_path)
         self.task_registry = task_registry
@@ -205,6 +207,7 @@ class V2EpisodeStore:
         self.renderer = renderer
         self.evaluator_registry = evaluator_registry
         self.renderer_config = renderer_config or {}
+        self.tool_executor = tool_executor
         Path(self.database_path).parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
 
@@ -692,6 +695,9 @@ class V2EpisodeStore:
         client_action_id: str,
         action: V2Action,
     ) -> EpisodeResultData:
+        self.recover_tool_runs(episode_id)
+        if action.type == "tool.invoke" and self.tool_executor is not None:
+            return self._tool_step(episode_id, expected_state_version, client_action_id, action)
         request_value = {
             "expected_state_version": expected_state_version,
             "action": action.model_dump(mode="json"),
@@ -723,6 +729,7 @@ class V2EpisodeStore:
                     raise V2DomainError(**stored_error)
                 return EpisodeResultData.model_validate_json(prior["response_json"])
 
+            self._assert_no_pending_tool(connection, episode_id)
             if row["state_version"] != expected_state_version:
                 raise V2DomainError(
                     "state_version_conflict",

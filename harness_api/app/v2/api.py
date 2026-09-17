@@ -125,6 +125,9 @@ def capabilities(request: Request) -> CapabilitiesResponse:
         store.renderer_capability(),
         store.evaluator_capability(),
     )
+    if store.tool_executor is not None:
+        data.actions = [*data.actions, "tool.invoke"]
+        data.tools = [store.tool_executor.tool_id]
     return success(
         CapabilitiesResponse,
         request,

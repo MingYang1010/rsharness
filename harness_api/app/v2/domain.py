@@ -98,7 +98,7 @@ def _bbox_from_center(
 
 
 def _asset_map(manifest: TaskManifest) -> Dict[str, AssetRef]:
-    return {asset.asset_id: asset for asset in manifest.assets}
+    return {asset.asset_id: asset for asset in manifest.assets if asset.asset_id in manifest.task.inputs}
 
 
 def _evidence_sources(
@@ -156,6 +156,10 @@ def create_initial_state(
         created_at=created_at,
         updated_at=created_at,
     )
+    if manifest.task.metadata.get("observation_profile") == "headless-tools-v1":
+        state.map.layers = {}
+        state.map.bbox = primary_asset.spatial.bbox
+        state.map.center = _center(primary_asset.spatial.bbox)
     observation = build_structural_observation(
         state=state,
         observation_id=observation_id,

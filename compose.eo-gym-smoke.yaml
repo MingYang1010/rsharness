@@ -1,0 +1,87 @@
+name: eo-harness-m3-smoke
+services:
+  provider:
+    image: eo-harness/harness-api:0.4.0
+    working_dir: /harness
+    read_only: true
+    init: true
+    command: ["uvicorn", "app.eo_gym_bridge:create_app", "--factory", "--host", "0.0.0.0", "--port", "8081"]
+    environment:
+      PYTHONPATH: /deps:/harness
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      GDAL_NUM_THREADS: "1"
+      EO_BRIDGE_SOURCE: /upstream
+      EO_BRIDGE_INPUTS: /inputs
+      EO_BRIDGE_OUTPUTS: /outputs
+      EO_BRIDGE_MANIFEST: /inputs.json
+      EO_BRIDGE_WORKER: /worker.py
+    volumes:
+      - ./harness_api:/harness:ro
+      - ./scripts/eo_gym_crop_worker.py:/worker.py:ro
+      - ./runtime/eo-gym/upstream:/upstream:ro
+      - ./runtime/eo-gym/python:/deps:ro
+      - ./runtime/eo-gym-smoke/inputs:/inputs:ro
+      - ./runtime/eo-gym-smoke/inputs.json:/inputs.json:ro
+      - ./runtime/eo-gym-smoke/provider-out:/outputs:rw
+    tmpfs: ["/tmp:size=128m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    cpus: 2
+    mem_limit: 1g
+    pids_limit: 64
+    networks: [isolated]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/healthz',timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+  harness:
+    image: eo-harness/harness-api:0.4.0
+    working_dir: /harness
+    read_only: true
+    init: true
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      PYTHONPATH: /harness
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      GDAL_NUM_THREADS: "1"
+      EO_HARNESS_DB: /state/episodes.sqlite3
+      EO_HARNESS_V2_TASKS: /tasks
+      EO_HARNESS_DATASETS: /absent-datasets
+      EO_HARNESS_V2_ARTIFACTS: /artifacts
+      EO_HARNESS_EO_GYM_URL: http://provider:8081
+    volumes:
+      - ./harness_api:/harness:ro
+      - ./runtime/eo-gym-smoke/tasks:/tasks:ro
+      - ./runtime/eo-gym-smoke/state:/state:rw
+      - ./runtime/eo-gym-smoke/artifacts:/artifacts:rw
+    tmpfs: ["/tmp:size=128m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    cpus: 2
+    mem_limit: 1g
+    pids_limit: 64
+    networks: [isolated]
+    depends_on:
+      provider:
+        condition: service_healthy
+  verify:
+    image: eo-harness/harness-api:0.4.0
+    profiles: [verify]
+    read_only: true
+    command: ["python", "/verify.py"]
+    volumes:
+      - ./scripts/verify_eo_gym_smoke.py:/verify.py:ro
+      - ./runtime/eo-gym-smoke/job.json:/smoke/job.json:ro
+      - ./runtime/eo-gym-smoke/reports:/reports:rw
+    tmpfs: ["/tmp:size=32m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    networks: [isolated]
+networks:
+  isolated:
+    internal: true

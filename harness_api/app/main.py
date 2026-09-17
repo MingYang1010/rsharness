@@ -128,6 +128,7 @@ def create_app(
     v2_renderer_config_path: Optional[str] = None,
     v2_renderer: Optional[RendererAdapter] = None,
     v2_evaluator_registry: Optional[EvaluatorRegistry] = None,
+    v2_tool_executor=None,
 ) -> FastAPI:
     resolved_database_path = database_path or DATABASE_PATH
     episode_store = EpisodeStore(resolved_database_path)
@@ -176,6 +177,11 @@ def create_app(
             renderer_config = renderer_config_value
 
         artifact_store = ArtifactStore(resolved_artifacts_path)
+        tool_executor = v2_tool_executor
+        provider_url = os.environ.get("EO_HARNESS_EO_GYM_URL")
+        if tool_executor is None and provider_url:
+            from .v2.tools.eo_gym import EOGymExecutor
+            tool_executor = EOGymExecutor(provider_url, artifact_store)
         evaluator_registry = v2_evaluator_registry or EvaluatorRegistry(
             resolved_datasets_path,
             artifact_store,
@@ -199,6 +205,7 @@ def create_app(
             renderer=renderer,
             evaluator_registry=evaluator_registry,
             renderer_config=renderer_config,
+            tool_executor=tool_executor,
         )
     application = FastAPI(
         title="EO Harness Environment API",
