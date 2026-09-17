@@ -1,0 +1,17 @@
+{
+  "repository": "paperuploadacount/EO-Gym",
+  "revision": "d168c28e870ccbf75f63ce60d087420a6babed9e",
+  "software_license": "unresolved-do-not-redistribute",
+  "source_budget_bytes": 52428800,
+  "new_storage_budget_bytes": 3000000000000,
+  "archives": {
+    "EO_GYM_DATA.zip": {
+      "size": 22642569591,
+      "sha256": "6bbc25451353f3d144f52fe8ae6431fdda432bae0d4960a958208b7cd16ecf38"
+    },
+    "image_cache.zip": {
+      "size": 21995453503,
+      "sha256": "52b7c0413327cad2c893933836c1163b73f36ae0459b18f535f8ae933a5575df"
+    }
+  }
+}
