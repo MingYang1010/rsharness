@@ -56,7 +56,7 @@ class FakeExecutor(EOGymExecutor):
             raise V2DomainError("tool_timeout", "test timeout", 504, True, "tool")
         _, asset = self.prepare(action, manifest)
         artifact = self.artifacts.put_bytes(PNG_BYTES, "image", "image/png", ArtifactLineage(
-            tool_id=self.tool_id, tool_version="1.0.0", input_refs=[asset.asset_id], parameters_hash=hashlib.sha256(b"args").hexdigest()))
+            tool_id=self.tool_id, tool_version=self.tool_version, input_refs=[asset.asset_id], parameters_hash=hashlib.sha256(b"args").hexdigest()))
         return ToolOutput(artifact, {"width": 1, "height": 1}, asset.size_bytes)
 
 

@@ -65,9 +65,25 @@ an asset; the smoke preparer re-reads them before staging the input.
 This is an additive task variant, not a rewrite of existing WorldCover task
 versions. Original task JSON, manifest hashes, state shapes and golden fixtures
 are unchanged; V2 OpenAPI includes the additional variant and nullable map.
-Crop artifacts still use the existing pixel metadata in tool observations;
-persisting typed artifact dimensions and validating their evidence windows is
-separate remaining work.
+EO-Gym crop version `1.1.0` produces `PixelArtifactRef` with the same typed `pixel`
+object. The artifact store decodes the complete bounded PNG and rejects claimed
+dimensions/channels that disagree with its content before writing. Metadata is
+preserved in SQLite and API responses. Pixel evidence is bounds-checked after
+restart as well as within the original process. Legacy artifact JSON and content
+hashes are not rewritten; new pixel-window evidence against a legacy source with
+no verified dimensions is rejected instead of guessing its size. Previously
+recorded evidence and structural traces remain readable.
+
+## Episode-scoped Artifact Access
+
+Both artifact endpoints now require `?episode_id=ep2-...`. Omitting it is a `422`
+request error; a valid episode without association to that artifact receives
+`403 artifact_not_accessible`, for metadata, full content and byte ranges alike.
+Existing clients must add this query parameter. This deliberately fixes the
+previous global read behavior, where the query was ignored. It does not rewrite
+stored artifacts, immutable tasks or V1 contracts. Episode scoping is not user
+authentication: deploy behind controlled internal access and do not give an
+Agent arbitrary other episode identifiers.
 
 ## Example Episode
 

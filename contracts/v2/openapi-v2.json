@@ -168,7 +168,15 @@
         "additionalProperties": false,
         "properties": {
           "artifact": {
-            "$ref": "#/components/schemas/ArtifactRef"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ArtifactRef"
+              },
+              {
+                "$ref": "#/components/schemas/PixelArtifactRef"
+              }
+            ],
+            "title": "Artifact"
           }
         },
         "required": [
@@ -1680,6 +1688,86 @@
         "title": "ObservationResponse",
         "type": "object"
       },
+      "PixelArtifactRef": {
+        "additionalProperties": false,
+        "description": "Opt-in decoded image dimensions; legacy ArtifactRef JSON stays unchanged.",
+        "properties": {
+          "artifact_id": {
+            "pattern": "^art-[a-f0-9]{64}$",
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "raster",
+              "vector",
+              "table",
+              "image",
+              "text"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "lineage": {
+            "$ref": "#/components/schemas/ArtifactLineage"
+          },
+          "media_type": {
+            "minLength": 1,
+            "title": "Media Type",
+            "type": "string"
+          },
+          "pixel": {
+            "$ref": "#/components/schemas/PixelExtent"
+          },
+          "sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "minimum": 0.0,
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "spatial": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpatialExtent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "temporal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TemporalExtent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uri": {
+            "pattern": "^artifact://sha256/[a-f0-9]{2}/[a-f0-9]{64}$",
+            "title": "Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "kind",
+          "media_type",
+          "uri",
+          "sha256",
+          "size_bytes",
+          "lineage",
+          "pixel"
+        ],
+        "title": "PixelArtifactRef",
+        "type": "object"
+      },
       "PixelAssetRef": {
         "additionalProperties": false,
         "description": "Separate variant keeps legacy georeferenced asset JSON byte-compatible.",
@@ -2991,6 +3079,16 @@
               "title": "Artifact Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "episode_id",
+            "required": true,
+            "schema": {
+              "pattern": "^ep2-[a-f0-9]{32}$",
+              "title": "Episode Id",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -3092,6 +3190,16 @@
             "schema": {
               "pattern": "^art-[a-f0-9]{64}$",
               "title": "Artifact Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "episode_id",
+            "required": true,
+            "schema": {
+              "pattern": "^ep2-[a-f0-9]{32}$",
+              "title": "Episode Id",
               "type": "string"
             }
           },

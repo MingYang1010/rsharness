@@ -60,8 +60,9 @@ module imports ground-truth helpers: mounting no label files is mandatory.
 - PNG outputs retain pixel coordinates and source lineage, not invented spatial
   bounds. TaskManifest supports explicit PixelAssetRef inputs with audited width,
   height and channels. Pixel-only/mixed episodes have no geographic map state and
-  reject geographic actions/evidence. Artifact dimensions remain tool metadata;
-  typed artifact-coordinate contracts still need implementation.
+  reject geographic actions/evidence. Crop tool version 1.1.0 records decoded
+  dimensions/channels in PixelArtifactRef; new evidence windows are bounds-checked
+  from persisted metadata. PNG payloads are fully decoded before registration.
 - Same content with conflicting provenance is rejected and recorded, rather than
   overwriting existing artifact metadata. Multiple derivations per content object
   require a future provenance model extension.
@@ -95,7 +96,7 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
 
 ## Verified results and unfinished scope
 
-- A800: 72 Python tests pass, including the 44 original regressions and real
+- A800: 77 Python tests pass, including the 44 original regressions and real
   upstream CPU tests. Synthetic test fixtures are not counted as dataset coverage.
 - Live HTTP smoke: real FAIR1M2 image, 400x300 crop, one tool call, frozen evidence,
   answer submission and passed structural checks. Container recreation preserves
@@ -110,7 +111,7 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
 - This is scripted interaction acceptance, NOT Qwen inference, semantic task
   accuracy, full dataset integration or execution replay. `replay` remains the
   existing structural verifier. The smoke task intentionally has no semantic score.
-- Still needed: typed pixel artifact dimensions, packed-dataset adapters, reviewed asset access,
+- Still needed: packed-dataset adapters, reviewed asset access,
   remaining raster/STAC tools, public imagery subsets, semantic evaluators and
   the Qwen runner. A800 GPU allocation remains blocked by occupied cards/DRAIN.
 
@@ -134,3 +135,25 @@ all three smoke projects were stopped and removed. No dataset-wide admission,
 Qwen inference or semantic accuracy is claimed. Original imagery was read-only.
 The four renderer tests also pass; V1 contracts, old V2 fixtures and immutable
 WorldCover tasks have no Git diff.
+
+## Typed artifact acceptance and client migration
+
+Artifact metadata/content reads require the episode_id query parameter and verify
+the persisted episode-artifact association. This fixes an observed cross-episode
+read bug; it is a required client change, not an authentication system. Tests
+cover omitted/invalid scope, unrelated episodes and foreign evidence. Old
+artifact JSON and hashes remain unchanged. Legacy sources without dimensions
+cannot support new pixel evidence. Re-execution producing the same content with
+different metadata still fails explicitly pending multi-derivation provenance.
+
+For a live restart check before evidence submission, run the verifier with
+`--pause-after-crop`, recreate only the Harness, then `--complete-after-restart`.
+This checks cached crop equality, persisted pixel metadata, rejection of an
+oversized evidence window, valid evidence and answer submission. Recreate again
+and run `--resume-check` to verify final state, trace, content and metadata.
+Use fresh runtime names; do not overwrite earlier reports.
+
+Three real DOTA samples passed this mid-episode restart flow on A800, including
+post-restart oversized-window rejection and a second recreation after submission.
+Reports are under `runtime/typed-dota-20260917-{0,1,2}/reports/`. All dedicated
+containers/networks were removed; original inputs and earlier reports remain.

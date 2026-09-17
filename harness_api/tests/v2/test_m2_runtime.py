@@ -187,14 +187,14 @@ class V2M2RuntimeTests(unittest.TestCase):
             observation,
         )
 
-        artifact_response = self.client.get("/v2/artifacts/%s" % artifact_id)
+        artifact_response = self.client.get("/v2/artifacts/%s?episode_id=%s" % (artifact_id, episode_id))
         self.assertEqual(artifact_response.status_code, 200)
         artifact = artifact_response.json()["data"]["artifact"]
-        content = self.client.get("/v2/artifacts/%s/content" % artifact_id)
+        content = self.client.get("/v2/artifacts/%s/content?episode_id=%s" % (artifact_id, episode_id))
         self.assertEqual(content.status_code, 200)
         self.assertEqual(content.content, PNG_BYTES)
         partial = self.client.get(
-            "/v2/artifacts/%s/content" % artifact_id,
+            "/v2/artifacts/%s/content?episode_id=%s" % (artifact_id, episode_id),
             headers={"Range": "bytes=0-7"},
         )
         self.assertEqual(partial.status_code, 206)
@@ -204,7 +204,7 @@ class V2M2RuntimeTests(unittest.TestCase):
             "bytes 0-7/%s" % len(PNG_BYTES),
         )
         invalid_range = self.client.get(
-            "/v2/artifacts/%s/content" % artifact_id,
+            "/v2/artifacts/%s/content?episode_id=%s" % (artifact_id, episode_id),
             headers={"Range": "items=0-7"},
         )
         self.assertEqual(invalid_range.status_code, 416)
@@ -298,7 +298,7 @@ class V2M2RuntimeTests(unittest.TestCase):
         ).json()["data"]
         self.assertEqual(state_after, state_before)
         self.assertEqual(
-            self.client.get("/v2/artifacts/%s/content" % artifact_id).content,
+            self.client.get("/v2/artifacts/%s/content?episode_id=%s" % (artifact_id, episode_id)).content,
             PNG_BYTES,
         )
         self.assertEqual(
@@ -320,17 +320,17 @@ class V2M2RuntimeTests(unittest.TestCase):
         )
 
     def test_registered_artifact_missing_or_corrupt_returns_typed_error(self):
-        _, _, artifact_id = self._render_episode()
+        episode_id, _, artifact_id = self._render_episode()
         artifact = self.client.get(
-            "/v2/artifacts/%s" % artifact_id
+            "/v2/artifacts/%s?episode_id=%s" % (artifact_id, episode_id)
         ).json()["data"]["artifact"]
         path = self.artifact_store.content_path(artifact["sha256"])
         path.write_bytes(b"corrupt")
-        corrupt = self.client.get("/v2/artifacts/%s/content" % artifact_id)
+        corrupt = self.client.get("/v2/artifacts/%s/content?episode_id=%s" % (artifact_id, episode_id))
         self.assertEqual(corrupt.status_code, 503)
         self.assertEqual(corrupt.json()["error"]["code"], "artifact_content_corrupt")
         path.unlink()
-        missing = self.client.get("/v2/artifacts/%s/content" % artifact_id)
+        missing = self.client.get("/v2/artifacts/%s/content?episode_id=%s" % (artifact_id, episode_id))
         self.assertEqual(missing.status_code, 503)
         self.assertEqual(missing.json()["error"]["code"], "artifact_content_missing")
 

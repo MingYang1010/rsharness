@@ -9,22 +9,22 @@ import httpx
 from pydantic import ValidationError
 
 from ...eo_gym_bridge import CropArguments, REVISION
-from ..artifacts import ArtifactStore
+from ..artifacts import ArtifactStore, ArtifactStoreError
 from ..domain import V2DomainError
 from ..events import sha256_json
-from ..schemas import ArtifactLineage, ArtifactRef, PixelAssetRef, TaskAsset, TaskManifest, ToolInvokeAction
+from ..schemas import ArtifactLineage, Artifact, PixelExtent, PixelAssetRef, TaskAsset, TaskManifest, ToolInvokeAction
 
 
 @dataclass(frozen=True)
 class ToolOutput:
-    artifact: ArtifactRef
+    artifact: Artifact
     metadata: dict[str, Any]
     input_bytes: int
 
 
 class EOGymExecutor:
     tool_id = "eo_gym.crop"
-    tool_version = "1.0.0"
+    tool_version = "1.1.0"
     max_output_bytes = 64 * 1024 * 1024
 
     def __init__(self, base_url: str, artifacts: ArtifactStore, transport=None):
@@ -92,17 +92,21 @@ class EOGymExecutor:
             with MemoryFile(content) as memory, memory.open() as image:
                 if image.width != result["width"] or image.height != result["height"]:
                     raise ValueError("provider image dimensions mismatch")
+                pixel = PixelExtent(coordinate_system="pixel", width=image.width, height=image.height, channels=image.count)
         except httpx.TimeoutException:
             raise V2DomainError("tool_timeout", "EO-Gym provider timed out", 504, True, "tool") from None
         except httpx.HTTPError:
             raise V2DomainError("tool_unavailable", "EO-Gym provider request failed", 502, True, "tool") from None
         except (ValueError, KeyError, TypeError):
             raise V2DomainError("invalid_tool_output", "EO-Gym result failed validation", 502, phase="tool") from None
-        artifact = self.artifacts.put_bytes(content, kind="image", media_type="image/png", lineage=ArtifactLineage(
-            tool_id=self.tool_id, tool_version=self.tool_version, input_refs=[asset.asset_id],
-            parameters_hash=sha256_json({"arguments": arguments.model_dump(), "input_sha256": asset.sha256,
-                                        "upstream_revision": REVISION}),
-        ))
+        try:
+            artifact = self.artifacts.put_bytes(content, kind="image", media_type="image/png", pixel=pixel, lineage=ArtifactLineage(
+                tool_id=self.tool_id, tool_version=self.tool_version, input_refs=[asset.asset_id],
+                parameters_hash=sha256_json({"arguments": arguments.model_dump(), "input_sha256": asset.sha256,
+                                            "upstream_revision": REVISION}),
+            ))
+        except ArtifactStoreError:
+            raise V2DomainError("invalid_tool_output", "EO-Gym image payload failed validation", 502, phase="tool") from None
         # Do not infer crop georeferencing from a PNG. Pixel metadata and lineage
         # are sufficient until a separately verified raster transform is available.
         metadata = {key: result[key] for key in ("width", "height", "bbox_px", "aoi_norm", "input_asset_id", "input_sha256", "upstream_revision")}

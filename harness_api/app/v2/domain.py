@@ -10,7 +10,7 @@ from .observations import build_structural_observation
 from .schemas import (
     AnswerRecord,
     AnswerSubmitAction,
-    ArtifactRef,
+    Artifact,
     TaskAsset,
     EvidenceRef,
     GeoPoint,
@@ -103,7 +103,7 @@ def _asset_map(manifest: TaskManifest) -> Dict[str, TaskAsset]:
 
 def _evidence_sources(
     manifest: TaskManifest,
-    artifacts: Optional[Dict[str, ArtifactRef]],
+    artifacts: Optional[Dict[str, Artifact]],
 ) -> Dict[str, Any]:
     sources: Dict[str, Any] = _asset_map(manifest)
     sources.update(artifacts or {})
@@ -268,7 +268,7 @@ def apply_action(
     action: V2Action,
     manifest: TaskManifest,
     current_time: Optional[str] = None,
-    artifacts: Optional[Dict[str, ArtifactRef]] = None,
+    artifacts: Optional[Dict[str, Artifact]] = None,
 ) -> Tuple[V2EpisodeState, Observation, Dict[str, Any]]:
     if current_state.status != "active":
         raise V2DomainError(

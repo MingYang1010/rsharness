@@ -8,7 +8,10 @@ from typing import Optional
 
 from .schemas import (
     ArtifactLineage,
+    Artifact,
     ArtifactRef,
+    PixelArtifactRef,
+    PixelExtent,
     SpatialExtent,
     TemporalExtent,
 )
@@ -49,8 +52,24 @@ class ArtifactStore:
         lineage: ArtifactLineage,
         spatial: Optional[SpatialExtent] = None,
         temporal: Optional[TemporalExtent] = None,
-    ) -> ArtifactRef:
+        pixel: Optional[PixelExtent] = None,
+    ) -> Artifact:
+        if pixel is not None:
+            self._validate_pixels(content, kind, media_type, pixel)
         digest = hashlib.sha256(content).hexdigest()
+        artifact_type = PixelArtifactRef if pixel is not None else ArtifactRef
+        artifact = artifact_type(
+            artifact_id="art-%s" % digest,
+            kind=kind,
+            media_type=media_type,
+            uri="artifact://sha256/%s/%s" % (digest[:2], digest),
+            sha256=digest,
+            size_bytes=len(content),
+            spatial=spatial,
+            temporal=temporal,
+            lineage=lineage,
+            **({"pixel": pixel} if pixel is not None else {}),
+        )
         destination = self.content_path(digest)
         destination.parent.mkdir(parents=True, exist_ok=True)
         write_required = not destination.is_file()
@@ -80,17 +99,27 @@ class ArtifactStore:
                 except FileNotFoundError:
                     pass
                 raise
-        return ArtifactRef(
-            artifact_id="art-%s" % digest,
-            kind=kind,
-            media_type=media_type,
-            uri="artifact://sha256/%s/%s" % (digest[:2], digest),
-            sha256=digest,
-            size_bytes=len(content),
-            spatial=spatial,
-            temporal=temporal,
-            lineage=lineage,
-        )
+        return artifact
+
+    @staticmethod
+    def _validate_pixels(content: bytes, kind: str, media_type: str, pixel: PixelExtent) -> None:
+        # The first typed provider emits bounded PNGs only; do not let GDAL
+        # interpret arbitrary VRT/remote references through this interface.
+        if kind not in {"image", "raster"} or media_type != "image/png" or not content.startswith(b"\x89PNG\r\n\x1a\n"):
+            raise ArtifactStoreError("invalid_pixel_artifact", "typed pixel artifacts currently require PNG image content")
+        if len(content) > 64 * 1024 * 1024:
+            raise ArtifactStoreError("invalid_pixel_artifact", "pixel artifact exceeds byte limit")
+        from rasterio.io import MemoryFile
+        from rasterio.errors import RasterioError
+        try:
+            with MemoryFile(content) as memory, memory.open(driver="PNG") as image:
+                if image.width * image.height > 20_000_000 or image.count > 4:
+                    raise ArtifactStoreError("invalid_pixel_artifact", "pixel artifact exceeds decode limit")
+                if (image.width, image.height, image.count) != (pixel.width, pixel.height, pixel.channels):
+                    raise ArtifactStoreError("invalid_pixel_artifact", "pixel dimensions do not match decoded content")
+                image.read()  # Validate the payload, not just a claimed PNG header.
+        except RasterioError:
+            raise ArtifactStoreError("invalid_pixel_artifact", "pixel artifact could not be decoded") from None
 
     def audit_exists(self, artifact: ArtifactRef) -> bool:
         path = self.content_path(artifact.sha256)

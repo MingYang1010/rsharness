@@ -256,6 +256,21 @@ class ArtifactRef(V2ContractModel):
     lineage: ArtifactLineage
 
 
+class PixelArtifactRef(ArtifactRef):
+    """Opt-in decoded image dimensions; legacy ArtifactRef JSON stays unchanged."""
+
+    pixel: PixelExtent
+
+    @model_validator(mode="after")
+    def validate_pixel_kind(self) -> "PixelArtifactRef":
+        if self.kind not in {"image", "raster"}:
+            raise ValueError("pixel dimensions require an image or raster artifact")
+        return self
+
+
+Artifact = Union[ArtifactRef, PixelArtifactRef]
+
+
 class EvidenceSelector(V2ContractModel):
     geometry: Optional[Dict[str, JsonValue]] = None
     bbox: Optional[SpatialBoundingBox] = None
@@ -627,7 +642,7 @@ class ObservationData(V2ContractModel):
 
 
 class ArtifactData(V2ContractModel):
-    artifact: ArtifactRef
+    artifact: Artifact
 
 
 class EvaluationData(V2ContractModel):

@@ -35,6 +35,7 @@ from .store import V2EpisodeStore
 
 
 EpisodePath = Annotated[str, Path(pattern=EPISODE_ID_PATTERN)]
+EpisodeQuery = Annotated[str, Query(pattern=EPISODE_ID_PATTERN)]
 ObservationPath = Annotated[str, Path(pattern=OBSERVATION_ID_PATTERN)]
 ArtifactPath = Annotated[str, Path(pattern=ARTIFACT_ID_PATTERN)]
 TaskIdPath = Annotated[
@@ -214,8 +215,8 @@ def get_observation(
     response_model=ArtifactResponse,
     responses=V2_ERROR_RESPONSES,
 )
-def get_artifact(request: Request, artifact_id: ArtifactPath) -> ArtifactResponse:
-    data = _store(request).get_artifact(artifact_id)
+def get_artifact(request: Request, artifact_id: ArtifactPath, episode_id: EpisodeQuery) -> ArtifactResponse:
+    data = _store(request).get_artifact(artifact_id, episode_id)
     return success(
         ArtifactResponse,
         request,
@@ -232,10 +233,11 @@ def get_artifact(request: Request, artifact_id: ArtifactPath) -> ArtifactRespons
 def get_artifact_content(
     request: Request,
     artifact_id: ArtifactPath,
+    episode_id: EpisodeQuery,
     range_header: RangeHeader = None,
 ) -> Response:
     store = _store(request)
-    artifact = store.get_artifact(artifact_id).artifact
+    artifact = store.get_artifact(artifact_id, episode_id).artifact
     if store.artifact_store is None:
         raise V2DomainError(
             "artifact_store_unavailable",

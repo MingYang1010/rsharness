@@ -4,6 +4,8 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
+from pydantic import TypeAdapter
+
 from . import STORE_SCHEMA_VERSION
 from .artifacts import ArtifactStore
 from .budgets import exhausted, update_budget
@@ -27,7 +29,7 @@ from .renderer.base import RendererAdapter
 from .tool_execution import ToolExecutionMixin
 from .schemas import (
     ArtifactData,
-    ArtifactRef,
+    Artifact,
     EpisodeResultData,
     EvaluationData,
     EventRecord,
@@ -354,7 +356,7 @@ class V2EpisodeStore(ToolExecutionMixin):
         connection: sqlite3.Connection,
         episode_id: str,
         observation_id: str,
-        artifact: ArtifactRef,
+        artifact: Artifact,
         created_at: str,
     ) -> None:
         existing = connection.execute(
@@ -431,7 +433,7 @@ class V2EpisodeStore(ToolExecutionMixin):
     def _artifacts_for_episode(
         connection: sqlite3.Connection,
         episode_id: str,
-    ) -> Dict[str, ArtifactRef]:
+    ) -> Dict[str, Artifact]:
         rows = connection.execute(
             """
             SELECT artifact.artifact_json
@@ -444,7 +446,7 @@ class V2EpisodeStore(ToolExecutionMixin):
             (episode_id,),
         ).fetchall()
         artifacts = [
-            ArtifactRef.model_validate_json(row["artifact_json"])
+            TypeAdapter(Artifact).validate_json(row["artifact_json"])
             for row in rows
         ]
         return {artifact.artifact_id: artifact for artifact in artifacts}
@@ -584,8 +586,18 @@ class V2EpisodeStore(ToolExecutionMixin):
             observation=Observation.model_validate_json(row["observation_json"]),
         )
 
-    def get_artifact(self, artifact_id: str) -> ArtifactData:
+    def get_artifact(self, artifact_id: str, episode_id: str) -> ArtifactData:
         with self._connect() as connection:
+            self._load_episode(connection, episode_id)
+            association = connection.execute(
+                "SELECT 1 FROM v2_episode_artifacts WHERE episode_id=? AND artifact_id=?",
+                (episode_id, artifact_id),
+            ).fetchone()
+            if association is None:
+                raise V2DomainError(
+                    "artifact_not_accessible", "artifact is not accessible in this episode",
+                    status_code=403, phase="policy",
+                )
             row = connection.execute(
                 """
                 SELECT artifact_json FROM v2_artifacts
@@ -601,7 +613,7 @@ class V2EpisodeStore(ToolExecutionMixin):
                 phase="artifact",
             )
         return ArtifactData(
-            artifact=ArtifactRef.model_validate_json(row["artifact_json"])
+            artifact=TypeAdapter(Artifact).validate_json(row["artifact_json"])
         )
 
     def get_evaluation(self, episode_id: str) -> EvaluationData:
