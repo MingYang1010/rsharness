@@ -1,0 +1,227 @@
+{
+  "benchmark_id": "cloud-policy-validation-v1",
+  "benchmark_version": "1.0.0",
+  "source": {
+    "dataset_name": "CloudSEN12",
+    "dataset_doi": "10.57760/sciencedb.06669",
+    "paper_doi": "10.1038/s41597-022-01878-2",
+    "landing_page": "https://www.scidb.cn/detail?dataSetId=f72d622ff4ea4fa18070456a98222b1a",
+    "license": "CC BY-NC 4.0",
+    "scope": "local-research",
+    "not_redistribution_authorization": true,
+    "manual_label_method": "expert photo-interpretation with IRIS initialization and manual refinement",
+    "independence_boundary": "manual labels do not reuse the Sen2Cor SCL output under test; IRIS initialization uses s2cloudless"
+  },
+  "archive": {
+    "name": "24__ROI_0549__ROI_0570.tar",
+    "file_id": "637daff286ce5f243f83c43b",
+    "url": "https://china.scidb.cn/download?fileId=637daff286ce5f243f83c43b",
+    "size_bytes": 1797259897,
+    "etag": "637daff2-6b200279",
+    "prefix": {
+      "size_bytes": 134217728,
+      "sha256": "3cf05bf3143973add01c4b155a280f27fa456111987a9b99735a040e67684729"
+    }
+  },
+  "policy": {
+    "policy_id": "sentinel-2-scl-cloud-shadow-cirrus-snow-saturation-v1",
+    "excluded_scl_classes": [1, 3, 8, 9, 10, 11],
+    "manual_classes": [0, 1, 2, 3],
+    "manual_invalid_classes": [1, 2, 3],
+    "thresholds": [0.001, 0.2]
+  },
+  "samples": [
+    {
+      "sample_id": "ROI_0549--20190519T155911_20190519T160743_T18STG",
+      "roi": "ROI_0549",
+      "scene": "20190519T155911_20190519T160743_T18STG",
+      "manual": {
+        "path": "ROI_0549/20190519T155911_20190519T160743_T18STG/labels/manual_hq.tif",
+        "size_bytes": 20434,
+        "sha256": "c327fbac98262b96c754b59a3c1a98a7d8c1af4f6d4ed6e95ca4ae32cfa934ef"
+      },
+      "scl": {
+        "path": "ROI_0549/20190519T155911_20190519T160743_T18STG/labels/sen2cor.tif",
+        "size_bytes": 10062,
+        "sha256": "6854c747b3a8e0bd56cd347d37438c59a9a5ef0457f2b469ed6acd1acbad1f52"
+      },
+      "profile": {
+        "width": 509,
+        "height": 509,
+        "count": 1,
+        "dtype": "float32",
+        "crs": "EPSG:32618",
+        "transform": [10.0, 0.0, 257470.0, 0.0, -10.0, 4095840.0],
+        "nodata": -3.3999999521443642e+38
+      }
+    },
+    {
+      "sample_id": "ROI_0549--20190718T155911_20190718T160643_T17SQA",
+      "roi": "ROI_0549",
+      "scene": "20190718T155911_20190718T160643_T17SQA",
+      "manual": {
+        "path": "ROI_0549/20190718T155911_20190718T160643_T17SQA/labels/manual_hq.tif",
+        "size_bytes": 39179,
+        "sha256": "5decb2ba40f8083810a1821ac39a64d75d9e3397b3e4ab836ebb5c8b99f3039b"
+      },
+      "scl": {
+        "path": "ROI_0549/20190718T155911_20190718T160643_T17SQA/labels/sen2cor.tif",
+        "size_bytes": 20074,
+        "sha256": "7fb2618c7671c9b61ef990120b1e6fa49c2f6a547a107c107af3ff9f91341645"
+      },
+      "profile": {
+        "width": 509,
+        "height": 509,
+        "count": 1,
+        "dtype": "float32",
+        "crs": "EPSG:32618",
+        "transform": [10.0, 0.0, 257470.0, 0.0, -10.0, 4095840.0],
+        "nodata": -3.3999999521443642e+38
+      }
+    },
+    {
+      "sample_id": "ROI_0549--20190928T155029_20190928T155956_T18STG",
+      "roi": "ROI_0549",
+      "scene": "20190928T155029_20190928T155956_T18STG",
+      "manual": {
+        "path": "ROI_0549/20190928T155029_20190928T155956_T18STG/labels/manual_hq.tif",
+        "size_bytes": 58310,
+        "sha256": "461e4b2a37f51b3c712e150280d9c500cabaa93bc9cecfc0f5bea349b2025c2a"
+      },
+      "scl": {
+        "path": "ROI_0549/20190928T155029_20190928T155956_T18STG/labels/sen2cor.tif",
+        "size_bytes": 39119,
+        "sha256": "8f515c27bf14913d264be12ba5f94806d7d27d14ab8d00d4d612e6204f67ad0e"
+      },
+      "profile": {
+        "width": 509,
+        "height": 509,
+        "count": 1,
+        "dtype": "float32",
+        "crs": "EPSG:32618",
+        "transform": [10.0, 0.0, 257470.0, 0.0, -10.0, 4095840.0],
+        "nodata": -3.3999999521443642e+38
+      }
+    },
+    {
+      "sample_id": "ROI_0549--20200306T155019_20200306T160015_T17SQB",
+      "roi": "ROI_0549",
+      "scene": "20200306T155019_20200306T160015_T17SQB",
+      "manual": {
+        "path": "ROI_0549/20200306T155019_20200306T160015_T17SQB/labels/manual_hq.tif",
+        "size_bytes": 58956,
+        "sha256": "cc436d8c16ccdc0be24e3d6de0142509050352f75ae51a3820dc194ce75e46d4"
+      },
+      "scl": {
+        "path": "ROI_0549/20200306T155019_20200306T160015_T17SQB/labels/sen2cor.tif",
+        "size_bytes": 39531,
+        "sha256": "cc9543a54772989cef30a7397bf52fb2fcb0294d257abcb88e1ea10500b6ec78"
+      },
+      "profile": {
+        "width": 509,
+        "height": 509,
+        "count": 1,
+        "dtype": "float32",
+        "crs": "EPSG:32618",
+        "transform": [10.0, 0.0, 257470.0, 0.0, -10.0, 4095840.0],
+        "nodata": -3.3999999521443642e+38
+      }
+    },
+    {
+      "sample_id": "ROI_0549--20200707T155819_20200707T161233_T18STF",
+      "roi": "ROI_0549",
+      "scene": "20200707T155819_20200707T161233_T18STF",
+      "manual": {
+        "path": "ROI_0549/20200707T155819_20200707T161233_T18STF/labels/manual_hq.tif",
+        "size_bytes": 50145,
+        "sha256": "a3cea3131bee89b3214519b891c308d3cbf934814b18f4acfa5b1a24af7740ec"
+      },
+      "scl": {
+        "path": "ROI_0549/20200707T155819_20200707T161233_T18STF/labels/sen2cor.tif",
+        "size_bytes": 4652,
+        "sha256": "564d6d1c63fb1a0dc3467f659cf4bef174dbb50b068097862d9915bc50734bb6"
+      },
+      "profile": {
+        "width": 509,
+        "height": 509,
+        "count": 1,
+        "dtype": "float32",
+        "crs": "EPSG:32618",
+        "transform": [10.0, 0.0, 257470.0, 0.0, -10.0, 4095840.0],
+        "nodata": -3.3999999521443642e+38
+      }
+    },
+    {
+      "sample_id": "ROI_0550--20190310T023541_20190310T024155_T51RTM",
+      "roi": "ROI_0550",
+      "scene": "20190310T023541_20190310T024155_T51RTM",
+      "manual": {
+        "path": "ROI_0550/20190310T023541_20190310T024155_T51RTM/labels/manual_hq.tif",
+        "size_bytes": 47379,
+        "sha256": "7900808c897aff45b668c891d905180195a6ec775d44a49c9fadebb8532cfdc2"
+      },
+      "scl": {
+        "path": "ROI_0550/20190310T023541_20190310T024155_T51RTM/labels/sen2cor.tif",
+        "size_bytes": 15296,
+        "sha256": "281047bed6521053c569b23b70a2da882e9421ece0b6ef8a69ccae9c1d515b2b"
+      },
+      "profile": {
+        "width": 509,
+        "height": 509,
+        "count": 1,
+        "dtype": "float32",
+        "crs": "EPSG:32651",
+        "transform": [10.0, 0.0, 236880.0, 0.0, -10.0, 3130300.0],
+        "nodata": -3.3999999521443642e+38
+      }
+    },
+    {
+      "sample_id": "ROI_0550--20190504T023559_20190504T024226_T51RTM",
+      "roi": "ROI_0550",
+      "scene": "20190504T023559_20190504T024226_T51RTM",
+      "manual": {
+        "path": "ROI_0550/20190504T023559_20190504T024226_T51RTM/labels/manual_hq.tif",
+        "size_bytes": 20434,
+        "sha256": "036e7a908bfe55c0c000a5e1537806bf7d6b75d662ed282ec8b25d5e286e716b"
+      },
+      "scl": {
+        "path": "ROI_0550/20190504T023559_20190504T024226_T51RTM/labels/sen2cor.tif",
+        "size_bytes": 11348,
+        "sha256": "39fbe56e13d600a277270e2a5722343e428d944ceea0228991f6f57a30fa3187"
+      },
+      "profile": {
+        "width": 509,
+        "height": 509,
+        "count": 1,
+        "dtype": "float32",
+        "crs": "EPSG:32651",
+        "transform": [10.0, 0.0, 236880.0, 0.0, -10.0, 3130300.0],
+        "nodata": -3.3999999521443642e+38
+      }
+    },
+    {
+      "sample_id": "ROI_0550--20190817T023551_20190817T024442_T51RTM",
+      "roi": "ROI_0550",
+      "scene": "20190817T023551_20190817T024442_T51RTM",
+      "manual": {
+        "path": "ROI_0550/20190817T023551_20190817T024442_T51RTM/labels/manual_hq.tif",
+        "size_bytes": 41040,
+        "sha256": "5ec8e9bb75f8718a8fe252e200e95f9dac6a402fc7152738df256153a19ddc45"
+      },
+      "scl": {
+        "path": "ROI_0550/20190817T023551_20190817T024442_T51RTM/labels/sen2cor.tif",
+        "size_bytes": 15372,
+        "sha256": "77bb1bff1d7cd5e86575f80801a01f3a62721aeba8512c2d2d616cf317b4552c"
+      },
+      "profile": {
+        "width": 509,
+        "height": 509,
+        "count": 1,
+        "dtype": "float32",
+        "crs": "EPSG:32651",
+        "transform": [10.0, 0.0, 236880.0, 0.0, -10.0, 3130300.0],
+        "nodata": -3.3999999521443642e+38
+      }
+    }
+  ]
+}
