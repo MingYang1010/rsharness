@@ -1,4 +1,4 @@
-"""Separate, fail-closed Agent surface for one operator-provisioned episode.
+"""Separate, fail-closed Agent surface for operator-provisioned episodes.
 
 Deploy on separate front/back networks. Never expose the operator API alongside it.
 """
@@ -6,19 +6,22 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import hmac
 import json
 import os
+from contextvars import ContextVar
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Callable
 from urllib.parse import urlsplit
 
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, Field, TypeAdapter, ValidationError, model_validator
+from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from .agent_credentials import (AgentBinding, AgentCredentialRegistry, CredentialError,
+                                CredentialResolver, PublicTask, utc_now)
 from .eo_gym_bridge import CropArguments
 from .v2.raster_math import (BandMathArguments, MASKED_VERSION as RASTER_MASKED_VERSION,
                              MaskedNDVIResult, NDVIResult, TOOL_ID as RASTER_TOOL,
@@ -27,10 +30,10 @@ from .v2.raster_grid import (GridArguments, GridResult, TOOL_ID as GRID_TOOL,
                              VERSION as GRID_VERSION)
 from .v2.domain import _action_allowed
 from .v2.artifact_identity import DERIVATION_SCHEME, LEGACY_SCHEME, validate_derivation_metadata
-from .v2.schemas import (Artifact, ArtifactId, AssetQuality, BudgetSpec, EpisodeId,
-                         Identifier, MapState, Observation, ObservationId, PixelExtent,
+from .v2.schemas import (Artifact, ArtifactId, AssetQuality, Identifier, MapState,
+                         Observation, ObservationId, PixelExtent,
                          SemanticVersion, Sha256, SpatialBoundingBox, StepRequest,
-                         TaskManifest, TemporalExtent, V2EpisodeState, V2RequestModel)
+                         TaskManifest, TemporalExtent, V2EpisodeState)
 from .v2.tools.catalog import InspectArguments, SearchArguments, _is_public_image
 
 MAX_REQUEST = 128 * 1024
@@ -50,29 +53,20 @@ ACTION_NAMES = ["tool.invoke", "memory.save_evidence", "answer.submit", "answer.
                 "map.layer.set_visibility", "map.layer.set_opacity", "map.time.set_range"]
 
 
-class PublicTask(V2RequestModel):
-    task_id: Identifier
-    task_version: SemanticVersion
-    prompt: str = Field(min_length=1, max_length=50000)
-    answer_schema: dict[str, Any]
-    budget: BudgetSpec
-    input_asset_refs: list[Identifier] = Field(min_length=1, max_length=1000)
-    allowed_actions: list[str]
-    allowed_tools: list[str]
-    artifact_identity: Literal["content-sha256-v1", "derivation-sha256-v1"] = LEGACY_SCHEME
+_CURRENT_BINDING: ContextVar[AgentBinding] = ContextVar("agent_binding")
 
 
-class AgentBinding(V2RequestModel):
-    episode_id: EpisodeId
-    task_manifest_hash: Sha256
-    token_sha256: Sha256
-    task: PublicTask
+def validate_agent_binding(binding: AgentBinding) -> None:
+    if (not set(binding.task.allowed_tools).issubset(TOOL_ARGUMENTS)
+            or not set(binding.task.allowed_actions).issubset(ACTION_NAMES)):
+        raise ValueError("binding requests unaudited actions or tools")
 
-    @model_validator(mode="after")
-    def supported_surface(self):
-        if not set(self.task.allowed_tools).issubset(TOOL_ARGUMENTS) or not set(self.task.allowed_actions).issubset(ACTION_NAMES):
-            raise ValueError("binding requests unaudited actions or tools")
-        return self
+
+def current_binding() -> AgentBinding:
+    try:
+        return _CURRENT_BINDING.get()
+    except LookupError:
+        raise GatewayError("credential_context_missing", 503) from None
 
 
 def build_binding(manifest: TaskManifest, state: V2EpisodeState, capabilities: dict,
@@ -84,7 +78,7 @@ def build_binding(manifest: TaskManifest, state: V2EpisodeState, capabilities: d
     if (state.task_manifest_hash != manifest.task_manifest_hash or
             state.task_ref.task_id != manifest.task.task_id or state.task_ref.task_version != manifest.task.task_version):
         raise ValueError("episode task pin mismatch")
-    return AgentBinding(episode_id=state.episode_id, task_manifest_hash=manifest.task_manifest_hash,
+    binding = AgentBinding(episode_id=state.episode_id, task_manifest_hash=manifest.task_manifest_hash,
         token_sha256=token_sha256, task=PublicTask(
             task_id=manifest.task.task_id, task_version=manifest.task.task_version,
             prompt=manifest.task.prompt, answer_schema=manifest.task.answer_schema, budget=manifest.task.budget,
@@ -92,6 +86,8 @@ def build_binding(manifest: TaskManifest, state: V2EpisodeState, capabilities: d
             allowed_actions=[a for a in ACTION_NAMES if a in capabilities["actions"] and _action_allowed(a, manifest.scenario.allowed_actions)],
             allowed_tools=[t for t in TOOL_ARGUMENTS if t in capabilities["tools"] and t in manifest.scenario.allowed_tools],
             artifact_identity=manifest.task.metadata.get("artifact_identity", LEGACY_SCHEME)))
+    validate_agent_binding(binding)
+    return binding
 
 
 class PublicSpatial(BaseModel):
@@ -142,8 +138,8 @@ class GatewayError(Exception):
 class AgentGuard:
     """Hold concurrency/time bounds through the final response byte, not headers."""
 
-    def __init__(self, app: ASGIApp, token_sha256: str):
-        self.app, self.token_sha256 = app, token_sha256
+    def __init__(self, app: ASGIApp, resolver: CredentialResolver):
+        self.app, self.resolver = app, resolver
         self.slots = asyncio.Semaphore(4)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
@@ -152,11 +148,16 @@ class AgentGuard:
         request = Request(scope, receive)
         authorization = request.headers.get("authorization", "")
         token = authorization[7:] if authorization.startswith("Bearer ") else ""
-        if len(token) != 64 or not hmac.compare_digest(hashlib.sha256(token.encode()).hexdigest(), self.token_sha256):
+        if len(token) != 64:
             return await JSONResponse({"error": {"code": "unauthorized"}}, status_code=401)(scope, receive, send)
+        try:
+            binding = self.resolver.resolve(hashlib.sha256(token.encode()).hexdigest())
+        except CredentialError as error:
+            return await JSONResponse({"error": {"code": error.code}}, status_code=error.status)(scope, receive, send)
         if scope.get("query_string"):
             return await JSONResponse({"error": {"code": "query_parameters_not_allowed"}}, status_code=422)(scope, receive, send)
         started = False
+        context = _CURRENT_BINDING.set(binding)
 
         async def protected_send(message):
             nonlocal started
@@ -175,6 +176,8 @@ class AgentGuard:
                 raise RuntimeError("Agent response interrupted") from None
             code, status = ("gateway_timeout", 504) if isinstance(error, TimeoutError) else ("invalid_upstream_response", 502)
             await JSONResponse({"error": {"code": code, "retryable": status == 504}}, status_code=status)(scope, receive, send)
+        finally:
+            _CURRENT_BINDING.reset(context)
 
 
 def public_map(value: MapState | None, allowed: set[str]):
@@ -267,19 +270,39 @@ def public_observation(value: dict, binding: AgentBinding) -> dict:
             "task_manifest_hash": binding.task_manifest_hash}
 
 
-def create_app(binding: AgentBinding | None = None, base_url: str | None = None, transport=None) -> FastAPI:
-    if binding is None:
-        path = Path(os.environ["EO_AGENT_BINDING_FILE"])
-        if path.stat().st_size > 256 * 1024:
-            raise ValueError("binding file exceeds limit")
-        binding = AgentBinding.model_validate_json(path.read_bytes())
+def create_app(binding: AgentBinding | None = None, base_url: str | None = None, transport=None,
+               registry: AgentCredentialRegistry | None = None,
+               registry_path: str | Path | None = None,
+               credential_now: Callable[[], datetime] = utc_now) -> FastAPI:
+    if binding is not None and (registry is not None or registry_path is not None):
+        raise ValueError("legacy binding and credential registry are mutually exclusive")
+    if binding is not None:
+        resolver = CredentialResolver(binding=binding, validate_binding=validate_agent_binding, now=credential_now)
+    elif registry is not None:
+        resolver = CredentialResolver(registry=registry, validate_binding=validate_agent_binding, now=credential_now)
+    else:
+        configured_registry = registry_path or os.environ.get("EO_AGENT_REGISTRY_FILE")
+        if configured_registry:
+            resolver = CredentialResolver(registry_path=Path(configured_registry),
+                                          validate_binding=validate_agent_binding, now=credential_now)
+        else:
+            # Explicit compatibility path for existing single-session deployments.
+            if "EO_AGENT_BINDING_FILE" not in os.environ:
+                raise ValueError("credential registry is required")
+            path = Path(os.environ["EO_AGENT_BINDING_FILE"])
+            if path.is_symlink() or not path.is_file():
+                raise ValueError("binding file must be a regular file")
+            if path.stat().st_size > 256 * 1024:
+                raise ValueError("binding file exceeds limit")
+            binding = AgentBinding.model_validate_json(path.read_bytes())
+            resolver = CredentialResolver(binding=binding, validate_binding=validate_agent_binding, now=credential_now)
     base_url = base_url or os.environ["EO_AGENT_BACKEND_URL"]
     url = urlsplit(base_url)
     if url.scheme not in {"http", "https"} or not url.hostname or url.username or url.password or url.query or url.fragment or url.path not in {"", "/"}:
         raise ValueError("backend must be an operator-configured HTTP origin")
     app = FastAPI(title="EO Harness scoped Agent API", docs_url=None, redoc_url=None,
                   openapi_url=None, redirect_slashes=False)
-    app.add_middleware(AgentGuard, token_sha256=binding.token_sha256)
+    app.add_middleware(AgentGuard, resolver=resolver)
 
     @app.exception_handler(GatewayError)
     async def gateway_error(request, error):
@@ -314,12 +337,14 @@ def create_app(binding: AgentBinding | None = None, base_url: str | None = None,
             raise GatewayError("invalid_upstream_response") from None
 
     async def state():
+        binding = current_binding()
         value = await upstream("GET", f"/v2/episodes/{binding.episode_id}/state")
         if value["episode_id"] != binding.episode_id:
             raise GatewayError("upstream_scope_mismatch")
         return public_state(value["state"], binding)
 
     async def observation(observation_id):
+        binding = current_binding()
         TypeAdapter(ObservationId).validate_python(observation_id)
         value = await upstream("GET", f"/v2/episodes/{binding.episode_id}/observations/{observation_id}")
         if value["episode_id"] != binding.episode_id or value["observation"]["observation_id"] != observation_id:
@@ -332,10 +357,15 @@ def create_app(binding: AgentBinding | None = None, base_url: str | None = None,
 
     @app.get("/healthz")
     async def health():
+        try:
+            resolver.ready()
+        except ValueError:
+            return JSONResponse({"status": "unavailable"}, status_code=503)
         return {"status": "ok"}
 
     @app.get("/agent/session")
     async def session():
+        binding = current_binding()
         current = await state()
         latest = await observation(current["observation_refs"][-1])
         return {"task": binding.task.model_dump(mode="json"), "state": current, "observation": latest,
@@ -356,6 +386,7 @@ def create_app(binding: AgentBinding | None = None, base_url: str | None = None,
 
     @app.post("/agent/step")
     async def step(request: Request):
+        binding = current_binding()
         try:
             length = int(request.headers.get("content-length", "-1"))
         except ValueError:
@@ -396,6 +427,7 @@ def create_app(binding: AgentBinding | None = None, base_url: str | None = None,
                 "terminated": value["terminated"], "truncated": value["truncated"]}
 
     async def artifact(artifact_id):
+        binding = current_binding()
         try:
             TypeAdapter(ArtifactId).validate_python(artifact_id)
         except ValidationError:
@@ -424,6 +456,7 @@ def create_app(binding: AgentBinding | None = None, base_url: str | None = None,
 
     @app.get("/agent/artifacts/{artifact_id}/content")
     async def get_content(artifact_id: str):
+        binding = current_binding()
         value = await artifact(artifact_id)
         approved_science = {(RASTER_TOOL,RASTER_VERSION),(RASTER_TOOL,RASTER_MASKED_VERSION),
                             (GRID_TOOL,GRID_VERSION)}

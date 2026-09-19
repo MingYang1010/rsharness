@@ -1,10 +1,11 @@
-# Episode-scoped Agent gateway
+# Multi-session, episode-scoped Agent gateway
 
 `app.agent_gateway` is a separate service, not an authentication change to frozen
-V1/V2 operator APIs. One gateway instance binds one opaque bearer credential to
-one already-created episode and its task manifest hash. The model runner only
-receives the gateway URL and its credential. Never expose the operator API to
-that runner or mount tasks, indexes, original data, databases or broker tokens.
+V1/V2 operator APIs. One gateway instance can resolve up to256 hash-only session
+records; each opaque bearer credential maps to exactly one already-created episode
+and its task manifest hash. The model runner only receives the gateway URL and its
+credential. Never expose the operator API to that runner or mount tasks, indexes,
+original data, databases or broker tokens.
 
 ## Trust boundaries
 
@@ -12,9 +13,11 @@ that runner or mount tasks, indexes, original data, databases or broker tokens.
   metadata as public. The issuer rejects known label/non-image input roles, but
   cannot detect a mislabeled ground-truth image or a secret embedded in prose.
 - The trusted issuer calls `/v2/reset` once and writes a binding and random
-  256-bit token, mode0600 inside a mode0700 runtime directory. The gateway mounts
-  only the binding (token hash, not plaintext token); the runner mounts only its
-  plaintext token. No secrets belong in source, prompts, logs or Git.
+  256-bit token, mode0600 inside a mode0700 runtime directory. It atomically adds
+  the binding, token hash, UTC issuance/expiry, state and generation to an
+  owner-private registry. The gateway mounts the registry directory read-only;
+  each runner mounts only its own plaintext token. Plaintext tokens never enter
+  the registry, source, prompts, logs or Git.
 - The backend still owns state, budgets, idempotency, evidence and evaluation.
   The gateway never writes the episode DB and checks episode/task/hash pins on
   each state/action/artifact path. A client cannot supply a different episode ID.
@@ -23,10 +26,31 @@ that runner or mount tasks, indexes, original data, databases or broker tokens.
   network. No host ports are published. Application routing alone is insufficient
   if the runner can directly reach an unauthenticated operator port.
 - This is an internal research deployment, not a production multitenant security
-  service. External TLS, user identity, token expiry/rotation/revocation, distributed
-  rate limiting and a multi-session registry remain separate work. Host/Docker
-  administrator access is trusted. Do not put a model-runner shell on the backend
-  network or give it host filesystem/Docker access.
+  service. External TLS, user identity, distributed rate limiting and a durable
+  control-plane audit service remain separate work. Host/Docker administrator
+  access is trusted. Do not put a model-runner shell on the backend network or give
+  it host filesystem/Docker access.
+
+## Credential lifecycle
+
+- `AgentCredentialRegistry@1.0.0` admits at most256 records and2MiB. Token hashes
+  and episode IDs must both be unique. Registry files must be owner-private regular
+  files reached without symlinks; malformed, oversized, duplicate or unavailable
+  registries fail closed before request-body or backend access.
+- Every record has UTC `issued_at`, `expires_at`, `status`, optional `revoked_at`
+  and a monotonic generation. TTL is bounded to60 seconds through7 days. Unknown,
+  not-yet-valid, expired and revoked credentials are rejected by middleware before
+  routing. A file-backed gateway reloads the registry on every authenticated
+  request, so an atomic host-side registry update takes effect without restart.
+- `scripts/manage_agent_registry.py` revokes a bound episode or rotates it to a
+  newly generated token and increments the generation. Rotation replaces the only
+  token hash for that episode, so the old token stops resolving. New plaintext
+  tokens are written mode0600 to a new dedicated runtime directory and are never
+  printed. The management tool and issuer serialize writes through the shared
+  storage ledger and atomically replace the registry file.
+- `EO_AGENT_BINDING_FILE` remains an explicit compatibility mode for one legacy
+  session. New deployments should set `EO_AGENT_REGISTRY_FILE`. Compatibility mode
+  has no expiry/revocation semantics and must not be described as multi-session.
 
 ## Agent API
 
@@ -69,7 +93,7 @@ Downloads/acquisition elsewhere continue to use the A800 system proxy.
 
 ## Retry and resource behavior
 
-- The gateway is stateless across restart; reload the same binding. Successful
+- The gateway is stateless across restart; reload the same registry. Successful
   actions are cached by the backend, not repeated by the gateway. On timeout or
   ambiguous delivery, retain and retry the same action ID and exact request.
 - Issuance is different from an Agent action. A completed binding is preserved
@@ -83,7 +107,10 @@ Downloads/acquisition elsewhere continue to use the A800 system proxy.
   deadline50s, backend timeout40s, request-body deadline10s. Oversized/malformed
   upstream content fails closed. Responses use no-store/nosniff.
 - Reads do not consume extra tool budget; backend actions retain existing costs.
-  This does not provide physical-I/O accounting or quota enforcement for API DB,
+  Issuance can publish multiple session bindings to the same registry; rerunning a
+  completed issuance preserves its existing token and never repeats reset. A
+  different credential for an existing episode requires explicit rotation.
+- This does not provide physical-I/O accounting or quota enforcement for API DB,
   reports and Docker logs. Issuance metadata has a2MiB shared-ledger reservation.
 
 ## A800 acceptance recipe
@@ -94,6 +121,7 @@ Review its generated public prompt/schema/image IDs before issuing. For example:
 ```sh
 export EO_SMOKE_ROOT=./runtime/agent-xlrs-20260917-01
 export EO_AGENT_RUN=agent-xlrs-20260917-01
+export EO_AGENT_TTL_SECONDS=3600
 export EO_HARNESS_CATALOG_ENABLED=1
 docker --context rootless compose -p eo-harness-agent-01 -f compose.eo-gym-smoke.yaml -f compose.agent-smoke.yaml up -d storage provider harness
 docker --context rootless compose -p eo-harness-agent-01 -f compose.eo-gym-smoke.yaml -f compose.agent-smoke.yaml run --rm issue-agent
@@ -103,6 +131,26 @@ docker --context rootless compose -p eo-harness-agent-01 -f compose.eo-gym-smoke
 docker --context rootless compose -p eo-harness-agent-01 -f compose.eo-gym-smoke.yaml -f compose.agent-smoke.yaml run --rm agent-check python /verify.py --resume
 docker --context rootless compose -p eo-harness-agent-01 -f compose.eo-gym-smoke.yaml -f compose.agent-smoke.yaml down
 ```
+
+For multi-session acceptance, issue a second output directory against the same
+`credentials/registry.json`, then run `agent-registry-check`. The checker is on
+`agent-front` only; it performs two different real crops, verifies own artifact
+reads, and denies cross-token observation/artifact reads. Use the trusted setup
+container to call `manage_agent_registry.py --revoke`, then `--rotate` with a new
+dedicated `--token-output`. Re-run the checker with phases `revoked-a`,
+`rotated-a`, and after four-service recreation, `restarted`. A third issuance with
+`--ttl-seconds 60` is checked once with `active-c` and again after expiry with
+`expired-c`. Rotation checks mount the new token only for that checker run; never
+mount the registry, task files, state DB, bindings, or another session's token in
+the model runner.
+
+The accepted A800 run is retained under
+`runtime/agent-registry-smoke-20260919-01/reports/`: two episode scopes remained
+distinct, both real crop artifacts were readable only by their owner, revoke and
+rotation took effect without gateway restart, the old token became unauthorized,
+the 60-second token expired, and all states survived four-service recreation.
+These are credential/isolation checks, not TLS, external user authentication,
+Qwen inference, or task semantic accuracy.
 
 For a direct-IP network denial check, the trusted operator sets
 `EO_TEST_BACKEND_IP` from the actual Harness container's network inspection before

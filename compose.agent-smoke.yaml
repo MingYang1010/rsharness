@@ -4,7 +4,7 @@ services:
     profiles: [agent-setup]
     working_dir: /workspace
     read_only: true
-    command: ["python", "scripts/issue_agent_session.py", "--job", "/job.json", "--output", "/workspace/runtime/${EO_AGENT_RUN}/agent", "--reviewed-public-task"]
+    command: ["python", "scripts/issue_agent_session.py", "--job", "/job.json", "--output", "/workspace/runtime/${EO_AGENT_RUN}/agent", "--registry", "/workspace/runtime/${EO_AGENT_RUN}/credentials/registry.json", "--ttl-seconds", "${EO_AGENT_TTL_SECONDS:-3600}", "--reviewed-public-task"]
     volumes:
       - ./harness_api:/workspace/harness_api:ro
       - ./scripts:/workspace/scripts:ro
@@ -27,10 +27,10 @@ services:
     environment:
       PYTHONPATH: /harness
       EO_AGENT_BACKEND_URL: http://harness:8000
-      EO_AGENT_BINDING_FILE: /run/binding.json
+      EO_AGENT_REGISTRY_FILE: /run/credentials/registry.json
     volumes:
       - ./harness_api:/harness:ro
-      - ${EO_SMOKE_ROOT}/agent/binding.json:/run/binding.json:ro
+      - ${EO_SMOKE_ROOT}/credentials:/run/credentials:ro
     tmpfs: ["/tmp:size=32m"]
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
@@ -54,6 +54,24 @@ services:
     volumes:
       - ./scripts/verify_agent_smoke.py:/verify.py:ro
       - ${EO_SMOKE_ROOT}/agent/agent-token:/run/agent-token:ro
+      - ${EO_SMOKE_ROOT}/reports:/reports:rw
+    tmpfs: ["/tmp:size=32m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    cpus: 1
+    mem_limit: 256m
+    pids_limit: 32
+    networks: [agent-front]
+  agent-registry-check:
+    image: eo-harness/harness-api:0.4.0
+    profiles: [registry-check]
+    read_only: true
+    init: true
+    command: ["python", "/verify.py", "--phase", "initial"]
+    volumes:
+      - ./scripts/verify_agent_registry_smoke.py:/verify.py:ro
+      - ${EO_SMOKE_ROOT}/agent/agent-token:/run/agent-token-a:ro
+      - ${EO_SMOKE_ROOT}/agent-b/agent-token:/run/agent-token-b:ro
       - ${EO_SMOKE_ROOT}/reports:/reports:rw
     tmpfs: ["/tmp:size=32m"]
     cap_drop: [ALL]

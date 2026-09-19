@@ -8,6 +8,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -16,14 +17,17 @@ from fastapi.testclient import TestClient
 
 from v2.test_tool_execution import FakeExecutor, make_tool_tasks
 from app.main import create_app as create_backend
-from app.agent_gateway import AgentBinding, build_binding, create_app, public_state, public_observation
-from app.agent_gateway import AgentGuard
+from app.agent_credentials import (AgentCredentialRegistry, AgentSessionCredential,
+                                   load_agent_registry)
+from app.agent_gateway import (AgentBinding, AgentGuard, build_binding, create_app,
+                               public_observation, public_state, validate_agent_binding)
 from app.v2.artifacts import ArtifactStore
 from app.v2.capabilities import TaskRegistry
 from app.v2.schemas import V2EpisodeState
 from app.v2.tools.runtime import ToolRouter, ToolOutput
 
 TOKEN = "1" * 64  # Isolated test credential, never deployed.
+TOKEN2 = "2" * 64
 
 
 class PublicFakeExecutor(FakeExecutor):
@@ -66,6 +70,17 @@ class AgentGatewayTests(unittest.TestCase):
     def make_client(self, transport=None, binding=None):
         return TestClient(create_app(binding or self.binding, "http://operator", transport or httpx.ASGITransport(app=self.backend)),
                           headers={"Authorization": "Bearer " + TOKEN})
+
+    def credential(self, binding=None, status="active", generation=1):
+        issued = datetime.now(timezone.utc) - timedelta(minutes=1)
+        return AgentSessionCredential(binding=binding or self.binding, issued_at=issued,
+            expires_at=issued + timedelta(hours=1), status=status,
+            revoked_at=issued if status == "revoked" else None, generation=generation)
+
+    def write_registry(self, path, sessions):
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        path.write_text(AgentCredentialRegistry(sessions=sessions).model_dump_json(indent=2))
+        path.chmod(0o600)
 
     def step(self, tool="catalog.search", arguments=None, version=0, action_id="action-1"):
         return {"client_action_id": action_id, "expected_state_version": version,
@@ -193,7 +208,98 @@ class AgentGatewayTests(unittest.TestCase):
         value = self.binding.model_dump(mode="json")
         value["task"]["allowed_tools"].append("unsafe.tool")
         with self.assertRaises(ValueError):
-            AgentBinding.model_validate(value)
+            validate_agent_binding(AgentBinding.model_validate(value))
+
+    def test_two_registry_tokens_resolve_to_separate_episode_scopes(self):
+        reset = self.operator.post("/v2/reset", json={"task_ref": {"task_id": "crop-smoke", "task_version": "1.0.0"}}).json()["data"]
+        other = build_binding(self.manifest, V2EpisodeState.model_validate(reset["state"]),
+            self.operator.get("/v2/capabilities").json()["data"], hashlib.sha256(TOKEN2.encode()).hexdigest())
+        registry = AgentCredentialRegistry(sessions=[self.credential(), self.credential(other)])
+        app = create_app(None, "http://operator", httpx.ASGITransport(app=self.backend), registry=registry)
+        with TestClient(app, headers={"Authorization": "Bearer " + TOKEN}) as first, \
+                TestClient(app, headers={"Authorization": "Bearer " + TOKEN2}) as second:
+            self.assertEqual(first.get("/agent/state").json()["state"]["episode_id"], self.episode)
+            self.assertEqual(second.get("/agent/state").json()["state"]["episode_id"], other.episode_id)
+            other_observation = second.get("/agent/session").json()["observation"]["observation_id"]
+            self.assertIn(first.get("/agent/observations/" + other_observation).status_code, (403, 404))
+            body = self.step(action_id="session-a")
+            self.assertEqual(first.post("/agent/step", json=body).status_code, 200)
+            self.assertEqual(second.get("/agent/state").json()["state"]["state_version"], 0)
+
+    def test_registry_expiry_revocation_rotation_and_restart_fail_closed(self):
+        path = self.root / "credentials" / "registry.json"
+        self.write_registry(path, [self.credential()])
+        app = create_app(None, "http://operator", httpx.ASGITransport(app=self.backend), registry_path=path)
+        with TestClient(app, headers={"Authorization": "Bearer " + TOKEN}) as client:
+            self.assertEqual(client.get("/agent/state").status_code, 200)
+            expired = self.credential().model_copy(update={
+                "issued_at": datetime.now(timezone.utc) - timedelta(hours=2),
+                "expires_at": datetime.now(timezone.utc) - timedelta(hours=1)})
+            self.write_registry(path, [expired])
+            response = client.post("/agent/step", content="x" * 140000)
+            self.assertEqual((response.status_code, response.json()["error"]["code"]), (401, "session_expired"))
+            self.write_registry(path, [self.credential(status="revoked")])
+            response = client.get("/agent/state")
+            self.assertEqual((response.status_code, response.json()["error"]["code"]), (401, "session_revoked"))
+            rotated = self.binding.model_copy(update={"token_sha256": hashlib.sha256(TOKEN2.encode()).hexdigest()})
+            self.write_registry(path, [self.credential(rotated, generation=2)])
+            self.assertEqual(client.get("/agent/state").status_code, 401)
+            response = client.get("/agent/state", headers={"Authorization": "Bearer " + TOKEN2})
+            self.assertEqual(response.status_code, 200, response.text)
+        with TestClient(create_app(None, "http://operator", httpx.ASGITransport(app=self.backend), registry_path=path),
+                        headers={"Authorization": "Bearer " + TOKEN2}) as restarted:
+            self.assertEqual(restarted.get("/agent/state").status_code, 200)
+            path.write_text("{")
+            response = restarted.get("/agent/state")
+            self.assertEqual((response.status_code, response.json()["error"]["code"]),
+                             (503, "credential_registry_unavailable"))
+            self.assertEqual(restarted.get("/healthz", headers={"Authorization": ""}).status_code, 503)
+
+    def test_registry_rejects_duplicate_scope_insecure_mode_and_symlink(self):
+        with self.assertRaises(ValueError):
+            AgentCredentialRegistry(sessions=[self.credential(), self.credential()])
+        path = self.root / "credentials" / "registry.json"
+        self.write_registry(path, [self.credential()])
+        path.chmod(0o644)
+        with self.assertRaises(ValueError):
+            create_app(None, "http://operator", httpx.ASGITransport(app=self.backend), registry_path=path)
+        path.chmod(0o600)
+        link = self.root / "credentials-link.json"
+        link.symlink_to(path)
+        with self.assertRaises(ValueError):
+            create_app(None, "http://operator", httpx.ASGITransport(app=self.backend), registry_path=link)
+
+    def test_operator_registry_management_revokes_and_rotates_without_printing_token(self):
+        registry = self.root / "runtime" / "credentials" / "registry.json"
+        self.write_registry(registry, [self.credential()])
+        script = Path(__file__).resolve().parents[2] / "scripts" / "manage_agent_registry.py"
+        spec = importlib.util.spec_from_file_location("manage_agent_registry_test", script)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        app = create_app(None, "http://operator", httpx.ASGITransport(app=self.backend), registry_path=registry)
+        with TestClient(app, headers={"Authorization": "Bearer " + TOKEN}) as client:
+            captured = io.StringIO()
+            arguments = [str(script), "--registry", str(registry),
+                         "--episode-id", self.episode, "--revoke"]
+            with patch.object(module, "ROOT", self.root), patch("sys.argv", arguments), \
+                    contextlib.redirect_stdout(captured):
+                module.main()
+            self.assertEqual(client.get("/agent/state").json()["error"]["code"], "session_revoked")
+            token_output = self.root / "runtime" / "rotation-2" / "agent-token"
+            arguments = [str(script), "--registry", str(registry),
+                         "--episode-id", self.episode, "--rotate",
+                         "--token-output", str(token_output), "--ttl-seconds", "3600"]
+            with patch.object(module, "ROOT", self.root), patch("sys.argv", arguments), \
+                    contextlib.redirect_stdout(captured):
+                module.main()
+            new_token = token_output.read_text().strip()
+            self.assertNotIn(new_token, captured.getvalue())
+            self.assertEqual(token_output.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(client.get("/agent/state").status_code, 401)
+            self.assertEqual(client.get("/agent/state", headers={
+                "Authorization": "Bearer " + new_token}).status_code, 200)
+            current = load_agent_registry(registry).sessions[0]
+            self.assertEqual((current.status, current.generation), ("active", 2))
 
     def test_issuance_is_private_and_rerun_does_not_create_another_episode(self):
         path = Path(__file__).resolve().parents[2] / "scripts" / "issue_agent_session.py"
@@ -204,13 +310,20 @@ class AgentGatewayTests(unittest.TestCase):
         job = self.root / "job.json"
         job.write_text(json.dumps({"task_ref": {"task_id": "crop-smoke", "task_version": "1.0.0"}}))
         output = self.root / "runtime" / "session"
-        arguments = [str(path), "--job", str(job), "--output", str(output), "--reviewed-public-task"]
+        registry = self.root / "runtime" / "credentials" / "registry.json"
+        arguments = [str(path), "--job", str(job), "--output", str(output),
+                     "--registry", str(registry), "--ttl-seconds", "3600",
+                     "--reviewed-public-task"]
         captured = io.StringIO()
         with patch.object(module, "ROOT", self.root), patch("sys.argv", arguments), contextlib.redirect_stdout(captured):
             with patch.object(module.httpx, "Client", return_value=self.operator):
                 module.main()
             token = (output / "agent-token").read_text().strip()
+            issued_binding = AgentBinding.model_validate_json((output / "binding.json").read_bytes())
             self.assertNotIn(token, captured.getvalue())
+            self.assertNotIn(token, registry.read_text())
+            self.assertEqual(load_agent_registry(registry).sessions[0].binding.episode_id,
+                             issued_binding.episode_id)
             self.assertEqual((output / "agent-token").stat().st_mode & 0o777, 0o600)
             with sqlite3.connect(self.root / "db.sqlite3") as connection:
                 before = connection.execute("SELECT COUNT(*) FROM v2_episodes").fetchone()[0]
@@ -261,7 +374,11 @@ class AgentGuardConcurrencyTests(unittest.IsolatedAsyncioTestCase):
             await release.wait()
             await send({"type": "http.response.body", "body": b"ok"})
 
-        guard = AgentGuard(app, hashlib.sha256(TOKEN.encode()).hexdigest())
+        class Resolver:
+            def resolve(self, token_sha256):
+                return None
+
+        guard = AgentGuard(app, Resolver())
         scope = {"type": "http", "path": "/agent/state", "method": "GET", "query_string": b"",
                  "headers": [(b"authorization", ("Bearer " + TOKEN).encode())]}
 
