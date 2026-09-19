@@ -21,6 +21,7 @@ from app.agent_credentials import (AgentCredentialRegistry, AgentSessionCredenti
                                    load_agent_registry)
 from app.agent_gateway import (AgentBinding, AgentGuard, build_binding, create_app,
                                public_observation, public_state, validate_agent_binding)
+from app.control_plane import AgentIssuancePolicy, verify_control_audit
 from app.v2.artifacts import ArtifactStore
 from app.v2.capabilities import TaskRegistry
 from app.v2.schemas import V2EpisodeState
@@ -339,6 +340,108 @@ class AgentGatewayTests(unittest.TestCase):
         arguments[arguments.index(str(output))] = str(pending)
         with patch.object(module, "ROOT", self.root), patch("sys.argv", arguments), self.assertRaises(SystemExit):
             module.main()
+
+    def test_governed_issuance_rotation_revocation_are_policy_pinned_and_audited(self):
+        issue_path = Path(__file__).resolve().parents[2] / "scripts" / "issue_agent_session.py"
+        issue_spec = importlib.util.spec_from_file_location("governed_issue_test", issue_path)
+        issue = importlib.util.module_from_spec(issue_spec)
+        issue_spec.loader.exec_module(issue)
+        manage_path = Path(__file__).resolve().parents[2] / "scripts" / "manage_agent_registry.py"
+        manage_spec = importlib.util.spec_from_file_location("governed_manage_test", manage_path)
+        manage = importlib.util.module_from_spec(manage_spec)
+        manage_spec.loader.exec_module(manage)
+        (self.root / "runtime").mkdir()
+        job = self.root / "job.json"
+        job.write_text(json.dumps({"task_ref": {"task_id": "crop-smoke", "task_version": "1.0.0"}}))
+        current = datetime.now(timezone.utc)
+        policy = AgentIssuancePolicy(
+            policy_id="test-research-policy",
+            valid_from=current - timedelta(days=1),
+            expires_at=current + timedelta(days=1),
+            issuers=["trusted-operator"],
+            subjects=["approved-runner"],
+            grants=[{"task_id": "crop-smoke", "task_version": "1.0.0",
+                     "max_ttl_seconds": 3600}],
+            max_active_sessions_per_subject=1,
+        )
+        policy_path = self.root / "policy.json"
+        policy_bytes = policy.model_dump_json(indent=2).encode()
+        policy_path.write_bytes(policy_bytes)
+        policy_sha = hashlib.sha256(policy_bytes).hexdigest()
+        output = self.root / "runtime" / "governed-session"
+        registry = self.root / "runtime" / "governed-registry" / "registry.json"
+        audit = self.root / "runtime" / "governed-audit" / "events.jsonl"
+        common = ["--issuance-policy", str(policy_path),
+                  "--issuance-policy-sha256", policy_sha,
+                  "--actor-id", "trusted-operator",
+                  "--subject-id", "approved-runner",
+                  "--audit-log", str(audit)]
+        arguments = [str(issue_path), "--job", str(job), "--output", str(output),
+                     "--registry", str(registry), "--ttl-seconds", "3600",
+                     "--reviewed-public-task", *common]
+        with patch.object(issue, "ROOT", self.root), patch("sys.argv", arguments), \
+                patch.object(issue.httpx, "Client", return_value=self.operator):
+            issue.main()
+            token = (output / "agent-token").read_text().strip()
+            issue.main()
+        governed = load_agent_registry(registry)
+        self.assertEqual(governed.schema_version, "1.1.0")
+        self.assertEqual(
+            (governed.sessions[0].issuer_id, governed.sessions[0].subject_id),
+            ("trusted-operator", "approved-runner"),
+        )
+        self.assertEqual(
+            [item.event_type for item in verify_control_audit(audit)],
+            ["issuance_started", "issuance_completed", "binding_reused"],
+        )
+        events = verify_control_audit(audit)
+        self.assertEqual(events[0].operation_id, events[1].operation_id)
+        self.assertNotEqual(events[1].operation_id, events[2].operation_id)
+        second_binding = governed.sessions[0].binding.model_copy(
+            update={
+                "episode_id": "ep2-" + "f" * 32,
+                "token_sha256": "e" * 64,
+            }
+        )
+        with self.assertRaisesRegex(SystemExit, "active-session limit"):
+            issue.publish_binding(
+                self.root / "runtime",
+                registry,
+                second_binding,
+                3600,
+                {
+                    "policy": policy,
+                    "policy_sha256": policy_sha,
+                    "actor_id": "trusted-operator",
+                    "subject_id": "approved-runner",
+                },
+            )
+        self.assertEqual(len(load_agent_registry(registry).sessions), 1)
+        rotated_token = self.root / "runtime" / "governed-rotation" / "agent-token"
+        arguments = [str(manage_path), "--registry", str(registry),
+                     "--episode-id", governed.sessions[0].binding.episode_id,
+                     "--rotate", "--token-output", str(rotated_token), *common]
+        with patch.object(manage, "ROOT", self.root), patch("sys.argv", arguments):
+            manage.main()
+        arguments = [str(manage_path), "--registry", str(registry),
+                     "--episode-id", governed.sessions[0].binding.episode_id,
+                     "--revoke", *common]
+        with patch.object(manage, "ROOT", self.root), patch("sys.argv", arguments):
+            manage.main()
+        events = verify_control_audit(audit)
+        self.assertEqual(
+            [item.event_type for item in events],
+            ["issuance_started", "issuance_completed", "binding_reused",
+             "rotation_started", "rotation_completed",
+             "revocation_started", "revocation_completed"],
+        )
+        self.assertEqual(events[3].operation_id, events[4].operation_id)
+        self.assertEqual(events[5].operation_id, events[6].operation_id)
+        audit_content = audit.read_text()
+        self.assertNotIn(token, audit_content)
+        self.assertNotIn(rotated_token.read_text().strip(), audit_content)
+        final = load_agent_registry(registry).sessions[0]
+        self.assertEqual((final.status, final.generation), ("revoked", 2))
 
     def test_content_hash_mismatch_is_not_returned_to_agent(self):
         body = self.step("eo_gym.crop", {"asset_id": self.binding.task.input_asset_refs[0], "aoi": [0, 0, .5, .5]})

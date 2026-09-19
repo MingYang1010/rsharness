@@ -17,6 +17,9 @@ sys.path.insert(0, str(ROOT / "harness_api"))
 from app.agent_credentials import (MAX_REGISTRY_BYTES, AgentCredentialRegistry,
                                    AgentSessionCredential, load_agent_registry,
                                    utc_now)
+from app.control_plane import (MAX_AUDIT_BYTES, ControlEventInput,
+                               append_control_event, authorize_issuance,
+                               load_issuance_policy)
 from app.agent_gateway import AgentBinding, MAX_JSON, build_binding
 from app.v2.schemas import TaskManifest, V2EpisodeState
 from app.v2.tools.catalog import _is_public_image
@@ -55,7 +58,7 @@ def replace_private(path: Path, content: bytes):
 
 
 def publish_binding(runtime_root: Path, registry_path: Path, binding: AgentBinding,
-                    ttl_seconds: int):
+                    ttl_seconds: int, governance: dict | None = None):
     quota = StorageQuota(runtime_root)
     with quota.hold(registry_path.parent, MAX_REGISTRY_BYTES + 64 * 1024,
                     "agent-credential-registry"):
@@ -66,21 +69,155 @@ def publish_binding(runtime_root: Path, registry_path: Path, binding: AgentBindi
             registry = load_agent_registry(registry_path)
         else:
             registry = AgentCredentialRegistry()
+        if governance is not None and registry.sessions and registry.schema_version != "1.1.0":
+            raise SystemExit("legacy credential registry requires explicit reconciliation")
         for item in registry.sessions:
             if item.binding.episode_id != binding.episode_id:
                 continue
             if item.binding != binding:
                 raise SystemExit("episode already has a different credential; use explicit rotation")
+            if governance is not None and (
+                item.issuer_id,
+                item.subject_id,
+                item.issuance_policy_id,
+                item.issuance_policy_sha256,
+            ) != (
+                governance["actor_id"],
+                governance["subject_id"],
+                governance["policy"].policy_id,
+                governance["policy_sha256"],
+            ):
+                raise SystemExit("existing episode credential has different governance")
             return
+        if governance is not None:
+            current = utc_now()
+            active = sum(
+                item.status == "active"
+                and item.expires_at > current
+                and item.subject_id == governance["subject_id"]
+                for item in registry.sessions
+            )
+            try:
+                authorize_issuance(
+                    governance["policy"],
+                    actor_id=governance["actor_id"],
+                    subject_id=governance["subject_id"],
+                    task_id=binding.task.task_id,
+                    task_version=binding.task.task_version,
+                    ttl_seconds=ttl_seconds,
+                    active_subject_sessions=active,
+                    now=current,
+                )
+            except ValueError as error:
+                raise SystemExit(str(error)) from None
         issued_at = utc_now()
         session = AgentSessionCredential(binding=binding, issued_at=issued_at,
-                                         expires_at=issued_at + timedelta(seconds=ttl_seconds))
-        updated = AgentCredentialRegistry(schema_version=registry.schema_version,
+                                         expires_at=issued_at + timedelta(seconds=ttl_seconds),
+                                         issuer_id=governance["actor_id"] if governance else None,
+                                         subject_id=governance["subject_id"] if governance else None,
+                                         issuance_policy_id=(governance["policy"].policy_id
+                                                             if governance else None),
+                                         issuance_policy_sha256=(governance["policy_sha256"]
+                                                                 if governance else None))
+        updated = AgentCredentialRegistry(schema_version="1.1.0" if governance else registry.schema_version,
                                           sessions=[*registry.sessions, session])
         content = updated.model_dump_json(indent=2).encode()
         if len(content) > MAX_REGISTRY_BYTES:
             raise SystemExit("credential registry exceeds limit")
         replace_private(registry_path, content)
+
+
+def _governance(args, task_ref, registry_path: Path | None,
+                *, ignore_episode_id: str | None = None) -> dict | None:
+    values = (
+        args.issuance_policy,
+        args.issuance_policy_sha256,
+        args.actor_id,
+        args.subject_id,
+        args.audit_log,
+    )
+    if not any(value is not None for value in values):
+        return None
+    if not all(value is not None for value in values) or registry_path is None:
+        raise SystemExit("governed issuance requires policy checksum, identities, audit log and registry")
+    runtime_root = (ROOT / "runtime").resolve()
+    audit_path = args.audit_log.resolve()
+    if (
+        args.audit_log.is_symlink()
+        or not audit_path.is_relative_to(runtime_root)
+        or audit_path.parent == runtime_root
+        or audit_path == registry_path
+    ):
+        raise SystemExit("control-plane audit requires a separate runtime directory")
+    try:
+        policy, policy_sha256 = load_issuance_policy(
+            args.issuance_policy,
+            args.issuance_policy_sha256,
+        )
+        if registry_path.exists():
+            registry = load_agent_registry(registry_path)
+            if registry.sessions and registry.schema_version != "1.1.0":
+                raise ValueError("legacy registry requires reconciliation")
+        else:
+            registry = AgentCredentialRegistry(schema_version="1.1.0")
+        current = utc_now()
+        active = sum(
+            item.status == "active"
+            and item.expires_at > current
+            and item.subject_id == args.subject_id
+            and item.binding.episode_id != ignore_episode_id
+            for item in registry.sessions
+        )
+        authorize_issuance(
+            policy,
+            actor_id=args.actor_id,
+            subject_id=args.subject_id,
+            task_id=task_ref.task_id,
+            task_version=task_ref.task_version,
+            ttl_seconds=args.ttl_seconds,
+            active_subject_sessions=active,
+            now=current,
+        )
+    except ValueError as error:
+        raise SystemExit(str(error)) from None
+    return {
+        "policy": policy,
+        "policy_sha256": policy_sha256,
+        "actor_id": args.actor_id,
+        "subject_id": args.subject_id,
+        "audit_path": audit_path,
+    }
+
+
+def _audit(governance: dict, event_type: str, *, operation_id: str, task_id: str,
+           task_version: str, task_manifest_hash: str,
+           episode_id: str | None = None, generation: int | None = None) -> None:
+    runtime_root = (ROOT / "runtime").resolve()
+    audit_path = governance["audit_path"]
+    with StorageQuota(runtime_root).hold(
+        audit_path.parent,
+        MAX_AUDIT_BYTES + 64 * 1024,
+        "agent-control-plane-audit",
+    ):
+        if audit_path.parent.is_symlink():
+            raise SystemExit("audit directory must not be a symlink")
+        audit_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        append_control_event(
+            audit_path,
+            ControlEventInput(
+                event_type=event_type,
+                operation_id=operation_id,
+                actor_id=governance["actor_id"],
+                subject_id=governance["subject_id"],
+                policy_id=governance["policy"].policy_id,
+                policy_sha256=governance["policy_sha256"],
+                task_id=task_id,
+                task_version=task_version,
+                task_manifest_hash=task_manifest_hash,
+                episode_id=episode_id,
+                generation=generation,
+            ),
+        )
 
 
 def main():
@@ -91,6 +228,11 @@ def main():
     parser.add_argument("--registry", type=Path,
                         help="shared hash-only credential registry under project runtime")
     parser.add_argument("--ttl-seconds", type=int, default=3600)
+    parser.add_argument("--issuance-policy", type=Path)
+    parser.add_argument("--issuance-policy-sha256")
+    parser.add_argument("--actor-id")
+    parser.add_argument("--subject-id")
+    parser.add_argument("--audit-log", type=Path)
     parser.add_argument("--reviewed-public-task", action="store_true", required=True,
                         help="operator confirms prompt/schema/input IDs/descriptive fields are Agent-visible")
     args = parser.parse_args()
@@ -123,8 +265,38 @@ def main():
             raise SystemExit("existing binding belongs to a different task; preserve it")
         if hashlib.sha256((output / "agent-token").read_bytes().strip()).hexdigest() != binding.token_sha256:
             raise SystemExit("existing credential/binding mismatch")
+        governance = _governance(
+            args,
+            task_ref,
+            registry_path,
+            ignore_episode_id=binding.episode_id,
+        )
         if registry_path is not None:
-            publish_binding((ROOT / "runtime").resolve(), registry_path, binding, args.ttl_seconds)
+            publish_binding(
+                (ROOT / "runtime").resolve(),
+                registry_path,
+                binding,
+                args.ttl_seconds,
+                governance,
+            )
+        if governance is not None:
+            operation_id = "op-" + secrets.token_hex(16)
+            registry = load_agent_registry(registry_path)
+            session = next(
+                item
+                for item in registry.sessions
+                if item.binding.episode_id == binding.episode_id
+            )
+            _audit(
+                governance,
+                "binding_reused",
+                operation_id=operation_id,
+                task_id=binding.task.task_id,
+                task_version=binding.task.task_version,
+                task_manifest_hash=binding.task_manifest_hash,
+                episode_id=binding.episode_id,
+                generation=session.generation,
+            )
         print(json.dumps({"status": "existing_binding_preserved", "episode_id": binding.episode_id}))
         return
     with httpx.Client(base_url=args.backend, timeout=40, trust_env=False, follow_redirects=False) as client:
@@ -144,6 +316,17 @@ def main():
         if any(not _is_public_image(a) for a in manifest.assets if a.asset_id in manifest.task.inputs):
             raise SystemExit("task contains private/non-image inputs; no episode created")
         capabilities = request("GET", "/v2/capabilities")
+        governance = _governance(args, task_ref, registry_path)
+        if governance is not None:
+            operation_id = "op-" + secrets.token_hex(16)
+            _audit(
+                governance,
+                "issuance_started",
+                operation_id=operation_id,
+                task_id=task_ref.task_id,
+                task_version=task_ref.task_version,
+                task_manifest_hash=manifest.task_manifest_hash,
+            )
         with StorageQuota(ROOT / "runtime").hold(output, 2 * 1024 * 1024, "agent-session-issuance"):
             output.mkdir(mode=0o700)
             token = secrets.token_hex(32)
@@ -159,7 +342,24 @@ def main():
                 raise RuntimeError("public binding exceeds gateway limit")
             write_private(output / "binding.json", content)
             if registry_path is not None:
-                publish_binding((ROOT / "runtime").resolve(), registry_path, binding, args.ttl_seconds)
+                publish_binding(
+                    (ROOT / "runtime").resolve(),
+                    registry_path,
+                    binding,
+                    args.ttl_seconds,
+                    governance,
+                )
+            if governance is not None:
+                _audit(
+                    governance,
+                    "issuance_completed",
+                    operation_id=operation_id,
+                    task_id=binding.task.task_id,
+                    task_version=binding.task.task_version,
+                    task_manifest_hash=binding.task_manifest_hash,
+                    episode_id=binding.episode_id,
+                    generation=1,
+                )
             print(json.dumps({"status": "issued", "episode_id": binding.episode_id,
                               "task_manifest_hash": binding.task_manifest_hash}))
 
