@@ -103,7 +103,7 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
 
 ## Verified results and unfinished scope
 
-- A800 isolated source gate: 304 Python tests discovered, 270 passed and 34
+- A800 isolated source gate: 306 Python tests discovered, 272 passed and 34
   environment-dependent tests skipped. This includes the 44 original regressions;
   synthetic test fixtures are not counted as dataset coverage.
 - Live HTTP smoke: real FAIR1M2 image, 400x300 crop, one tool call, frozen evidence,
@@ -158,13 +158,18 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
   issuance, rotation and revocation produced six verified events; unauthorized
   issuance changed neither registry, audit nor episode DB. Identities are still
   operator-provided strings, not externally authenticated principals.
+- The separate [mTLS ingress](agent-mtls.md) upgrades opt-in policy/registry
+  schemas to bind the subject to a verified client certificate. Positive,
+  missing-certificate, wrong-certificate, forged-header, wrong-token, isolated
+  network and three-service recreation checks pass on a real WorldCover episode.
+  Gateway-to-Harness traffic is still internal HTTP.
 - A800 also has an explicit `raster.resample@1.0.0` categorical path: reviewed
   same-scene SCL is aligned to a pinned reference grid with nearest-neighbor only.
   Three dates passed exact independent pixel/mask comparison,14-step Agent
   interaction, five-service recovery and positive/offline execution replay. This
   is not a cloud mask or general-purpose reprojection facility.
-- Still needed: broader packed-source coverage, TLS/service identity,
-  authenticated external identity, distributed abuse control, backup/recovery,
+- Still needed: broader packed-source coverage, gateway-to-Harness service mTLS,
+  external CA/IdP lifecycle, distributed abuse control, backup/recovery,
   general continuous raster reprojection, zonal statistics, other STAC
   providers/public imagery subsets, cross-task evidence memory and the Qwen
   runner. Independent cloud-policy validation is complete

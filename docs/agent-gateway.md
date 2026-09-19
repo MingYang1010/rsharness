@@ -27,12 +27,13 @@ original data, databases or broker tokens.
   if the runner can directly reach an unauthenticated operator port.
 - This is an internal research deployment, not a production multitenant security
   service. A pinned internal issuance policy and hash-chained lifecycle audit are
-  available as an opt-in [control plane](control-plane-audit.md), but their actor
-  and subject strings are operator supplied. External TLS/service identity,
-  authenticated user/workload identity, distributed rate limiting, off-host audit
-  anchoring and backup/recovery remain separate work. Host/Docker administrator
-  access is trusted. Do not put a model-runner shell on the backend network or
-  give it host filesystem/Docker access.
+  available as an opt-in [control plane](control-plane-audit.md). The optional
+  [mTLS ingress](agent-mtls.md) binds one verified client certificate to each
+  governed subject and session. Backend service mTLS, external CA/IdP lifecycle,
+  distributed rate limiting, off-host audit anchoring and backup/recovery remain
+  separate work. Host/Docker administrator access is trusted. Do not put a
+  model-runner shell on the backend network or give it host filesystem/Docker
+  access.
 
 ## Credential lifecycle
 
@@ -45,6 +46,9 @@ original data, databases or broker tokens.
   task versions, TTL and active sessions per subject. A locked second check makes
   the session limit effective across concurrent issuers. Legacy schema 1.0 and
   governed 1.1 records cannot be mixed implicitly.
+- Certificate-bound sessions use schema 1.2 and add the subject certificate
+  SHA-256. They require the trusted [mTLS ingress](agent-mtls.md) on every request;
+  1.1 and 1.2 records cannot be mixed implicitly.
 - Every record has UTC `issued_at`, `expires_at`, `status`, optional `revoked_at`
   and a monotonic generation. TTL is bounded to60 seconds through7 days. Unknown,
   not-yet-valid, expired and revoked credentials are rejected by middleware before

@@ -6,6 +6,11 @@ research operator. `actor_id` and `subject_id` are operator-supplied identifiers
 not identities authenticated by an external IdP, TLS client certificate or
 workload-identity system.
 
+Policy schema 1.1 can additionally bind each subject to one client-certificate
+SHA-256. Those sessions use registry schema 1.2 and the request-time
+[mTLS ingress](agent-mtls.md). Policy schema 1.0 and registry schema 1.1 remain the
+operator-supplied internal mode described by the original acceptance below.
+
 ## Policy and registry contract
 
 - `AgentIssuancePolicy@1.0.0` fixes a UTC validity window, allowed issuers and
@@ -109,3 +114,8 @@ environment-dependent skips, and renderer tests pass 4/4. This proves the pinned
 internal lifecycle and audit path. It does **not** provide TLS/service identity,
 authenticated external user or workload identity, distributed rate limiting,
 backup/recovery, off-host audit anchoring or public multitenant acceptance.
+
+The later certificate-bound acceptance in [agent-mtls.md](agent-mtls.md) closes
+the external runner-to-ingress TLS and request-time certificate binding slice.
+Backend service mTLS, external CA/IdP lifecycle, distributed abuse controls and
+the other production boundaries above remain incomplete.
