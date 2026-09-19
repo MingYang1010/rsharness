@@ -85,6 +85,7 @@ class FakeEvaluatorRegistry:
         renderer_calls,
         failed_actions,
         wall_time_ms,
+        tool_results=None,
     ):
         metrics = [
             Metric(name="task.accuracy", value=1.0, weight=0.6),

@@ -667,7 +667,8 @@ class V2EpisodeStore(ToolExecutionMixin):
     def _uses_semantic_evaluation(cls, manifest: TaskManifest) -> bool:
         return (
             cls._uses_rendered_observations(manifest)
-            or manifest.task.metadata.get("evaluation_profile") == "whu-building-change-v1"
+            or manifest.task.metadata.get("evaluation_profile")
+            in {"whu-building-change-v1", "temporal-selection-v1"}
         )
 
     def _should_render(self, manifest: TaskManifest, action_type: str) -> bool:
@@ -694,6 +695,28 @@ class V2EpisodeStore(ToolExecutionMixin):
                 (episode_id, event_type),
             ).fetchone()[0]
         )
+
+    @staticmethod
+    def _tool_results(
+        connection: sqlite3.Connection,
+        episode_id: str,
+    ) -> list[dict]:
+        results: list[dict] = []
+        rows = connection.execute(
+            """
+            SELECT observation_json FROM v2_observations
+            WHERE episode_id = ? ORDER BY sequence, observation_id
+            """,
+            (episode_id,),
+        ).fetchall()
+        for row in rows:
+            observation = Observation.model_validate_json(row["observation_json"])
+            results.extend(
+                item.inline
+                for item in observation.items
+                if item.type == "tool_result" and item.inline is not None
+            )
+        return results
 
     @staticmethod
     def _next_sequence(connection: sqlite3.Connection, episode_id: str) -> int:
@@ -841,7 +864,7 @@ class V2EpisodeStore(ToolExecutionMixin):
 
                 if (
                     self._uses_semantic_evaluation(manifest)
-                    and action.type == "answer.submit"
+                    and action.type.startswith("answer.")
                 ):
                     if self.evaluator_registry is None:
                         evaluation = MetricResult(
@@ -872,6 +895,10 @@ class V2EpisodeStore(ToolExecutionMixin):
                                 "action.failed",
                             ),
                             wall_time_ms=next_state.budget.wall_time_ms.used,
+                            tool_results=self._tool_results(
+                                connection,
+                                episode_id,
+                            ),
                         )
                     next_state.evaluation = evaluation
 

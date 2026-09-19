@@ -57,6 +57,7 @@ class RecordedAccountingEvaluator:
         renderer_calls,
         failed_actions,
         wall_time_ms,
+        tool_results=None,
     ):
         return self.delegate.evaluate_safely(
             manifest=manifest,
@@ -65,6 +66,7 @@ class RecordedAccountingEvaluator:
             renderer_calls=renderer_calls,
             failed_actions=failed_actions,
             wall_time_ms=self.wall_time_ms,
+            tool_results=tool_results,
         )
 
 

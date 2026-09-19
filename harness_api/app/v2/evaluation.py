@@ -4,6 +4,8 @@ import uuid
 from pathlib import Path, PurePosixPath
 from typing import Dict, Iterable, Optional, Tuple
 
+from pydantic import ValidationError
+
 from .artifacts import ArtifactStore
 from .schemas import (
     ArtifactRef,
@@ -14,7 +16,13 @@ from .schemas import (
     PixelAssetRef,
     SpatialBoundingBox,
     TaskManifest,
+    TemporalStackArtifactRef,
     V2EpisodeState,
+)
+from .temporal import (
+    TOOL_ID as TEMPORAL_TOOL_ID,
+    VERSION as TEMPORAL_TOOL_VERSION,
+    TemporalToolResult,
 )
 
 
@@ -80,6 +88,7 @@ class EvaluatorRegistry:
         renderer_calls: int,
         failed_actions: int,
         wall_time_ms: int,
+        tool_results: Optional[list[dict]] = None,
     ) -> MetricResult:
         evaluation_id = "eval-%s" % uuid.uuid4().hex
         try:
@@ -97,6 +106,11 @@ class EvaluatorRegistry:
                 return self._evaluate_worldcover(**arguments)
             if evaluator_id == "whu-building-change-v1":
                 return self._evaluate_whu_change(**arguments)
+            if evaluator_id == "temporal-selection-v1":
+                return self._evaluate_temporal_selection(
+                    **arguments,
+                    tool_results=tool_results or [],
+                )
             raise EvaluatorError(
                 "evaluator_not_supported",
                 "registered evaluator is not implemented",
@@ -320,6 +334,401 @@ class EvaluatorRegistry:
             "wall_time_ms": wall_time_ms,
             "wall_time_soft_limit_ms": wall_limit,
         }
+
+    @staticmethod
+    def _temporal_expected(manifest: TaskManifest) -> Dict[str, object]:
+        config = manifest.evaluator.config
+        status = config.get("expected_selection_status")
+        reason = config.get("expected_selection_reason")
+        coverage = config.get("expected_coverage_decision")
+        reasons = {
+            "selected",
+            "wrong_date",
+            "insufficient_coverage",
+            "cloudy",
+            "sensor_mismatch",
+        }
+        if (
+            status not in {"selected", "rejected"}
+            or reason not in reasons
+            or coverage not in {"pass", "fail", "not_evaluated"}
+            or (status == "selected") != (reason == "selected")
+        ):
+            raise EvaluatorError(
+                "evaluator_config_invalid",
+                "temporal truth status, reason and coverage decision are invalid",
+            )
+        expected: Dict[str, object] = {
+            "status": status,
+            "reason": reason,
+            "coverage_decision": coverage,
+        }
+        input_ids = config.get("expected_input_asset_ids", [])
+        if status == "selected":
+            before_item = config.get("expected_before_item_id")
+            after_item = config.get("expected_after_item_id")
+            if (
+                not isinstance(before_item, str)
+                or not before_item
+                or not isinstance(after_item, str)
+                or not after_item
+                or not isinstance(input_ids, list)
+                or len(input_ids) != 4
+                or len(set(input_ids)) != 4
+                or not all(isinstance(value, str) and value for value in input_ids)
+            ):
+                raise EvaluatorError(
+                    "evaluator_config_invalid",
+                    "selected temporal truth requires two items and four inputs",
+                )
+            expected.update(
+                before_item_id=before_item,
+                after_item_id=after_item,
+                input_asset_ids=input_ids,
+            )
+        elif input_ids:
+            raise EvaluatorError(
+                "evaluator_config_invalid",
+                "rejected temporal truth must not declare selected inputs",
+            )
+        return expected
+
+    @staticmethod
+    def _temporal_tool_result(
+        tool_results: list[dict],
+    ) -> Tuple[Optional[TemporalToolResult], int, list[str]]:
+        matching = [
+            value
+            for value in tool_results
+            if isinstance(value, dict)
+            and value.get("tool_id") == TEMPORAL_TOOL_ID
+        ]
+        completed = [value for value in matching if value.get("status") == "completed"]
+        statuses = [str(value.get("status")) for value in matching]
+        if not completed:
+            return None, len(matching), statuses
+        value = completed[-1]
+        if value.get("tool_version") != TEMPORAL_TOOL_VERSION:
+            raise EvaluatorError(
+                "temporal_tool_version_mismatch",
+                "temporal tool result version does not match the evaluator",
+            )
+        try:
+            result = TemporalToolResult.model_validate(
+                {
+                    "selection": value["selection"],
+                    "stack": value.get("stack"),
+                }
+            )
+        except (KeyError, TypeError, ValidationError):
+            raise EvaluatorError(
+                "temporal_tool_result_invalid",
+                "temporal tool result failed contract validation",
+            ) from None
+        return result, len(matching), statuses
+
+    @staticmethod
+    def _temporal_coverage_decision(
+        result: Optional[TemporalToolResult],
+    ) -> str:
+        if result is None or result.selection.reason == "wrong_date":
+            return "not_evaluated"
+        if result.selection.reason == "insufficient_coverage":
+            return "fail"
+        return "pass"
+
+    @staticmethod
+    def _temporal_efficiency(
+        manifest: TaskManifest,
+        state: V2EpisodeState,
+        renderer_calls: int,
+        failed_actions: int,
+        wall_time_ms: int,
+        temporal_call_count: int,
+    ) -> Tuple[float, Dict[str, object]]:
+        config = manifest.evaluator.config.get("efficiency", {})
+        ideal_steps = max(int(config.get("ideal_steps", 1)), 1)
+        ideal_tool_calls = max(int(config.get("ideal_tool_calls", 1)), 1)
+        wall_limit = max(int(config.get("wall_time_soft_limit_ms", 1)), 1)
+        expected_renderer_calls = max(
+            int(config.get("expected_renderer_calls", 0)), 0
+        )
+        step_score = min(1.0, ideal_steps / max(state.step_count, 1))
+        tool_score = (
+            min(1.0, ideal_tool_calls / temporal_call_count)
+            if temporal_call_count > 0
+            else 0.0
+        )
+        renderer_score = 1.0 / (
+            1.0 + abs(renderer_calls - expected_renderer_calls)
+        )
+        wall_score = min(1.0, wall_limit / max(wall_time_ms, 1))
+        failure_score = 1.0 / (1.0 + max(failed_actions, 0))
+        score = round(
+            step_score
+            * tool_score
+            * renderer_score
+            * wall_score
+            * failure_score,
+            6,
+        )
+        return score, {
+            "expected_renderer_calls": expected_renderer_calls,
+            "failed_actions": failed_actions,
+            "ideal_steps": ideal_steps,
+            "ideal_tool_calls": ideal_tool_calls,
+            "renderer_calls": renderer_calls,
+            "steps": state.step_count,
+            "temporal_tool_calls": temporal_call_count,
+            "wall_time_ms": wall_time_ms,
+            "wall_time_soft_limit_ms": wall_limit,
+        }
+
+    def _evaluate_temporal_selection(
+        self,
+        evaluation_id: str,
+        manifest: TaskManifest,
+        state: V2EpisodeState,
+        artifacts: Dict[str, ArtifactRef],
+        renderer_calls: int,
+        failed_actions: int,
+        wall_time_ms: int,
+        tool_results: list[dict],
+    ) -> MetricResult:
+        if manifest.evaluator.evaluator_version != "1.0.0":
+            raise EvaluatorError(
+                "evaluator_version_not_supported",
+                "temporal selection evaluator version is not implemented",
+            )
+        expected = self._temporal_expected(manifest)
+        result, temporal_call_count, tool_statuses = self._temporal_tool_result(
+            tool_results
+        )
+        temporal_outputs = [
+            artifact
+            for artifact in artifacts.values()
+            if artifact.lineage.tool_id == TEMPORAL_TOOL_ID
+        ]
+        temporal_artifacts = [
+            artifact
+            for artifact in temporal_outputs
+            if isinstance(artifact, TemporalStackArtifactRef)
+        ]
+        status_matches = (
+            result is not None
+            and result.selection.status == expected["status"]
+            and result.selection.reason == expected["reason"]
+        )
+        artifact_matches = False
+        pair_matches = expected["status"] == "rejected"
+        if expected["status"] == "selected" and result is not None:
+            selection = result.selection
+            stack = result.stack
+            input_ids = expected["input_asset_ids"]
+            pair_matches = bool(
+                selection.before is not None
+                and selection.after is not None
+                and stack is not None
+                and selection.before.item_id == expected["before_item_id"]
+                and selection.after.item_id == expected["after_item_id"]
+                and stack.before_item_id == expected["before_item_id"]
+                and stack.after_item_id == expected["after_item_id"]
+                and stack.input_asset_ids == input_ids
+            )
+            if len(temporal_artifacts) == 1 and stack is not None:
+                artifact = temporal_artifacts[0]
+                descriptor = artifact.temporal_stack
+                artifact_matches = bool(
+                    self.artifact_store.audit_exists(artifact)
+                    and artifact.lineage.tool_version == TEMPORAL_TOOL_VERSION
+                    and artifact.lineage.input_refs == input_ids
+                    and descriptor.before.item_id == expected["before_item_id"]
+                    and descriptor.after.item_id == expected["after_item_id"]
+                    and descriptor.grid_crs == stack.crs
+                    and descriptor.grid_transform == stack.transform
+                    and descriptor.width == stack.width
+                    and descriptor.height == stack.height
+                    and descriptor.band_order == stack.band_order
+                    and descriptor.cloud_policy == stack.cloud_policy
+                    and descriptor.before.coverage_fraction
+                    == selection.before.coverage_fraction
+                    and descriptor.after.coverage_fraction
+                    == selection.after.coverage_fraction
+                    and descriptor.before.cloud_fraction
+                    == stack.before_cloud_fraction
+                    and descriptor.after.cloud_fraction
+                    == stack.after_cloud_fraction
+                )
+        elif expected["status"] == "rejected":
+            artifact_matches = not temporal_outputs
+
+        temporal_validity = float(
+            status_matches and pair_matches and artifact_matches
+        )
+        actual_coverage = self._temporal_coverage_decision(result)
+        coverage_valid = actual_coverage == expected["coverage_decision"]
+        if result is not None and result.selection.status == "selected":
+            before = result.selection.before
+            after = result.selection.after
+            stack = result.stack
+            coverage_valid = bool(
+                coverage_valid
+                and before is not None
+                and after is not None
+                and stack is not None
+                and before.coverage_fraction
+                >= result.selection.minimum_coverage_fraction
+                and after.coverage_fraction
+                >= result.selection.minimum_coverage_fraction
+                and stack.aligned_coverage_fraction
+                >= float(
+                    manifest.evaluator.config.get(
+                        "minimum_aligned_coverage_fraction", 0.0
+                    )
+                )
+            )
+
+        answer = state.final_answer
+        actual_outcome = answer.outcome if answer is not None else None
+        expected_outcome = (
+            "submitted" if expected["status"] == "selected" else "abstained"
+        )
+        false_confidence = bool(
+            expected["status"] == "rejected" and actual_outcome == "submitted"
+        )
+        unnecessary_abstention = bool(
+            expected["status"] == "selected" and actual_outcome == "abstained"
+        )
+        abstention_correctness = float(actual_outcome == expected_outcome)
+
+        faithfulness = 0.0
+        faithfulness_diagnostics: Dict[str, object]
+        if expected["status"] == "selected" and len(temporal_artifacts) == 1:
+            artifact = temporal_artifacts[0]
+            selected_evidence = set(answer.evidence_ids if answer is not None else [])
+            evidence = [
+                item
+                for item in state.evidence_refs
+                if item.evidence_id in selected_evidence
+                and item.source_ref == artifact.artifact_id
+            ]
+            valid = [
+                item
+                for item in evidence
+                if item.frozen_sha256 == artifact.sha256
+                and item.selector.bbox is not None
+                and _same_bbox(item.selector.bbox, artifact.spatial.bbox)
+                and item.selector.time_range == artifact.temporal
+            ]
+            faithfulness = float(
+                actual_outcome == "submitted"
+                and artifact_matches
+                and len(valid) == 1
+            )
+            faithfulness_diagnostics = {
+                "artifact_id": artifact.artifact_id,
+                "selected_evidence_count": len(evidence),
+                "valid_full_extent_evidence_count": len(valid),
+            }
+        else:
+            no_claim_evidence = bool(
+                answer is not None
+                and not answer.evidence_ids
+                and not temporal_outputs
+            )
+            faithfulness = float(
+                actual_outcome == "abstained"
+                and status_matches
+                and no_claim_evidence
+            )
+            faithfulness_diagnostics = {
+                "basis": "metadata-only-rejection",
+                "no_claim_evidence": no_claim_evidence,
+                "temporal_artifact_count": len(temporal_outputs),
+            }
+
+        efficiency, efficiency_diagnostics = self._temporal_efficiency(
+            manifest,
+            state,
+            renderer_calls,
+            failed_actions,
+            wall_time_ms,
+            temporal_call_count,
+        )
+        values = {
+            "temporal.validity": (
+                temporal_validity,
+                {
+                    "artifact_matches": artifact_matches,
+                    "expected_reason": expected["reason"],
+                    "expected_status": expected["status"],
+                    "observed_reason": (
+                        result.selection.reason if result is not None else None
+                    ),
+                    "observed_status": (
+                        result.selection.status if result is not None else None
+                    ),
+                    "pair_matches": pair_matches,
+                    "tool_result_statuses": tool_statuses,
+                },
+            ),
+            "spatial.coverage": (
+                float(coverage_valid),
+                {
+                    "actual_decision": actual_coverage,
+                    "expected_decision": expected["coverage_decision"],
+                },
+            ),
+            "answer.abstention_correctness": (
+                abstention_correctness,
+                {
+                    "actual_outcome": actual_outcome,
+                    "expected_outcome": expected_outcome,
+                    "false_confidence": false_confidence,
+                    "unnecessary_abstention": unnecessary_abstention,
+                },
+            ),
+            "evidence.faithfulness": (
+                faithfulness,
+                faithfulness_diagnostics,
+            ),
+            "process.efficiency": (
+                efficiency,
+                efficiency_diagnostics,
+            ),
+        }
+        if any(name not in values for name in manifest.evaluator.metric_names):
+            raise EvaluatorError(
+                "evaluator_metric_not_supported",
+                "temporal evaluator metric list contains an unknown metric",
+            )
+        metrics = [
+            Metric(
+                name=name,
+                value=values[name][0],
+                weight=manifest.evaluator.aggregate_weights.get(name),
+                diagnostics=values[name][1],
+            )
+            for name in manifest.evaluator.metric_names
+        ]
+        return MetricResult(
+            evaluation_id=evaluation_id,
+            status="completed",
+            metrics=metrics,
+            aggregate_reward=aggregate_metrics(metrics),
+            evaluator_id=manifest.evaluator.evaluator_id,
+            evaluator_version=manifest.evaluator.evaluator_version,
+            diagnostics={
+                "expected_selection_reason": expected["reason"],
+                "expected_selection_status": expected["status"],
+                "false_confidence": false_confidence,
+                "temporal_artifact_ids": [
+                    artifact.artifact_id for artifact in temporal_outputs
+                ],
+                "temporal_tool_calls": temporal_call_count,
+                "unnecessary_abstention": unnecessary_abstention,
+            },
+        )
 
     @staticmethod
     def _change_asset(
