@@ -19,12 +19,17 @@ from .v2.raster_math import (BandMathArguments, MASKED_VERSION, MaskArtifactInpu
                              MaskedNDVIResult, NativeBand, NDVIResult, MAX_INPUT,
                              MAX_OUTPUT, VERSION, checked_pair,
                              validate_masked_ndvi, validate_ndvi)
+from .v2.temporal import (TemporalAlignRequest, TemporalStackResult,
+                          VERSION as TEMPORAL_VERSION, checked_temporal_inputs,
+                          validate_temporal_stack)
 
 
 class RasterBridge:
-    def __init__(self, inputs: Path, manifest: dict, worker: Path, grid_worker: Path | None = None):
+    def __init__(self, inputs: Path, manifest: dict, worker: Path, grid_worker: Path | None = None,
+                 temporal_worker: Path | None = None):
         self.inputs,self.manifest,self.worker = inputs.resolve(),manifest,worker.resolve()
         self.grid_worker = grid_worker.resolve() if grid_worker is not None else None
+        self.temporal_worker = temporal_worker.resolve() if temporal_worker is not None else None
         self.slot = threading.BoundedSemaphore(1)
 
     def resolve(self, asset_id: str, profile_type=NativeBand):
@@ -136,6 +141,44 @@ class RasterBridge:
         finally:
             self.slot.release()
 
+    def execute_temporal(self, args: TemporalAlignRequest) -> tuple[bytes, TemporalStackResult]:
+        if self.temporal_worker is None:
+            raise HTTPException(503, "temporal worker unavailable")
+        if not self.slot.acquire(blocking=False):
+            raise HTTPException(429, "raster provider busy")
+        try:
+            identifiers = [args.before_red_asset_id, args.before_scl_asset_id,
+                           args.after_red_asset_id, args.after_scl_asset_id]
+            types = [NativeBand, NativeSCL, NativeBand, NativeSCL]
+            resolved = [self.resolve(asset_id, profile_type)
+                        for asset_id, profile_type in zip(identifiers, types)]
+            paths = [value[0] for value in resolved]
+            profiles = [value[1] for value in resolved]
+            checked_temporal_inputs(*profiles)
+            with tempfile.TemporaryDirectory(prefix="temporal-stack-") as directory:
+                output = Path(directory) / "temporal-stack.tif"
+                run = subprocess.run([sys.executable, str(self.temporal_worker),
+                    *[str(path) for path in paths], str(output),
+                    json.dumps([profile.model_dump(mode="json") for profile in profiles])],
+                    capture_output=True, timeout=30, check=False)
+                if (run.returncode or len(run.stdout) > 32768 or not output.is_file()
+                        or output.stat().st_size > 64 * 1024 * 1024):
+                    raise ValueError("invalid temporal worker output")
+                result = TemporalStackResult.model_validate_json(run.stdout)
+                content = output.read_bytes()
+                validate_temporal_stack(content, result)
+                if (result.input_asset_ids != identifiers
+                        or result.input_sha256 != [profile.sha256 for profile in profiles]
+                        or result.cloud_policy != args.cloud_policy):
+                    raise ValueError("temporal worker source mismatch")
+                return content, result
+        except subprocess.TimeoutExpired:
+            raise HTTPException(504, "temporal worker timed out") from None
+        except (ValueError, OSError):
+            raise HTTPException(422, "reviewed temporal inputs or output invalid") from None
+        finally:
+            self.slot.release()
+
 
 def create_app(bridge: RasterBridge | None = None):
     if bridge is None:
@@ -143,13 +186,15 @@ def create_app(bridge: RasterBridge | None = None):
         if manifest.is_symlink() or manifest.stat().st_size>1024*1024:
             raise ValueError("bounded manifest required")
         grid_worker = Path(os.environ["EO_RASTER_GRID_WORKER"]) if os.environ.get("EO_RASTER_GRID_WORKER") else None
+        temporal_worker = Path(os.environ["EO_RASTER_TEMPORAL_WORKER"]) if os.environ.get("EO_RASTER_TEMPORAL_WORKER") else None
         bridge = RasterBridge(Path(os.environ["EO_RASTER_INPUTS"]),json.loads(manifest.read_text()),
-                              Path(os.environ["EO_RASTER_WORKER"]),grid_worker)
+                              Path(os.environ["EO_RASTER_WORKER"]),grid_worker,temporal_worker)
     app = FastAPI(docs_url=None,redoc_url=None,openapi_url=None)
 
     @app.get("/healthz")
     def health():
-        return {"status":"ok","tool_version":VERSION,"grid_tool_version":GRID_VERSION if bridge.grid_worker else None}
+        return {"status":"ok","tool_version":VERSION,"grid_tool_version":GRID_VERSION if bridge.grid_worker else None,
+                "temporal_tool_version":TEMPORAL_VERSION if bridge.temporal_worker else None}
 
     @app.post("/band-math")
     def band_math(args: BandMathArguments):
@@ -186,5 +231,13 @@ def create_app(bridge: RasterBridge | None = None):
         return Response(content,media_type="image/tiff",headers={
             "X-Raster-Grid-Metadata":result.model_dump_json(),"X-Raster-Grid-Version":GRID_VERSION,
             "X-Content-SHA256":hashlib.sha256(content).hexdigest()})
+
+    @app.post("/temporal-align")
+    def temporal_align(args: TemporalAlignRequest):
+        content, result = bridge.execute_temporal(args)
+        return Response(content, media_type="image/tiff", headers={
+            "X-Temporal-Metadata": result.model_dump_json(),
+            "X-Temporal-Version": TEMPORAL_VERSION,
+            "X-Content-SHA256": hashlib.sha256(content).hexdigest()})
 
     return app
