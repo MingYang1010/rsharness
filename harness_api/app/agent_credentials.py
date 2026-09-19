@@ -50,6 +50,7 @@ class AgentSessionCredential(V2RequestModel):
     issuance_policy_id: Identifier | None = None
     issuance_policy_sha256: Sha256 | None = None
     subject_certificate_sha256: Sha256 | None = None
+    issuer_certificate_sha256: Sha256 | None = None
 
     @model_validator(mode="after")
     def valid_lifecycle(self):
@@ -80,7 +81,7 @@ class AgentSessionCredential(V2RequestModel):
 
 
 class AgentCredentialRegistry(V2RequestModel):
-    schema_version: Literal["1.0.0", "1.1.0", "1.2.0"] = "1.0.0"
+    schema_version: Literal["1.0.0", "1.1.0", "1.2.0", "1.3.0"] = "1.0.0"
     sessions: list[AgentSessionCredential] = Field(default_factory=list, max_length=MAX_SESSIONS)
 
     @model_validator(mode="after")
@@ -95,14 +96,23 @@ class AgentCredentialRegistry(V2RequestModel):
         certificate_bound = [
             item.subject_certificate_sha256 is not None for item in self.sessions
         ]
+        issuer_certificate_bound = [
+            item.issuer_certificate_sha256 is not None for item in self.sessions
+        ]
         if self.schema_version == "1.0.0" and any(governed):
             raise ValueError("legacy registry cannot contain governed sessions")
-        if self.schema_version in {"1.1.0", "1.2.0"} and not all(governed):
+        if self.schema_version in {"1.1.0", "1.2.0", "1.3.0"} and not all(governed):
             raise ValueError("governed registry requires policy metadata for every session")
         if self.schema_version in {"1.0.0", "1.1.0"} and any(certificate_bound):
             raise ValueError("registry schema does not support certificate-bound sessions")
-        if self.schema_version == "1.2.0" and not all(certificate_bound):
+        if self.schema_version in {"1.2.0", "1.3.0"} and not all(certificate_bound):
             raise ValueError("certificate-bound registry requires a pin for every session")
+        if self.schema_version in {"1.0.0", "1.1.0", "1.2.0"} and any(
+            issuer_certificate_bound
+        ):
+            raise ValueError("registry schema does not support operator certificate pins")
+        if self.schema_version == "1.3.0" and not all(issuer_certificate_bound):
+            raise ValueError("operator-bound registry requires a pin for every session")
         return self
 
 

@@ -18,6 +18,7 @@ from app.control_plane import (
     append_control_event,
     authorize_issuance,
     authorize_management,
+    certificate_file_sha256,
     load_issuance_policy,
     verify_control_audit,
 )
@@ -38,6 +39,13 @@ NOW = datetime(2026, 9, 20, 12, 0, tzinfo=timezone.utc)
 POLICY_SHA = "a" * 64
 MANIFEST_SHA = "b" * 64
 CERTIFICATE_SHA = "c" * 64
+ACTOR_CERTIFICATE_DER = b"operator-cert"
+ACTOR_CERTIFICATE_SHA = hashlib.sha256(ACTOR_CERTIFICATE_DER).hexdigest()
+ACTOR_CERTIFICATE_PEM = (
+    b"-----BEGIN CERTIFICATE-----\n"
+    b"b3BlcmF0b3ItY2VydA==\n"
+    b"-----END CERTIFICATE-----\n"
+)
 
 
 def policy() -> AgentIssuancePolicy:
@@ -192,6 +200,79 @@ class IssuancePolicyTests(unittest.TestCase):
                 subject_certificates=[],
             )
 
+    def test_operator_certificate_policy_binds_transport_identity(self):
+        operator_policy = AgentIssuancePolicy(
+            schema_version="1.2.0",
+            policy_id="operator-policy-v1",
+            valid_from=NOW - timedelta(days=1),
+            expires_at=NOW + timedelta(days=1),
+            issuers=["trusted-operator"],
+            subjects=["approved-runner"],
+            issuer_certificates=[{
+                "issuer_id": "trusted-operator",
+                "certificate_sha256": ACTOR_CERTIFICATE_SHA,
+            }],
+            subject_certificates=[{
+                "subject_id": "approved-runner",
+                "certificate_sha256": CERTIFICATE_SHA,
+            }],
+            grants=[{
+                "task_id": "task-a",
+                "task_version": "1.0.0",
+                "max_ttl_seconds": 3600,
+            }],
+            max_active_sessions_per_subject=1,
+        )
+        arguments = {
+            "actor_id": "trusted-operator",
+            "subject_id": "approved-runner",
+            "task_id": "task-a",
+            "task_version": "1.0.0",
+            "ttl_seconds": 3600,
+            "active_subject_sessions": 0,
+            "actor_certificate_sha256": ACTOR_CERTIFICATE_SHA,
+            "subject_certificate_sha256": CERTIFICATE_SHA,
+            "now": NOW,
+        }
+        authorize_issuance(operator_policy, **arguments)
+        for field in ("actor_certificate_sha256", "subject_certificate_sha256"):
+            with self.subTest(field=field), self.assertRaisesRegex(
+                ValueError, "certificate identity"
+            ):
+                authorize_issuance(
+                    operator_policy,
+                    **{**arguments, field: "d" * 64},
+                )
+        with self.assertRaisesRegex(ValueError, "each role"):
+            AgentIssuancePolicy(
+                **operator_policy.model_dump(exclude={"issuer_certificates"}),
+                issuer_certificates=[],
+            )
+        with self.assertRaisesRegex(ValueError, "each role"):
+            AgentIssuancePolicy(
+                **operator_policy.model_dump(
+                    exclude={"issuer_certificates", "subject_certificates"}
+                ),
+                issuer_certificates=[{
+                    "issuer_id": "trusted-operator",
+                    "certificate_sha256": CERTIFICATE_SHA,
+                }],
+                subject_certificates=[{
+                    "subject_id": "approved-runner",
+                    "certificate_sha256": CERTIFICATE_SHA,
+                }],
+            )
+
+    def test_operator_certificate_file_is_single_bounded_pem(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "operator.crt"
+            path.write_bytes(ACTOR_CERTIFICATE_PEM)
+            path.chmod(0o644)
+            self.assertEqual(certificate_file_sha256(path), ACTOR_CERTIFICATE_SHA)
+            path.write_bytes(ACTOR_CERTIFICATE_PEM * 2)
+            with self.assertRaisesRegex(ValueError, "certificate file"):
+                certificate_file_sha256(path)
+
     def test_expired_policy_still_allows_revocation_but_not_rotation(self):
         expired = policy().model_copy(
             update={
@@ -238,6 +319,8 @@ class ControlAuditTests(unittest.TestCase):
             )
             self.assertEqual((first.sequence, second.sequence), (1, 2))
             self.assertEqual(second.previous_event_sha256, first.event_sha256)
+            self.assertEqual((first.schema_version, second.schema_version), ("1.0.0", "1.0.0"))
+            self.assertNotIn(b"actor_certificate_sha256", path.read_bytes())
             self.assertEqual(verify_control_audit(path), [first, second])
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
             summary = QUERY.query(
@@ -261,6 +344,17 @@ class ControlAuditTests(unittest.TestCase):
                 verify_control_audit(path)
             with self.assertRaisesRegex(ValueError, "chain is invalid"):
                 append_control_event(path, event("binding_reused", completed=True))
+
+    def test_operator_certificate_audit_schema_preserves_actor_pin(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "audit.jsonl"
+            value = event("issuance_started").model_copy(
+                update={"actor_certificate_sha256": ACTOR_CERTIFICATE_SHA}
+            )
+            stored = append_control_event(path, value, now=NOW)
+            self.assertEqual(stored.schema_version, "1.1.0")
+            self.assertEqual(stored.actor_certificate_sha256, ACTOR_CERTIFICATE_SHA)
+            self.assertEqual(verify_control_audit(path), [stored])
 
     def test_partial_insecure_and_symlink_audits_fail_closed(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -307,6 +401,12 @@ class GovernedRegistryTests(unittest.TestCase):
         AgentCredentialRegistry(
             schema_version="1.2.0", sessions=[certificate_bound]
         )
+        operator_bound = certificate_bound.model_copy(
+            update={"issuer_certificate_sha256": ACTOR_CERTIFICATE_SHA}
+        )
+        AgentCredentialRegistry(
+            schema_version="1.3.0", sessions=[operator_bound]
+        )
         with self.assertRaisesRegex(ValueError, "legacy registry"):
             AgentCredentialRegistry(schema_version="1.0.0", sessions=[governed])
         with self.assertRaisesRegex(ValueError, "governed registry"):
@@ -317,6 +417,14 @@ class GovernedRegistryTests(unittest.TestCase):
             )
         with self.assertRaisesRegex(ValueError, "requires a pin"):
             AgentCredentialRegistry(schema_version="1.2.0", sessions=[governed])
+        with self.assertRaisesRegex(ValueError, "operator certificate"):
+            AgentCredentialRegistry(
+                schema_version="1.2.0", sessions=[operator_bound]
+            )
+        with self.assertRaisesRegex(ValueError, "operator-bound"):
+            AgentCredentialRegistry(
+                schema_version="1.3.0", sessions=[certificate_bound]
+            )
 
 
 if __name__ == "__main__":

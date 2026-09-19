@@ -7,6 +7,7 @@ import hmac
 import json
 import os
 import re
+import ssl
 import stat
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -40,8 +41,19 @@ class SubjectCertificate(V2RequestModel):
         return self
 
 
+class IssuerCertificate(V2RequestModel):
+    issuer_id: str
+    certificate_sha256: Sha256
+
+    @model_validator(mode="after")
+    def valid_issuer(self):
+        if IDENTITY_PATTERN.fullmatch(self.issuer_id) is None:
+            raise ValueError("certificate issuer identity is invalid")
+        return self
+
+
 class AgentIssuancePolicy(V2RequestModel):
-    schema_version: Literal["1.0.0", "1.1.0"] = "1.0.0"
+    schema_version: Literal["1.0.0", "1.1.0", "1.2.0"] = "1.0.0"
     policy_id: Identifier
     valid_from: AwareDatetime
     expires_at: AwareDatetime
@@ -51,6 +63,9 @@ class AgentIssuancePolicy(V2RequestModel):
     max_active_sessions_per_subject: int = Field(ge=1, le=32)
     subject_certificates: list[SubjectCertificate] = Field(
         default_factory=list, max_length=256
+    )
+    issuer_certificates: list[IssuerCertificate] = Field(
+        default_factory=list, max_length=64
     )
 
     @model_validator(mode="after")
@@ -71,15 +86,32 @@ class AgentIssuancePolicy(V2RequestModel):
         if len(set(references)) != len(references):
             raise ValueError("issuance policy contains duplicate task grants")
         certificate_subjects = [item.subject_id for item in self.subject_certificates]
-        certificate_hashes = [item.certificate_sha256 for item in self.subject_certificates]
-        if self.schema_version == "1.0.0" and self.subject_certificates:
+        subject_hashes = [item.certificate_sha256 for item in self.subject_certificates]
+        certificate_issuers = [item.issuer_id for item in self.issuer_certificates]
+        issuer_hashes = [item.certificate_sha256 for item in self.issuer_certificates]
+        if self.schema_version == "1.0.0" and (
+            self.subject_certificates or self.issuer_certificates
+        ):
             raise ValueError("policy schema does not support certificate identities")
         if self.schema_version == "1.1.0" and (
             set(certificate_subjects) != set(self.subjects)
             or len(set(certificate_subjects)) != len(certificate_subjects)
-            or len(set(certificate_hashes)) != len(certificate_hashes)
+            or len(set(subject_hashes)) != len(subject_hashes)
+            or self.issuer_certificates
         ):
             raise ValueError("certificate policy must bind every subject exactly once")
+        if self.schema_version == "1.2.0" and (
+            set(certificate_subjects) != set(self.subjects)
+            or len(set(certificate_subjects)) != len(certificate_subjects)
+            or len(set(subject_hashes)) != len(subject_hashes)
+            or set(certificate_issuers) != set(self.issuers)
+            or len(set(certificate_issuers)) != len(certificate_issuers)
+            or len(set(issuer_hashes)) != len(issuer_hashes)
+            or not set(subject_hashes).isdisjoint(issuer_hashes)
+        ):
+            raise ValueError(
+                "operator certificate policy must bind each role exactly once"
+            )
         return self
 
 
@@ -104,6 +136,7 @@ class ControlEventInput(V2RequestModel):
     episode_id: EpisodeId | None = None
     generation: int | None = Field(default=None, ge=1, le=1_000_000)
     subject_certificate_sha256: Sha256 | None = None
+    actor_certificate_sha256: Sha256 | None = None
 
     @model_validator(mode="after")
     def identities(self):
@@ -119,7 +152,7 @@ class ControlEventInput(V2RequestModel):
 
 
 class ControlPlaneEvent(ControlEventInput):
-    schema_version: Literal["1.0.0"] = "1.0.0"
+    schema_version: Literal["1.0.0", "1.1.0"] = "1.0.0"
     sequence: int = Field(ge=1)
     occurred_at: AwareDatetime
     previous_event_sha256: Sha256 | None
@@ -173,6 +206,65 @@ def load_issuance_policy(path: Path, expected_sha256: str) -> tuple[AgentIssuanc
         raise ValueError("issuance policy is invalid") from error
 
 
+def certificate_file_sha256(path: Path) -> str:
+    """Hash exactly one bounded PEM certificate as DER without following links."""
+    content = _read_bounded_regular(Path(path), MAX_POLICY_BYTES, private=False)
+    try:
+        text = content.decode("ascii")
+        begin = "-----BEGIN CERTIFICATE-----"
+        end = "-----END CERTIFICATE-----"
+        if text.count(begin) != 1 or text.count(end) != 1:
+            raise ValueError
+        start = text.index(begin)
+        stop = text.index(end, start) + len(end)
+        if text[:start].strip() or text[stop:].strip():
+            raise ValueError
+        der = ssl.PEM_cert_to_DER_cert(text[start:stop])
+        if not der:
+            raise ValueError
+    except (UnicodeError, ValueError):
+        raise ValueError("operator certificate file is invalid") from None
+    return hashlib.sha256(der).hexdigest()
+
+
+def _authorize_certificate_identities(
+    policy: AgentIssuancePolicy,
+    *,
+    actor_id: str,
+    subject_id: str,
+    actor_certificate_sha256: str | None,
+    subject_certificate_sha256: str | None,
+) -> None:
+    subject_pins = {
+        item.subject_id: item.certificate_sha256
+        for item in policy.subject_certificates
+    }
+    issuer_pins = {
+        item.issuer_id: item.certificate_sha256
+        for item in policy.issuer_certificates
+    }
+    if policy.schema_version in {"1.1.0", "1.2.0"}:
+        expected = subject_pins.get(subject_id)
+        if (
+            subject_certificate_sha256 is None
+            or expected is None
+            or not hmac.compare_digest(expected, subject_certificate_sha256)
+        ):
+            raise ValueError("subject certificate identity is not allowed")
+    elif subject_certificate_sha256 is not None:
+        raise ValueError("issuance policy does not grant certificate identity")
+    if policy.schema_version == "1.2.0":
+        expected = issuer_pins.get(actor_id)
+        if (
+            actor_certificate_sha256 is None
+            or expected is None
+            or not hmac.compare_digest(expected, actor_certificate_sha256)
+        ):
+            raise ValueError("operator certificate identity is not allowed")
+    elif actor_certificate_sha256 is not None:
+        raise ValueError("issuance policy does not grant operator certificate identity")
+
+
 def authorize_issuance(
     policy: AgentIssuancePolicy,
     *,
@@ -182,6 +274,7 @@ def authorize_issuance(
     task_version: str,
     ttl_seconds: int,
     active_subject_sessions: int,
+    actor_certificate_sha256: str | None = None,
     subject_certificate_sha256: str | None = None,
     now: datetime | None = None,
 ) -> IssuanceGrant:
@@ -192,20 +285,13 @@ def authorize_issuance(
         raise ValueError("issuance policy is not currently valid")
     if actor_id not in policy.issuers or subject_id not in policy.subjects:
         raise ValueError("issuance identity is not allowed")
-    certificate_pins = {
-        item.subject_id: item.certificate_sha256
-        for item in policy.subject_certificates
-    }
-    if policy.schema_version == "1.1.0":
-        expected = certificate_pins.get(subject_id)
-        if (
-            subject_certificate_sha256 is None
-            or expected is None
-            or not hmac.compare_digest(expected, subject_certificate_sha256)
-        ):
-            raise ValueError("subject certificate identity is not allowed")
-    elif subject_certificate_sha256 is not None:
-        raise ValueError("issuance policy does not grant certificate identity")
+    _authorize_certificate_identities(
+        policy,
+        actor_id=actor_id,
+        subject_id=subject_id,
+        actor_certificate_sha256=actor_certificate_sha256,
+        subject_certificate_sha256=subject_certificate_sha256,
+    )
     grants = [
         grant
         for grant in policy.grants
@@ -233,25 +319,19 @@ def authorize_management(
     task_version: str,
     ttl_seconds: int | None,
     rotate: bool,
+    actor_certificate_sha256: str | None = None,
     subject_certificate_sha256: str | None = None,
     now: datetime | None = None,
 ) -> None:
     if actor_id not in policy.issuers or subject_id not in policy.subjects:
         raise ValueError("management identity is not allowed")
-    certificate_pins = {
-        item.subject_id: item.certificate_sha256
-        for item in policy.subject_certificates
-    }
-    if policy.schema_version == "1.1.0":
-        expected = certificate_pins.get(subject_id)
-        if (
-            subject_certificate_sha256 is None
-            or expected is None
-            or not hmac.compare_digest(expected, subject_certificate_sha256)
-        ):
-            raise ValueError("subject certificate identity is not allowed")
-    elif subject_certificate_sha256 is not None:
-        raise ValueError("issuance policy does not grant certificate identity")
+    _authorize_certificate_identities(
+        policy,
+        actor_id=actor_id,
+        subject_id=subject_id,
+        actor_certificate_sha256=actor_certificate_sha256,
+        subject_certificate_sha256=subject_certificate_sha256,
+    )
     grants = [
         grant
         for grant in policy.grants
@@ -268,14 +348,18 @@ def authorize_management(
             task_version=task_version,
             ttl_seconds=ttl_seconds,
             active_subject_sessions=0,
+            actor_certificate_sha256=actor_certificate_sha256,
             subject_certificate_sha256=subject_certificate_sha256,
             now=now,
         )
 
 
 def _canonical_event(event: ControlPlaneEvent) -> bytes:
+    excluded = {"event_sha256"}
+    if event.schema_version == "1.0.0":
+        excluded.add("actor_certificate_sha256")
     return json.dumps(
-        event.model_dump(mode="json", exclude={"event_sha256"}),
+        event.model_dump(mode="json", exclude=excluded),
         sort_keys=True,
         separators=(",", ":"),
         allow_nan=False,
@@ -359,6 +443,9 @@ def append_control_event(
         occurred_at = now or datetime.now(timezone.utc)
         unsigned = ControlPlaneEvent(
             **value.model_dump(),
+            schema_version=(
+                "1.1.0" if value.actor_certificate_sha256 is not None else "1.0.0"
+            ),
             sequence=len(events) + 1,
             occurred_at=occurred_at,
             previous_event_sha256=events[-1].event_sha256 if events else None,
@@ -367,7 +454,13 @@ def append_control_event(
         event = unsigned.model_copy(
             update={"event_sha256": hashlib.sha256(_canonical_event(unsigned)).hexdigest()}
         )
-        line = event.model_dump_json().encode("utf-8") + b"\n"
+        line = event.model_dump_json(
+            exclude=(
+                {"actor_certificate_sha256"}
+                if event.schema_version == "1.0.0"
+                else None
+            )
+        ).encode("utf-8") + b"\n"
         if len(line) > MAX_AUDIT_EVENT_BYTES:
             raise ValueError("control-plane audit event exceeds size limit")
         if os.fstat(descriptor).st_size + len(line) > MAX_AUDIT_BYTES:
@@ -398,12 +491,14 @@ __all__ = [
     "AgentIssuancePolicy",
     "ControlEventInput",
     "ControlPlaneEvent",
+    "IssuerCertificate",
     "IssuanceGrant",
     "SubjectCertificate",
     "MAX_AUDIT_BYTES",
     "append_control_event",
     "authorize_issuance",
     "authorize_management",
+    "certificate_file_sha256",
     "load_issuance_policy",
     "verify_control_audit",
 ]
