@@ -48,6 +48,7 @@ MAX_REQUEST = 128 * 1024
 MAX_JSON = 2 * 1024 * 1024
 MAX_IMAGE = 64 * 1024 * 1024
 MAX_CLIENT_CERT_HEADER = 32 * 1024
+MAX_BACKEND_TLS_FILE = 1024 * 1024
 TOOL_ARGUMENTS = {"catalog.search": SearchArguments, "catalog.inspect_asset": InspectArguments,
                   "eo_gym.crop": CropArguments, RASTER_TOOL: BandMathArguments,
                   GRID_TOOL: GridArguments, TEMPORAL_TOOL: TemporalSelectAlignArguments}
@@ -156,6 +157,35 @@ def client_certificate_sha256(value: str) -> str:
     except (UnicodeError, ValueError) as error:
         raise ValueError("client certificate header is invalid") from error
     return hashlib.sha256(der).hexdigest()
+
+
+def _backend_tls_file(value: str | None, label: str, *, private: bool = False) -> Path:
+    if not value:
+        raise ValueError(f"{label} is required")
+    path = Path(value)
+    if path.is_symlink() or not path.is_file():
+        raise ValueError(f"{label} must be a regular file")
+    details = path.stat()
+    if details.st_size <= 0 or details.st_size > MAX_BACKEND_TLS_FILE:
+        raise ValueError(f"{label} exceeds the allowed size")
+    if private and details.st_mode & 0o077:
+        raise ValueError(f"{label} must be owner-private")
+    return path
+
+
+def build_backend_ssl_context(ca_file: str | None, certificate_file: str | None,
+                              key_file: str | None) -> ssl.SSLContext:
+    """Build a client-authenticated, hostname-verifying backend TLS context."""
+    ca = _backend_tls_file(ca_file, "backend CA")
+    certificate = _backend_tls_file(certificate_file, "backend client certificate")
+    key = _backend_tls_file(key_file, "backend client key", private=True)
+    try:
+        context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=str(ca))
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        context.load_cert_chain(certfile=str(certificate), keyfile=str(key))
+    except (OSError, ssl.SSLError):
+        raise ValueError("backend mTLS material is invalid") from None
+    return context
 
 
 class AgentGuard:
@@ -334,7 +364,9 @@ def create_app(binding: AgentBinding | None = None, base_url: str | None = None,
                registry: AgentCredentialRegistry | None = None,
                registry_path: str | Path | None = None,
                credential_now: Callable[[], datetime] = utc_now,
-               trusted_mtls_header: bool | None = None) -> FastAPI:
+               trusted_mtls_header: bool | None = None,
+               require_backend_mtls: bool | None = None,
+               backend_ssl_context: ssl.SSLContext | None = None) -> FastAPI:
     if binding is not None and (registry is not None or registry_path is not None):
         raise ValueError("legacy binding and credential registry are mutually exclusive")
     if binding is not None:
@@ -361,6 +393,22 @@ def create_app(binding: AgentBinding | None = None, base_url: str | None = None,
     url = urlsplit(base_url)
     if url.scheme not in {"http", "https"} or not url.hostname or url.username or url.password or url.query or url.fragment or url.path not in {"", "/"}:
         raise ValueError("backend must be an operator-configured HTTP origin")
+    if require_backend_mtls is None:
+        configured_backend_mtls = os.environ.get("EO_AGENT_REQUIRE_BACKEND_MTLS", "0")
+        if configured_backend_mtls not in {"0", "1"}:
+            raise ValueError("backend mTLS mode must be 0 or 1")
+        require_backend_mtls = configured_backend_mtls == "1"
+    if require_backend_mtls:
+        if url.scheme != "https":
+            raise ValueError("backend mTLS requires an HTTPS origin")
+        if backend_ssl_context is None:
+            backend_ssl_context = build_backend_ssl_context(
+                os.environ.get("EO_AGENT_BACKEND_CA_FILE"),
+                os.environ.get("EO_AGENT_BACKEND_CERT_FILE"),
+                os.environ.get("EO_AGENT_BACKEND_KEY_FILE"),
+            )
+    elif backend_ssl_context is not None and url.scheme != "https":
+        raise ValueError("backend TLS context requires an HTTPS origin")
     if trusted_mtls_header is None:
         configured_mtls = os.environ.get("EO_AGENT_TRUSTED_MTLS_HEADER", "0")
         if configured_mtls not in {"0", "1"}:
@@ -383,7 +431,8 @@ def create_app(binding: AgentBinding | None = None, base_url: str | None = None,
         limit = MAX_IMAGE if image else MAX_JSON
         try:
             async with httpx.AsyncClient(base_url=base_url, timeout=40, trust_env=False,
-                                         follow_redirects=False, transport=transport) as client:
+                                         follow_redirects=False, transport=transport,
+                                         verify=backend_ssl_context or True) as client:
                 async with client.stream(method, path, json=body) as response:
                     content = bytearray()
                     async for chunk in response.aiter_bytes():

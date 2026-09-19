@@ -1,0 +1,38 @@
+services:
+  harness:
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8443"
+      - --ssl-keyfile
+      - /run/backend-tls/harness.key
+      - --ssl-certfile
+      - /run/backend-tls/harness.crt
+      - --ssl-ca-certs
+      - /run/backend-tls/gateway-client-ca.crt
+      - --ssl-cert-reqs
+      - "2"
+      - --no-access-log
+    volumes:
+      - harness-backend-tls:/run/backend-tls:ro
+
+  agent-gateway:
+    environment:
+      EO_AGENT_BACKEND_URL: https://harness:8443
+      EO_AGENT_REQUIRE_BACKEND_MTLS: "1"
+      EO_AGENT_BACKEND_CA_FILE: /run/backend-tls/harness-server-ca.crt
+      EO_AGENT_BACKEND_CERT_FILE: /run/backend-tls/gateway.crt
+      EO_AGENT_BACKEND_KEY_FILE: /run/backend-tls/gateway.key
+    volumes:
+      - gateway-backend-tls:/run/backend-tls:ro
+
+volumes:
+  harness-backend-tls:
+    external: true
+    name: ${EO_BACKEND_HARNESS_TLS_VOLUME:?set EO_BACKEND_HARNESS_TLS_VOLUME to the reviewed Harness server TLS volume}
+  gateway-backend-tls:
+    external: true
+    name: ${EO_BACKEND_GATEWAY_TLS_VOLUME:?set EO_BACKEND_GATEWAY_TLS_VOLUME to the reviewed gateway client TLS volume}

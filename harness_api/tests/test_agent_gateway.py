@@ -5,6 +5,8 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
+import ssl
 import sqlite3
 import tempfile
 import unittest
@@ -19,7 +21,8 @@ from v2.test_tool_execution import FakeExecutor, make_tool_tasks
 from app.main import create_app as create_backend
 from app.agent_credentials import (AgentCredentialRegistry, AgentSessionCredential,
                                    load_agent_registry)
-from app.agent_gateway import (AgentBinding, AgentGuard, build_binding, create_app,
+from app.agent_gateway import (AgentBinding, AgentGuard, build_backend_ssl_context,
+                               build_binding, create_app,
                                public_observation, public_state, validate_agent_binding)
 from app.control_plane import AgentIssuancePolicy, verify_control_audit
 from app.v2.artifacts import ArtifactStore
@@ -292,6 +295,57 @@ class AgentGatewayTests(unittest.TestCase):
                 "/agent/state",
                 headers={"x-eo-client-cert": "authorized-certificate"},
             )
+            self.assertEqual(response.status_code, 200, response.text)
+
+    def test_backend_mtls_configuration_is_explicit_and_fail_closed(self):
+        context = ssl.create_default_context()
+        with self.assertRaisesRegex(ValueError, "HTTPS origin"):
+            create_app(
+                self.binding,
+                "http://operator",
+                httpx.ASGITransport(app=self.backend),
+                require_backend_mtls=True,
+                backend_ssl_context=context,
+            )
+        with patch.dict(os.environ, {
+            "EO_AGENT_BACKEND_CA_FILE": "",
+            "EO_AGENT_BACKEND_CERT_FILE": "",
+            "EO_AGENT_BACKEND_KEY_FILE": "",
+        }):
+            with self.assertRaisesRegex(ValueError, "backend CA is required"):
+                create_app(
+                    self.binding,
+                    "https://harness:8443",
+                    httpx.ASGITransport(app=self.backend),
+                    require_backend_mtls=True,
+                )
+        with patch.dict(os.environ, {"EO_AGENT_REQUIRE_BACKEND_MTLS": "invalid"}):
+            with self.assertRaisesRegex(ValueError, "must be 0 or 1"):
+                create_app(
+                    self.binding,
+                    "https://harness:8443",
+                    httpx.ASGITransport(app=self.backend),
+                )
+        for name in ("ca.crt", "gateway.crt", "gateway.key"):
+            (self.root / name).write_text("not-a-certificate")
+        (self.root / "gateway.key").chmod(0o644)
+        with self.assertRaisesRegex(ValueError, "owner-private"):
+            build_backend_ssl_context(
+                str(self.root / "ca.crt"),
+                str(self.root / "gateway.crt"),
+                str(self.root / "gateway.key"),
+            )
+        app = create_app(
+            self.binding,
+            "https://harness:8443",
+            httpx.ASGITransport(app=self.backend),
+            require_backend_mtls=True,
+            backend_ssl_context=context,
+        )
+        with TestClient(
+            app, headers={"Authorization": "Bearer " + TOKEN}
+        ) as client:
+            response = client.get("/agent/state")
             self.assertEqual(response.status_code, 200, response.text)
 
     def test_registry_expiry_revocation_rotation_and_restart_fail_closed(self):
