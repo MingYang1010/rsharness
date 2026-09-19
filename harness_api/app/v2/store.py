@@ -663,6 +663,13 @@ class V2EpisodeStore(ToolExecutionMixin):
     def _uses_rendered_observations(manifest: TaskManifest) -> bool:
         return manifest.task.metadata.get("observation_profile") == "rendered-worldcover-v1"
 
+    @classmethod
+    def _uses_semantic_evaluation(cls, manifest: TaskManifest) -> bool:
+        return (
+            cls._uses_rendered_observations(manifest)
+            or manifest.task.metadata.get("evaluation_profile") == "whu-building-change-v1"
+        )
+
     def _should_render(self, manifest: TaskManifest, action_type: str) -> bool:
         if not self._uses_rendered_observations(manifest):
             return False
@@ -833,7 +840,7 @@ class V2EpisodeStore(ToolExecutionMixin):
                     next_state.status = "truncated"
 
                 if (
-                    self._uses_rendered_observations(manifest)
+                    self._uses_semantic_evaluation(manifest)
                     and action.type == "answer.submit"
                 ):
                     if self.evaluator_registry is None:

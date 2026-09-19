@@ -1,0 +1,132 @@
+x-whu-issue-common: &whu-issue-common
+  image: eo-harness/harness-api:0.4.0
+  profiles: [whu-agent-setup]
+  working_dir: /workspace
+  read_only: true
+  volumes:
+    - ./harness_api:/workspace/harness_api:ro
+    - ./scripts:/workspace/scripts:ro
+    - ./runtime:/workspace/runtime:rw
+  tmpfs: ["/tmp:size=32m"]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  cpus: 1
+  mem_limit: 256m
+  pids_limit: 32
+  networks: [isolated]
+
+x-whu-agent-check-common: &whu-agent-check-common
+  image: eo-harness/harness-api:0.4.0
+  profiles: [whu-agent]
+  read_only: true
+  volumes:
+    - ./scripts/verify_whu_change_gateway.py:/verify.py:ro
+    - ${EO_SMOKE_ROOT}/reports:/reports:rw
+  tmpfs: ["/tmp:size=32m"]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  cpus: 1
+  mem_limit: 256m
+  pids_limit: 32
+  networks: [agent-front]
+  depends_on:
+    agent-gateway:
+      condition: service_healthy
+
+x-whu-backend-check-common: &whu-backend-check-common
+  image: eo-harness/harness-api:0.4.0
+  profiles: [whu-verify]
+  read_only: true
+  volumes:
+    - ./scripts/verify_whu_change_backend.py:/verify.py:ro
+    - ${EO_SMOKE_ROOT}:/smoke:ro
+    - ${EO_SMOKE_ROOT}/reports:/reports:rw
+  tmpfs: ["/tmp:size=32m"]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  cpus: 1
+  mem_limit: 256m
+  pids_limit: 32
+  networks: [isolated]
+  depends_on:
+    harness:
+      condition: service_started
+
+services:
+  harness:
+    environment:
+      EO_HARNESS_DATASETS: /evaluator-datasets
+    volumes:
+      - ${EO_SMOKE_ROOT}/evaluator-datasets:/evaluator-datasets:ro
+
+  issue-whu-0-224:
+    <<: *whu-issue-common
+    command: ["python", "scripts/issue_agent_session.py", "--job", "/job.json", "--output", "/workspace/${EO_SMOKE_ROOT}/agent-0-224", "--registry", "/workspace/${EO_SMOKE_ROOT}/credentials/registry.json", "--ttl-seconds", "${EO_AGENT_TTL_SECONDS:-3600}", "--reviewed-public-task"]
+    volumes:
+      - ./harness_api:/workspace/harness_api:ro
+      - ./scripts:/workspace/scripts:ro
+      - ./runtime:/workspace/runtime:rw
+      - ${EO_SMOKE_ROOT}/jobs/0-224.json:/job.json:ro
+
+  issue-whu-0-137:
+    <<: *whu-issue-common
+    command: ["python", "scripts/issue_agent_session.py", "--job", "/job.json", "--output", "/workspace/${EO_SMOKE_ROOT}/agent-0-137", "--registry", "/workspace/${EO_SMOKE_ROOT}/credentials/registry.json", "--ttl-seconds", "${EO_AGENT_TTL_SECONDS:-3600}", "--reviewed-public-task"]
+    volumes:
+      - ./harness_api:/workspace/harness_api:ro
+      - ./scripts:/workspace/scripts:ro
+      - ./runtime:/workspace/runtime:rw
+      - ${EO_SMOKE_ROOT}/jobs/0-137.json:/job.json:ro
+
+  issue-whu-0-255:
+    <<: *whu-issue-common
+    command: ["python", "scripts/issue_agent_session.py", "--job", "/job.json", "--output", "/workspace/${EO_SMOKE_ROOT}/agent-0-255", "--registry", "/workspace/${EO_SMOKE_ROOT}/credentials/registry.json", "--ttl-seconds", "${EO_AGENT_TTL_SECONDS:-3600}", "--reviewed-public-task"]
+    volumes:
+      - ./harness_api:/workspace/harness_api:ro
+      - ./scripts:/workspace/scripts:ro
+      - ./runtime:/workspace/runtime:rw
+      - ${EO_SMOKE_ROOT}/jobs/0-255.json:/job.json:ro
+
+  check-whu-0-224:
+    <<: *whu-agent-check-common
+    command: ["python", "/verify.py", "--job", "/job.json", "--report", "/reports/gateway-0-224.json"]
+    volumes:
+      - ./scripts/verify_whu_change_gateway.py:/verify.py:ro
+      - ${EO_SMOKE_ROOT}/jobs/0-224.json:/job.json:ro
+      - ${EO_SMOKE_ROOT}/agent-0-224/agent-token:/run/agent-token:ro
+      - ${EO_SMOKE_ROOT}/reports:/reports:rw
+
+  check-whu-0-137:
+    <<: *whu-agent-check-common
+    command: ["python", "/verify.py", "--job", "/job.json", "--report", "/reports/gateway-0-137.json"]
+    volumes:
+      - ./scripts/verify_whu_change_gateway.py:/verify.py:ro
+      - ${EO_SMOKE_ROOT}/jobs/0-137.json:/job.json:ro
+      - ${EO_SMOKE_ROOT}/agent-0-137/agent-token:/run/agent-token:ro
+      - ${EO_SMOKE_ROOT}/reports:/reports:rw
+
+  check-whu-0-255:
+    <<: *whu-agent-check-common
+    command: ["python", "/verify.py", "--job", "/job.json", "--report", "/reports/gateway-0-255.json"]
+    volumes:
+      - ./scripts/verify_whu_change_gateway.py:/verify.py:ro
+      - ${EO_SMOKE_ROOT}/jobs/0-255.json:/job.json:ro
+      - ${EO_SMOKE_ROOT}/agent-0-255/agent-token:/run/agent-token:ro
+      - ${EO_SMOKE_ROOT}/reports:/reports:rw
+
+  verify-whu-0-224:
+    <<: *whu-backend-check-common
+    command: ["python", "/verify.py", "--job", "/smoke/jobs/0-224.json", "--gateway-report", "/reports/gateway-0-224.json", "--report", "/reports/accepted-0-224.json"]
+
+  verify-whu-0-137:
+    <<: *whu-backend-check-common
+    command: ["python", "/verify.py", "--job", "/smoke/jobs/0-137.json", "--gateway-report", "/reports/gateway-0-137.json", "--report", "/reports/accepted-0-137.json"]
+
+  verify-whu-0-255:
+    <<: *whu-backend-check-common
+    command: ["python", "/verify.py", "--job", "/smoke/jobs/0-255.json", "--gateway-report", "/reports/gateway-0-255.json", "--report", "/reports/accepted-0-255.json"]
+
+networks:
+  isolated:
+    internal: true
+  agent-front:
+    internal: true

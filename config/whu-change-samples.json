@@ -1,0 +1,128 @@
+{
+  "schema_version": "1.0.0",
+  "dataset": {
+    "name": "WHU Building Change Detection Dataset",
+    "official_page": "http://gpcv.whu.edu.cn/data/building_dataset.html",
+    "official_page_sha256": "cad881b1ba51674f920ea19e6e4d656cea3305d748537e2758f12b13dc83aa4c",
+    "source_archive_sha256": "3c014fff27d7ca814690ea27242fb1aa329521b89fedfd0fdd676954dfd0e2c4",
+    "license_status": "official research download; no explicit redistribution license found",
+    "redistribution_allowed": false,
+    "split": "test",
+    "width": 512,
+    "height": 512,
+    "image_channels": 3,
+    "label_values": [0, 255]
+  },
+  "evaluator": {
+    "evaluator_id": "whu-building-change-v1",
+    "evaluator_version": "1.0.0",
+    "minor_change_max_fraction": 0.1,
+    "direction_dominance_ratio": 1.5,
+    "changed_fraction_tolerance": 0.05,
+    "required_evidence_tool_id": "eo_gym.crop"
+  },
+  "samples": [
+    {
+      "sample_id": "0-224",
+      "filename": "0_224.tif",
+      "truth": {
+        "change_class": "no_change",
+        "change_direction": "no_change",
+        "changed_pixels": 0,
+        "new_pixels": 0,
+        "demolished_pixels": 0,
+        "changed_fraction": 0.0
+      },
+      "files": {
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_224.tif",
+          "sha256": "3366081a249b8e52b3396ee44db97fad8c8f33caa3c863b2f2d92e73ffc739b0",
+          "size_bytes": 786572
+        },
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_224.tif",
+          "sha256": "bcd2b68aa0e6cf29d97fb45313ddbafb4539fdd26bd674a87ed566ef8e402caa",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_224.tif",
+          "sha256": "83f55a1d42eaef4c09045c26f36a2b547e2760f0875eadd8f3627e5314461ab6",
+          "size_bytes": 262266
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_224.tif",
+          "sha256": "83f55a1d42eaef4c09045c26f36a2b547e2760f0875eadd8f3627e5314461ab6",
+          "size_bytes": 262266
+        }
+      }
+    },
+    {
+      "sample_id": "0-137",
+      "filename": "0_137.tif",
+      "truth": {
+        "change_class": "minor_change",
+        "change_direction": "reduction",
+        "changed_pixels": 6864,
+        "new_pixels": 2087,
+        "demolished_pixels": 4777,
+        "changed_fraction": 0.02618408203125
+      },
+      "files": {
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_137.tif",
+          "sha256": "6d3f1946766b7895d139083300eef89c647464baaaf8206b73953e9f8c01c0c5",
+          "size_bytes": 786572
+        },
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_137.tif",
+          "sha256": "d61bd74a43ca5dbe401bc8e6335e8dbb1d85f825ad45b5521dc65cb2cec6328f",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_137.tif",
+          "sha256": "bad5a187142b9ed75413d6f12d0338ae17da0c59755aa83cc8410afab59a3a26",
+          "size_bytes": 262266
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_137.tif",
+          "sha256": "d290009829c4b1d72178cbda44e285320acb0d8dad4313fd7c99e43b1ea84ed2",
+          "size_bytes": 262266
+        }
+      }
+    },
+    {
+      "sample_id": "0-255",
+      "filename": "0_255.tif",
+      "truth": {
+        "change_class": "major_change",
+        "change_direction": "expansion",
+        "changed_pixels": 179389,
+        "new_pixels": 179389,
+        "demolished_pixels": 0,
+        "changed_fraction": 0.6843147277832031
+      },
+      "files": {
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_255.tif",
+          "sha256": "e91686dd021e8a5b44b7a8beaa9b30616579e30f9501ca68293624f018d6038f",
+          "size_bytes": 786572
+        },
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_255.tif",
+          "sha256": "4b9ac213a5a60632820e7b1a788c27db3a6dac73bab2c4350bda5dbbd069fe4d",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_255.tif",
+          "sha256": "83f55a1d42eaef4c09045c26f36a2b547e2760f0875eadd8f3627e5314461ab6",
+          "size_bytes": 262266
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_255.tif",
+          "sha256": "d869ba4e30fa13a4a2a00a3d7920508a97742bc347f04adaa2861e6807a31c4f",
+          "size_bytes": 262266
+        }
+      }
+    }
+  ]
+}

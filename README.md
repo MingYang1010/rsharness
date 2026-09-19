@@ -52,6 +52,8 @@ The immutable M1 task `worldcover-grounded-vqa@1.0.0` remains structural. M2 add
 
 The V2 OpenAPI document is served at `http://127.0.0.1:8000/v2/openapi.json` and committed at [contracts/v2/openapi-v2.json](contracts/v2/openapi-v2.json). Golden V2 requests and responses are under [contracts/v2/fixtures](contracts/v2/fixtures). See [docs/harness-api-v2.md](docs/harness-api-v2.md) for the endpoint and retry contract.
 
+The headless temporal checkpoint adds a checksum-pinned WHU building-change evaluator with hidden labels, two-date crop evidence, scoped Agent acceptance, and fresh execution replay. Its data boundary and runbook are documented in [docs/whu-change-evaluation.md](docs/whu-change-evaluation.md).
+
 Set `EO_HARNESS_V2_ENABLED=0` on the API container to disable the V2 runtime. V2 routes remain registered and return typed HTTP `503 v2_disabled`; this does not remove V2 tables or artifacts and leaves V1 available. The default Compose configuration enables V2 and mounts `tasks/`, `config/v2/`, and datasets read-only while mounting the artifact store read-write.
 
 ## Start
