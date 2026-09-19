@@ -103,7 +103,7 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
 
 ## Verified results and unfinished scope
 
-- A800 isolated source gate: 298 Python tests discovered, 264 passed and 34
+- A800 isolated source gate: 304 Python tests discovered, 270 passed and 34
   environment-dependent tests skipped. This includes the 44 original regressions;
   synthetic test fixtures are not counted as dataset coverage.
 - Live HTTP smoke: real FAIR1M2 image, 400x300 crop, one tool call, frozen evidence,
@@ -152,15 +152,22 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
   split-network smoke denies backend DNS/IP access and preserves12 cached actions
   and artifact hashes after recreating gateway/provider/storage/Harness. Reports:
   `runtime/agent-xlrs-20260917-01/reports/`. This is not real model inference.
+- The opt-in [credential control plane](control-plane-audit.md) adds an exact
+  task/version issuance policy, locked active-session limit, governed registry
+  schema 1.1 and a bounded hash-chained lifecycle audit. A real WorldCover
+  issuance, rotation and revocation produced six verified events; unauthorized
+  issuance changed neither registry, audit nor episode DB. Identities are still
+  operator-provided strings, not externally authenticated principals.
 - A800 also has an explicit `raster.resample@1.0.0` categorical path: reviewed
   same-scene SCL is aligned to a pinned reference grid with nearest-neighbor only.
   Three dates passed exact independent pixel/mask comparison,14-step Agent
   interaction, five-service recovery and positive/offline execution replay. This
   is not a cloud mask or general-purpose reprojection facility.
-- Still needed: broader packed-source coverage, production
-  multi-session/auth lifecycle, general continuous raster reprojection, zonal
-  statistics, other STAC providers/public imagery subsets, cross-task evidence
-  memory and the Qwen runner. Independent cloud-policy validation is complete
+- Still needed: broader packed-source coverage, TLS/service identity,
+  authenticated external identity, distributed abuse control, backup/recovery,
+  general continuous raster reprojection, zonal statistics, other STAC
+  providers/public imagery subsets, cross-task evidence memory and the Qwen
+  runner. Independent cloud-policy validation is complete
   only for the bounded two-ROI/eight-window pack; broader calibration remains a
   coverage task. Latest GPU preflight reports DRAIN and NVML library/driver
   mismatch; no driver or scheduler changes were made.

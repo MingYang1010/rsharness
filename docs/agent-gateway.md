@@ -26,10 +26,13 @@ original data, databases or broker tokens.
   network. No host ports are published. Application routing alone is insufficient
   if the runner can directly reach an unauthenticated operator port.
 - This is an internal research deployment, not a production multitenant security
-  service. External TLS, user identity, distributed rate limiting and a durable
-  control-plane audit service remain separate work. Host/Docker administrator
-  access is trusted. Do not put a model-runner shell on the backend network or give
-  it host filesystem/Docker access.
+  service. A pinned internal issuance policy and hash-chained lifecycle audit are
+  available as an opt-in [control plane](control-plane-audit.md), but their actor
+  and subject strings are operator supplied. External TLS/service identity,
+  authenticated user/workload identity, distributed rate limiting, off-host audit
+  anchoring and backup/recovery remain separate work. Host/Docker administrator
+  access is trusted. Do not put a model-runner shell on the backend network or
+  give it host filesystem/Docker access.
 
 ## Credential lifecycle
 
@@ -37,6 +40,11 @@ original data, databases or broker tokens.
   and episode IDs must both be unique. Registry files must be owner-private regular
   files reached without symlinks; malformed, oversized, duplicate or unavailable
   registries fail closed before request-body or backend access.
+- Opt-in governed sessions use additive registry schema 1.1 and bind issuer,
+  subject and exact policy ID/SHA-256 to every record. The policy limits exact
+  task versions, TTL and active sessions per subject. A locked second check makes
+  the session limit effective across concurrent issuers. Legacy schema 1.0 and
+  governed 1.1 records cannot be mixed implicitly.
 - Every record has UTC `issued_at`, `expires_at`, `status`, optional `revoked_at`
   and a monotonic generation. TTL is bounded to60 seconds through7 days. Unknown,
   not-yet-valid, expired and revoked credentials are rejected by middleware before
@@ -143,6 +151,11 @@ dedicated `--token-output`. Re-run the checker with phases `revoked-a`,
 `expired-c`. Rotation checks mount the new token only for that checker run; never
 mount the registry, task files, state DB, bindings, or another session's token in
 the model runner.
+
+This Compose recipe intentionally exercises legacy schema 1.0 compatibility. For
+governed issuance, rotation, revocation, audit verification and the associated
+failure boundary, follow [control-plane-audit.md](control-plane-audit.md). Do not
+describe the legacy smoke command as a policy-authorized deployment.
 
 The accepted A800 run is retained under
 `runtime/agent-registry-smoke-20260919-01/reports/`: two episode scopes remained
