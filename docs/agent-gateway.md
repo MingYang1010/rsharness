@@ -29,9 +29,11 @@ original data, databases or broker tokens.
   service. A pinned internal issuance policy and hash-chained lifecycle audit are
   available as an opt-in [control plane](control-plane-audit.md). The optional
   [mTLS ingress](agent-mtls.md) binds one verified client certificate to each
-  governed subject and session. Backend service mTLS, external CA/IdP lifecycle,
-  distributed rate limiting, off-host audit anchoring and backup/recovery remain
-  separate work. Host/Docker administrator access is trusted. Do not put a
+  governed subject and session. The optional
+  [backend mTLS profile](backend-mtls.md) authenticates the gateway and Harness
+  service on their private network. External CA/IdP lifecycle, distributed rate
+  limiting, off-host audit anchoring and backup/recovery remain separate work.
+  Host/Docker administrator access is trusted. Do not put a
   model-runner shell on the backend network or give it host filesystem/Docker
   access.
 

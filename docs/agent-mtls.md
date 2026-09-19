@@ -6,7 +6,7 @@ operator-supplied subject string to a certificate-bound identity. It does not
 change frozen V1/V2 operator APIs or expose the operator Harness service.
 
 ```text
-model runner -- mTLS + bearer --> Nginx ingress -- private header --> Agent gateway -- internal HTTP --> Harness
+model runner -- mTLS + bearer --> Nginx ingress -- private header --> Agent gateway -- optional mTLS --> Harness
 ```
 
 ## Identity contract
@@ -108,9 +108,9 @@ host key permissions were never widened.
 
 ## Remaining security work
 
-The Nginx-to-gateway hop is identity-bearing, but gateway-to-Harness remains
-plain HTTP on an isolated internal network. This milestone also does not provide
-an external CA/IdP enrollment and revocation service, OCSP/CRL policy, distributed
-rate limiting, denial-of-service protection, backup/recovery, off-host audit
+The separate [backend mTLS profile](backend-mtls.md) now closes the optional
+gateway-to-Harness plaintext hop. Neither TLS milestone provides an external
+CA/IdP enrollment and revocation service, OCSP/CRL policy, distributed rate
+limiting, denial-of-service protection, backup/recovery, off-host audit
 anchoring, certificate auto-rotation or public multitenant attack acceptance.
 Those remain required before a production or public-deployment claim.

@@ -162,14 +162,17 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
   schemas to bind the subject to a verified client certificate. Positive,
   missing-certificate, wrong-certificate, forged-header, wrong-token, isolated
   network and three-service recreation checks pass on a real WorldCover episode.
-  Gateway-to-Harness traffic is still internal HTTP.
+  The additive [backend mTLS profile](backend-mtls.md) requires a client-authenticated
+  TLS connection from gateway to Harness. Missing/untrusted client identity,
+  wrong server identity and plaintext probes fail; full recreation preserves the
+  same WorldCover episode and state.
 - A800 also has an explicit `raster.resample@1.0.0` categorical path: reviewed
   same-scene SCL is aligned to a pinned reference grid with nearest-neighbor only.
   Three dates passed exact independent pixel/mask comparison,14-step Agent
   interaction, five-service recovery and positive/offline execution replay. This
   is not a cloud mask or general-purpose reprojection facility.
-- Still needed: broader packed-source coverage, gateway-to-Harness service mTLS,
-  external CA/IdP lifecycle, distributed abuse control, backup/recovery,
+- Still needed: broader packed-source coverage, external CA/IdP lifecycle,
+  certificate rotation, distributed abuse control, backup/recovery,
   general continuous raster reprojection, zonal statistics, other STAC
   providers/public imagery subsets, cross-task evidence memory and the Qwen
   runner. Independent cloud-policy validation is complete

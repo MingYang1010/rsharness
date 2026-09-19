@@ -117,5 +117,6 @@ backup/recovery, off-host audit anchoring or public multitenant acceptance.
 
 The later certificate-bound acceptance in [agent-mtls.md](agent-mtls.md) closes
 the external runner-to-ingress TLS and request-time certificate binding slice.
-Backend service mTLS, external CA/IdP lifecycle, distributed abuse controls and
-the other production boundaries above remain incomplete.
+The [backend mTLS profile](backend-mtls.md) closes the optional
+gateway-to-Harness plaintext hop. External CA/IdP lifecycle, distributed abuse
+controls and the other production boundaries above remain incomplete.
