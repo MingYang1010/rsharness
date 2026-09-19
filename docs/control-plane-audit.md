@@ -2,14 +2,17 @@
 
 This control plane adds pinned issuance authorization and tamper-evident lifecycle
 records to the existing episode-scoped Agent gateway. It is for an internal
-research operator. `actor_id` and `subject_id` are operator-supplied identifiers,
-not identities authenticated by an external IdP, TLS client certificate or
-workload-identity system.
+research operator. In policy schemas 1.0/1.1, `actor_id` remains an
+operator-supplied identifier. The optional schema-1.2
+[operator mTLS profile](operator-mtls.md) binds it to the actual operator client
+certificate; no mode provides an external IdP or workload-identity system.
 
-Policy schema 1.1 can additionally bind each subject to one client-certificate
-SHA-256. Those sessions use registry schema 1.2 and the request-time
-[mTLS ingress](agent-mtls.md). Policy schema 1.0 and registry schema 1.1 remain the
-operator-supplied internal mode described by the original acceptance below.
+Policy schema 1.1 can bind each subject to one client-certificate SHA-256. Those
+sessions use registry schema 1.2 and the request-time [mTLS ingress](agent-mtls.md).
+Policy schema 1.2 additionally binds every issuer to a distinct operator
+certificate and uses registry schema 1.3. Policy schema 1.0 and registry schema
+1.1 remain the operator-supplied internal mode described by the original
+acceptance below.
 
 ## Policy and registry contract
 
@@ -31,6 +34,11 @@ operator-supplied internal mode described by the original acceptance below.
   while holding the registry writer lock. This prevents concurrent issuers from
   bypassing the configured subject limit. Revocation remains permitted after a
   pinned policy expires; rotation requires a currently valid policy and grant.
+- `AgentIssuancePolicy@1.2.0` requires complete, unique subject and issuer
+  certificate maps and forbids one leaf pin from serving both roles.
+  `AgentCredentialRegistry@1.3.0` persists the issuer pin beside the subject pin.
+  See [operator-mtls.md](operator-mtls.md) for the authenticated operator CLI and
+  manual CA-rotation boundary.
 
 ## Audit contract
 
@@ -46,6 +54,10 @@ entire chain before returning data, checks an optional expected policy pin and
 supports bounded filtering by operation, episode, subject and event type.
 Malformed JSON, a partial final line, a broken hash/sequence, symlink, non-regular
 file, wide permissions or an oversized log fails closed.
+
+Operator-authenticated records use `ControlPlaneEvent@1.1.0` and persist the
+actor certificate pin. Existing schema-1.0 event bytes and canonical hashes are
+unchanged; old audit chains remain verifiable.
 
 This is application-level append-only and tamper-evident, not external WORM
 storage. A trusted host administrator can replace both the file and its expected
@@ -118,5 +130,8 @@ backup/recovery, off-host audit anchoring or public multitenant acceptance.
 The later certificate-bound acceptance in [agent-mtls.md](agent-mtls.md) closes
 the external runner-to-ingress TLS and request-time certificate binding slice.
 The [backend mTLS profile](backend-mtls.md) closes the optional
-gateway-to-Harness plaintext hop. External CA/IdP lifecycle, distributed abuse
-controls and the other production boundaries above remain incomplete.
+gateway-to-Harness plaintext hop, and the separate
+[operator mTLS profile](operator-mtls.md) authenticates issuance/management and
+manually verifies old/new CA overlap and new-only cutover. External CA/IdP
+lifecycle, automated renewal/revocation, distributed abuse controls and the
+other production boundaries above remain incomplete.

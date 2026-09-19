@@ -3,7 +3,8 @@
 This opt-in ingress requires both a valid client certificate and the existing
 episode bearer token. It upgrades an internal governed session from an
 operator-supplied subject string to a certificate-bound identity. It does not
-change frozen V1/V2 operator APIs or expose the operator Harness service.
+change frozen V1/V2 operator APIs. The separate
+[operator mTLS profile](operator-mtls.md) keeps those APIs off the Agent backend.
 
 ```text
 model runner -- mTLS + bearer --> Nginx ingress -- private header --> Agent gateway -- optional mTLS --> Harness
@@ -109,8 +110,10 @@ host key permissions were never widened.
 ## Remaining security work
 
 The separate [backend mTLS profile](backend-mtls.md) now closes the optional
-gateway-to-Harness plaintext hop. Neither TLS milestone provides an external
-CA/IdP enrollment and revocation service, OCSP/CRL policy, distributed rate
-limiting, denial-of-service protection, backup/recovery, off-host audit
-anchoring, certificate auto-rotation or public multitenant attack acceptance.
-Those remain required before a production or public-deployment claim.
+gateway-to-Harness plaintext hop. The [operator mTLS profile](operator-mtls.md)
+adds a separate certificate-bound operator Harness and verifies a manual CA
+overlap/new-only cutover. These milestones do not provide an external CA/IdP
+enrollment service, OCSP/CRL policy, automated renewal/revocation, distributed
+rate limiting, denial-of-service protection, backup/recovery, off-host audit
+anchoring or public multitenant attack acceptance. Those remain required before
+a production or public-deployment claim.

@@ -103,7 +103,7 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
 
 ## Verified results and unfinished scope
 
-- A800 isolated source gate: 306 Python tests discovered, 272 passed and 34
+- A800 isolated source gate: 346 Python tests discovered, 312 passed and 34
   environment-dependent tests skipped. This includes the 44 original regressions;
   synthetic test fixtures are not counted as dataset coverage.
 - Live HTTP smoke: real FAIR1M2 image, 400x300 crop, one tool call, frozen evidence,
@@ -154,10 +154,12 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
   `runtime/agent-xlrs-20260917-01/reports/`. This is not real model inference.
 - The opt-in [credential control plane](control-plane-audit.md) adds an exact
   task/version issuance policy, locked active-session limit, governed registry
-  schema 1.1 and a bounded hash-chained lifecycle audit. A real WorldCover
-  issuance, rotation and revocation produced six verified events; unauthorized
-  issuance changed neither registry, audit nor episode DB. Identities are still
-  operator-provided strings, not externally authenticated principals.
+  and a bounded hash-chained lifecycle audit. A real WorldCover issuance,
+  rotation and revocation produced six verified events; unauthorized issuance
+  changed neither registry, audit nor episode DB. The original mode uses
+  operator-provided strings; the separate
+  [operator mTLS profile](operator-mtls.md) binds actor IDs to exact operator
+  client certificates in policy, registry and audit.
 - The separate [mTLS ingress](agent-mtls.md) upgrades opt-in policy/registry
   schemas to bind the subject to a verified client certificate. Positive,
   missing-certificate, wrong-certificate, forged-header, wrong-token, isolated
@@ -166,13 +168,19 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
   TLS connection from gateway to Harness. Missing/untrusted client identity,
   wrong server identity and plaintext probes fail; full recreation preserves the
   same WorldCover episode and state.
+- The separate [operator mTLS profile](operator-mtls.md) gives issuance and
+  management their own client-authenticated Harness and restricts the Agent
+  backend to five route classes. Old/new operator CA overlap and new-only
+  cutover pass; cross-role certificates and eight operator-only Agent-backend
+  routes fail. The accepted Agent interaction is scripted, not model reasoning.
 - A800 also has an explicit `raster.resample@1.0.0` categorical path: reviewed
   same-scene SCL is aligned to a pinned reference grid with nearest-neighbor only.
   Three dates passed exact independent pixel/mask comparison,14-step Agent
   interaction, five-service recovery and positive/offline execution replay. This
   is not a cloud mask or general-purpose reprojection facility.
 - Still needed: broader packed-source coverage, external CA/IdP lifecycle,
-  certificate rotation, distributed abuse control, backup/recovery,
+  OCSP/CRL and automated certificate renewal/revocation, distributed abuse
+  control, backup/recovery,
   general continuous raster reprojection, zonal statistics, other STAC
   providers/public imagery subsets, cross-task evidence memory and the Qwen
   runner. Independent cloud-policy validation is complete

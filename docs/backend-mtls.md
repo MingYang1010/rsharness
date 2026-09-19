@@ -59,10 +59,11 @@ docker --context rootless compose \
 ```
 
 The existing `issue-agent` helper is intentionally not given the gateway's
-private key. For the current immutable benchmark workflow, issue the reviewed
-episode before switching Harness to this profile. A continuously available
-deployment needs a separately authenticated operator client and must not reuse
-the gateway identity.
+private key. For the current immutable benchmark workflow, either issue the
+reviewed episode before switching Harness to this profile or add the separate
+[operator mTLS profile](operator-mtls.md). The operator profile uses a distinct
+Harness, client CA, certificate/key volume and policy pin; it never reuses the
+gateway identity.
 
 ## A800 acceptance
 
@@ -102,7 +103,8 @@ compileall, 12 config JSON files and the four-layer Compose config pass.
 ## Remaining security work
 
 The test CAs are short-lived operator material, not external identity
-infrastructure. External CA/IdP enrollment and revocation, OCSP/CRL policy,
-certificate rotation, a separate continuously available operator identity,
-distributed abuse control, backup/recovery, off-host/WORM audit anchoring and
-public multitenant attack acceptance remain required before a production claim.
+infrastructure. A separate operator identity and manual old/new CA overlap plus
+new-only cutover are accepted in [operator-mtls.md](operator-mtls.md). External
+CA/IdP enrollment, OCSP/CRL, automated renewal/revocation, distributed abuse
+control, backup/recovery, off-host/WORM audit anchoring and public multitenant
+attack acceptance remain required before a production claim.
