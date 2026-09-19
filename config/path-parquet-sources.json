@@ -1,0 +1,39 @@
+{
+  "schema_version": "reviewed-path-parquet-columns-1",
+  "scope": "local EO input-image samples only; no label projection or dataset-wide admission",
+  "sources": [
+    {
+      "dataset_id": "LRS-VQA-path-parquet",
+      "root": "/sata/yangm/datasets/LRS-VQA",
+      "parquet": "annotations/0000.parquet",
+      "image_root": "extracted",
+      "image_column": "image",
+      "allowed_path_prefixes": ["LRS_VQA/image"],
+      "reviewed_role": "input_image",
+      "review_id": "lrs-vqa-image-path-schema-20260919",
+      "license": "existing-local-research-copy; redistribution-not-authorized"
+    },
+    {
+      "dataset_id": "DOTA-V2-processed-path-parquet",
+      "root": "/sata/yangm/datasets/source_datasets/DOTA_V2_patched_nilsleh",
+      "parquet": "geobench_dotav2_processed.parquet",
+      "image_root": "extracted/raw_archives",
+      "image_column": "processed_image",
+      "allowed_path_prefixes": ["images"],
+      "reviewed_role": "input_image",
+      "review_id": "dota-v2-processed-image-path-schema-20260919",
+      "license": "existing-local-research-copy; redistribution-not-authorized"
+    },
+    {
+      "dataset_id": "DOTA-v1-v15-v2-path-parquet",
+      "root": "/sata/yangm/datasets/source_datasets/DOTA_v1_v15_v2_isaaccorley",
+      "parquet": "samples.parquet",
+      "image_root": "extracted/dota_all",
+      "image_column": "image_path",
+      "allowed_path_prefixes": ["train/images", "val/images"],
+      "reviewed_role": "input_image",
+      "review_id": "dota-v1-v15-v2-image-path-schema-20260919",
+      "license": "existing-local-research-copy; redistribution-not-authorized"
+    }
+  ]
+}
