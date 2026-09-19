@@ -33,6 +33,13 @@ from app.v2.tools.runtime import ToolRouter, ToolOutput
 TOKEN = "1" * 64  # Isolated test credential, never deployed.
 TOKEN2 = "2" * 64
 CERTIFICATE_SHA = "3" * 64
+OPERATOR_CERTIFICATE_DER = b"operator-cert"
+OPERATOR_CERTIFICATE_SHA = hashlib.sha256(OPERATOR_CERTIFICATE_DER).hexdigest()
+OPERATOR_CERTIFICATE_PEM = (
+    b"-----BEGIN CERTIFICATE-----\n"
+    b"b3BlcmF0b3ItY2VydA==\n"
+    b"-----END CERTIFICATE-----\n"
+)
 
 
 class PublicFakeExecutor(FakeExecutor):
@@ -348,6 +355,104 @@ class AgentGatewayTests(unittest.TestCase):
             response = client.get("/agent/state")
             self.assertEqual(response.status_code, 200, response.text)
 
+    def test_agent_backend_interface_denies_operator_routes(self):
+        app = create_backend(
+            database_path=str(self.root / "db.sqlite3"),
+            v2_tasks_path=str(self.tasks),
+            v2_artifacts_path=str(self.root / "artifacts"),
+            v2_tool_executor=ToolRouter(self.executor),
+            interface_role="agent-backend",
+        )
+        with TestClient(app, raise_server_exceptions=False) as client:
+            self.assertEqual(client.get("/healthz").status_code, 200)
+            self.assertEqual(
+                client.get(f"/v2/episodes/{self.episode}/state").status_code,
+                200,
+            )
+            observation = self.operator.get(
+                f"/v2/episodes/{self.episode}/state"
+            ).json()["data"]["state"]["observation_refs"][-1]
+            self.assertEqual(
+                client.get(
+                    f"/v2/episodes/{self.episode}/observations/{observation}"
+                ).status_code,
+                200,
+            )
+            self.assertEqual(
+                client.post(
+                    f"/v2/episodes/{self.episode}/step",
+                    json={},
+                ).status_code,
+                422,
+            )
+            for path in (
+                "/v2/capabilities",
+                "/v2/openapi.json",
+                "/v2/tasks/crop-smoke/versions/1.0.0",
+                f"/v2/episodes/{self.episode}/trace",
+                f"/v2/episodes/{self.episode}/evaluation",
+                f"/v2/episodes/{self.episode}/replay",
+                "/docs",
+            ):
+                self.assertEqual(client.get(path).status_code, 404, path)
+            self.assertEqual(
+                client.post(
+                    "/v2/reset",
+                    json={
+                        "task_ref": {
+                            "task_id": "crop-smoke",
+                            "task_version": "1.0.0",
+                        }
+                    },
+                ).status_code,
+                404,
+            )
+        with self.assertRaisesRegex(ValueError, "interface role"):
+            create_backend(
+                database_path=str(self.root / "invalid-role.sqlite3"),
+                interface_role="invalid",
+            )
+
+    def test_operator_backend_mtls_configuration_is_complete(self):
+        path = Path(__file__).resolve().parents[2] / "scripts" / "issue_agent_session.py"
+        spec = importlib.util.spec_from_file_location("operator_mtls_issue_test", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertEqual(module.operator_backend_verify(
+            "http://harness:8000", None, None, None
+        ), (True, None))
+        with self.assertRaisesRegex(SystemExit, "CA, certificate and key"):
+            module.operator_backend_verify(
+                "https://operator-harness:8444",
+                self.root / "ca.crt",
+                None,
+                None,
+            )
+        with self.assertRaisesRegex(SystemExit, "HTTPS origin"):
+            module.operator_backend_verify(
+                "http://operator-harness:8444",
+                self.root / "ca.crt",
+                self.root / "operator.crt",
+                self.root / "operator.key",
+            )
+        context = ssl.create_default_context()
+        certificate = self.root / "operator.crt"
+        certificate.write_bytes(OPERATOR_CERTIFICATE_PEM)
+        with patch.object(
+            module,
+            "build_backend_ssl_context",
+            return_value=context,
+        ) as builder:
+            verify, identity = module.operator_backend_verify(
+                    "https://operator-harness:8444",
+                    self.root / "ca.crt",
+                    certificate,
+                    self.root / "operator.key",
+                )
+            self.assertIs(verify, context)
+            self.assertEqual(identity, OPERATOR_CERTIFICATE_SHA)
+            builder.assert_called_once()
+
     def test_registry_expiry_revocation_rotation_and_restart_fail_closed(self):
         path = self.root / "credentials" / "registry.json"
         self.write_registry(path, [self.credential()])
@@ -475,13 +580,23 @@ class AgentGatewayTests(unittest.TestCase):
         job = self.root / "job.json"
         job.write_text(json.dumps({"task_ref": {"task_id": "crop-smoke", "task_version": "1.0.0"}}))
         current = datetime.now(timezone.utc)
+        operator_certificate = self.root / "operator.crt"
+        operator_certificate.write_bytes(OPERATOR_CERTIFICATE_PEM)
+        backend_ca = self.root / "operator-ca.crt"
+        backend_key = self.root / "operator.key"
+        backend_ca.write_text("test-only")
+        backend_key.write_text("test-only")
         policy = AgentIssuancePolicy(
-            schema_version="1.1.0",
+            schema_version="1.2.0",
             policy_id="test-research-policy",
             valid_from=current - timedelta(days=1),
             expires_at=current + timedelta(days=1),
             issuers=["trusted-operator"],
             subjects=["approved-runner"],
+            issuer_certificates=[{
+                "issuer_id": "trusted-operator",
+                "certificate_sha256": OPERATOR_CERTIFICATE_SHA,
+            }],
             subject_certificates=[{
                 "subject_id": "approved-runner",
                 "certificate_sha256": CERTIFICATE_SHA,
@@ -497,22 +612,34 @@ class AgentGatewayTests(unittest.TestCase):
         output = self.root / "runtime" / "governed-session"
         registry = self.root / "runtime" / "governed-registry" / "registry.json"
         audit = self.root / "runtime" / "governed-audit" / "events.jsonl"
-        common = ["--issuance-policy", str(policy_path),
-                  "--issuance-policy-sha256", policy_sha,
-                  "--actor-id", "trusted-operator",
-                  "--subject-id", "approved-runner",
-                  "--subject-certificate-sha256", CERTIFICATE_SHA,
-                  "--audit-log", str(audit)]
+        governance = ["--issuance-policy", str(policy_path),
+                      "--issuance-policy-sha256", policy_sha,
+                      "--actor-id", "trusted-operator",
+                      "--subject-id", "approved-runner",
+                      "--subject-certificate-sha256", CERTIFICATE_SHA,
+                      "--audit-log", str(audit)]
+        issue_common = [
+            "--backend", "https://operator-harness:8444",
+            "--backend-ca-file", str(backend_ca),
+            "--backend-certificate-file", str(operator_certificate),
+            "--backend-key-file", str(backend_key),
+            *governance,
+        ]
+        manage_common = [
+            *governance,
+            "--actor-certificate-file", str(operator_certificate),
+        ]
         arguments = [str(issue_path), "--job", str(job), "--output", str(output),
                      "--registry", str(registry), "--ttl-seconds", "3600",
-                     "--reviewed-public-task", *common]
+                     "--reviewed-public-task", *issue_common]
         with patch.object(issue, "ROOT", self.root), patch("sys.argv", arguments), \
+                patch.object(issue, "build_backend_ssl_context", return_value=True), \
                 patch.object(issue.httpx, "Client", return_value=self.operator):
             issue.main()
             token = (output / "agent-token").read_text().strip()
             issue.main()
         governed = load_agent_registry(registry)
-        self.assertEqual(governed.schema_version, "1.2.0")
+        self.assertEqual(governed.schema_version, "1.3.0")
         self.assertEqual(
             (governed.sessions[0].issuer_id, governed.sessions[0].subject_id),
             ("trusted-operator", "approved-runner"),
@@ -520,6 +647,10 @@ class AgentGatewayTests(unittest.TestCase):
         self.assertEqual(
             governed.sessions[0].subject_certificate_sha256,
             CERTIFICATE_SHA,
+        )
+        self.assertEqual(
+            governed.sessions[0].issuer_certificate_sha256,
+            OPERATOR_CERTIFICATE_SHA,
         )
         self.assertEqual(
             [item.event_type for item in verify_control_audit(audit)],
@@ -544,6 +675,7 @@ class AgentGatewayTests(unittest.TestCase):
                     "policy": policy,
                     "policy_sha256": policy_sha,
                     "actor_id": "trusted-operator",
+                    "actor_certificate_sha256": OPERATOR_CERTIFICATE_SHA,
                     "subject_id": "approved-runner",
                     "subject_certificate_sha256": CERTIFICATE_SHA,
                 },
@@ -552,12 +684,13 @@ class AgentGatewayTests(unittest.TestCase):
         rotated_token = self.root / "runtime" / "governed-rotation" / "agent-token"
         arguments = [str(manage_path), "--registry", str(registry),
                      "--episode-id", governed.sessions[0].binding.episode_id,
-                     "--rotate", "--token-output", str(rotated_token), *common]
+                     "--rotate", "--token-output", str(rotated_token),
+                     *manage_common]
         with patch.object(manage, "ROOT", self.root), patch("sys.argv", arguments):
             manage.main()
         arguments = [str(manage_path), "--registry", str(registry),
                      "--episode-id", governed.sessions[0].binding.episode_id,
-                     "--revoke", *common]
+                     "--revoke", *manage_common]
         with patch.object(manage, "ROOT", self.root), patch("sys.argv", arguments):
             manage.main()
         events = verify_control_audit(audit)
@@ -572,6 +705,10 @@ class AgentGatewayTests(unittest.TestCase):
         audit_content = audit.read_text()
         self.assertNotIn(token, audit_content)
         self.assertNotIn(rotated_token.read_text().strip(), audit_content)
+        self.assertTrue(all(
+            item.actor_certificate_sha256 == OPERATOR_CERTIFICATE_SHA
+            for item in events
+        ))
         final = load_agent_registry(registry).sessions[0]
         self.assertEqual((final.status, final.generation), ("revoked", 2))
 
