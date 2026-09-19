@@ -37,9 +37,12 @@ window, not copied from STAC item-level cloud-cover metadata:
 | 2024-05-10 | 0.003558069519204452 |
 
 The cloudy case sets `maximum_cloud_fraction=0.001`, so its rejection is backed
-by the pinned SCL pixels. This is still policy-derived truth from the same SCL
-source used by the tool; an independently labelled cloud benchmark remains
-future work.
+by the pinned SCL pixels. This remains policy-derived truth from the same SCL
+source used by the tool. The separate
+[CloudSEN12 policy benchmark](cloud-policy-benchmark-v1.md) now checks that
+policy against high-quality manual labels and records two false accepts at the
+normal 0.2 threshold; it does not retroactively turn this task's SCL-derived
+expectation into independent truth.
 
 ## Frozen cases
 
@@ -154,7 +157,8 @@ python scripts/summarize_temporal_benchmark.py \
 
 ## Remaining research boundary
 
-This pack does not establish independent cloud ground truth, sensor-general
-temporal selection, change-detection accuracy, cross-task evidence memory,
-public/multitenant security or real Qwen3.5-9B interaction. Those are separate
-acceptance milestones and must not be inferred from the 4/4 scripted result.
+This pack does not establish sensor-general temporal selection,
+change-detection accuracy, cross-task evidence memory, public/multitenant
+security or real Qwen3.5-9B interaction. Independent cloud-policy validation is
+reported separately and remains limited to two ROIs and eight windows; none of
+those broader claims may be inferred from the 4/4 scripted result.

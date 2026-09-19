@@ -103,7 +103,7 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
 
 ## Verified results and unfinished scope
 
-- A800 isolated source gate: 290 Python tests discovered, 256 passed and 34
+- A800 isolated source gate: 298 Python tests discovered, 264 passed and 34
   environment-dependent tests skipped. This includes the 44 original regressions;
   synthetic test fixtures are not counted as dataset coverage.
 - Live HTTP smoke: real FAIR1M2 image, 400x300 crop, one tool call, frozen evidence,
@@ -131,7 +131,11 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
   [Sentinel-2 temporal benchmark](temporal-benchmark-v1.md) now covers
   deterministic pair selection, aligned red/SCL stacks, typed lineage,
   hidden semantic scoring, correct abstention, false-confidence detection and
-  fresh-provider execution replay. The original RGB and NDVI tasks have not changed.
+  fresh-provider execution replay. The separate
+  [CloudSEN12 policy benchmark](cloud-policy-benchmark-v1.md) independently
+  validates the fixed SCL exclusion policy on eight manual-label windows and
+  exposes two false accepts at the normal 0.2 cloud threshold. The original RGB
+  and NDVI tasks have not changed.
 - These smoke runs are scripted interaction acceptance, NOT Qwen inference,
   semantic task accuracy or full dataset integration. The existing HTTP `replay`
   remains structural. The separate operator [execution replay](execution-replay.md)
@@ -153,11 +157,13 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
   Three dates passed exact independent pixel/mask comparison,14-step Agent
   interaction, five-service recovery and positive/offline execution replay. This
   is not a cloud mask or general-purpose reprojection facility.
-- Still needed: independent cloud ground truth, broader packed-source coverage,
-  production multi-session/auth lifecycle, general continuous raster reprojection,
-  zonal statistics, other STAC providers/public imagery subsets, cross-task
-  evidence memory and the Qwen runner. Latest GPU preflight reports DRAIN and
-  NVML library/driver mismatch; no driver or scheduler changes were made.
+- Still needed: broader packed-source coverage, production
+  multi-session/auth lifecycle, general continuous raster reprojection, zonal
+  statistics, other STAC providers/public imagery subsets, cross-task evidence
+  memory and the Qwen runner. Independent cloud-policy validation is complete
+  only for the bounded two-ROI/eight-window pack; broader calibration remains a
+  coverage task. Latest GPU preflight reports DRAIN and NVML library/driver
+  mismatch; no driver or scheduler changes were made.
 
 The latest broker smoke uses three XLRS caption images. After the crop, all three
 services (provider, broker and Harness) were recreated; cached action, durable
