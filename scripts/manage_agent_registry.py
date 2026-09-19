@@ -15,6 +15,7 @@ from app.agent_credentials import (MAX_REGISTRY_BYTES, AgentCredentialRegistry,
                                    load_agent_registry, utc_now)
 from app.control_plane import (MAX_AUDIT_BYTES, ControlEventInput,
                                append_control_event, authorize_management,
+                               certificate_file_sha256,
                                load_issuance_policy)
 from app.v2.storage.quota import StorageQuota
 
@@ -79,6 +80,9 @@ def audit_event(runtime_root: Path, audit_path: Path, governance: dict,
                 episode_id=session.binding.episode_id if completed else None,
                 generation=session.generation if completed else None,
                 subject_certificate_sha256=session.subject_certificate_sha256,
+                actor_certificate_sha256=governance[
+                    "actor_certificate_sha256"
+                ],
             ),
         )
 
@@ -97,6 +101,7 @@ def main():
     parser.add_argument("--actor-id")
     parser.add_argument("--subject-id")
     parser.add_argument("--subject-certificate-sha256")
+    parser.add_argument("--actor-certificate-file", type=Path)
     parser.add_argument("--audit-log", type=Path)
     args = parser.parse_args()
 
@@ -113,6 +118,14 @@ def main():
     token_path = args.token_output.resolve() if args.token_output is not None else None
     replacement = None
     governance = None
+    try:
+        actor_certificate_sha256 = (
+            certificate_file_sha256(args.actor_certificate_file)
+            if args.actor_certificate_file is not None
+            else None
+        )
+    except ValueError as error:
+        raise SystemExit(str(error)) from None
     with StorageQuota(runtime_root).hold(registry_path.parent,
                                          MAX_REGISTRY_BYTES + 64 * 1024,
                                          "agent-credential-registry"):
@@ -146,6 +159,8 @@ def main():
                 or args.subject_id != current.subject_id
                 or args.subject_certificate_sha256
                 != current.subject_certificate_sha256
+                or actor_certificate_sha256
+                != current.issuer_certificate_sha256
             ):
                 raise SystemExit("governed management scope or subject is invalid")
             try:
@@ -166,12 +181,14 @@ def main():
                     task_version=current.binding.task.task_version,
                     ttl_seconds=args.ttl_seconds if args.rotate else None,
                     rotate=args.rotate,
+                    actor_certificate_sha256=actor_certificate_sha256,
                     subject_certificate_sha256=args.subject_certificate_sha256,
                 )
             except ValueError as error:
                 raise SystemExit(str(error)) from None
             governance = {
                 "actor_id": args.actor_id,
+                "actor_certificate_sha256": actor_certificate_sha256,
                 "audit_path": audit_path,
                 "operation_id": "op-" + secrets.token_hex(16),
             }
@@ -185,7 +202,11 @@ def main():
             )
         elif any(
             value is not None
-            for value in (*governed_arguments, args.subject_certificate_sha256)
+            for value in (
+                *governed_arguments,
+                args.subject_certificate_sha256,
+                args.actor_certificate_file,
+            )
         ):
             raise SystemExit("legacy credential cannot use governed management arguments")
         token = secrets.token_hex(32) if args.rotate else None

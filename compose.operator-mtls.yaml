@@ -1,0 +1,103 @@
+services:
+  operator-harness:
+    image: eo-harness/harness-api:0.4.0
+    profiles: [operator-mtls]
+    working_dir: /harness
+    read_only: true
+    init: true
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8444"
+      - --ssl-keyfile
+      - /run/operator-tls/operator-harness.key
+      - --ssl-certfile
+      - /run/operator-tls/operator-harness.crt
+      - --ssl-ca-certs
+      - /run/operator-tls/operator-client-ca.crt
+      - --ssl-cert-reqs
+      - "2"
+      - --no-access-log
+    environment:
+      PYTHONPATH: /harness
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      GDAL_NUM_THREADS: "1"
+      EO_HARNESS_INTERFACE_ROLE: operator
+      EO_HARNESS_DB: /state/episodes.sqlite3
+      EO_HARNESS_V2_TASKS: /tasks
+      EO_HARNESS_DATASETS: /absent-datasets
+      EO_HARNESS_V2_ARTIFACTS: /artifacts
+      EO_HARNESS_EO_GYM_URL: http://provider:8081
+      EO_HARNESS_CATALOG_ENABLED: ${EO_HARNESS_CATALOG_ENABLED:-0}
+      EO_HARNESS_ARTIFACT_BROKER_URL: http://storage:8082
+      EO_HARNESS_ARTIFACT_TOKEN_FILE: /run/storage-token
+    volumes:
+      - ./harness_api:/harness:ro
+      - ${EO_SMOKE_ROOT:-./runtime/eo-gym-smoke}/tasks:/tasks:ro
+      - ${EO_SMOKE_ROOT:-./runtime/eo-gym-smoke}/state:/state:rw
+      - ./runtime/.quota/broker-token:/run/storage-token:ro
+      - operator-harness-tls:/run/operator-tls:ro
+    tmpfs: ["/tmp:size=128m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    cpus: 2
+    mem_limit: 1g
+    pids_limit: 64
+    networks: [isolated]
+    depends_on:
+      provider:
+        condition: service_healthy
+      storage:
+        condition: service_healthy
+
+  issue-agent:
+    command:
+      - python
+      - scripts/issue_agent_session.py
+      - --job
+      - /job.json
+      - --output
+      - /workspace/runtime/${EO_AGENT_RUN}/agent
+      - --backend
+      - https://operator-harness:8444
+      - --backend-ca-file
+      - /run/operator-tls/operator-harness-server-ca.crt
+      - --backend-certificate-file
+      - /run/operator-tls/operator.crt
+      - --backend-key-file
+      - /run/operator-tls/operator.key
+      - --registry
+      - /workspace/runtime/${EO_AGENT_RUN}/credentials/registry.json
+      - --ttl-seconds
+      - "${EO_AGENT_TTL_SECONDS:-3600}"
+      - --issuance-policy
+      - /run/operator-policy/policy.json
+      - --issuance-policy-sha256
+      - "${EO_OPERATOR_POLICY_SHA256:?set the reviewed operator policy SHA-256}"
+      - --actor-id
+      - "${EO_OPERATOR_ACTOR_ID:?set the operator identity from the pinned policy}"
+      - --subject-id
+      - "${EO_AGENT_SUBJECT_ID:?set the runner identity from the pinned policy}"
+      - --subject-certificate-sha256
+      - "${EO_AGENT_SUBJECT_CERTIFICATE_SHA256:?set the runner certificate DER SHA-256}"
+      - --audit-log
+      - /workspace/runtime/${EO_AGENT_RUN}/audit/events.jsonl
+      - --reviewed-public-task
+    volumes:
+      - operator-client-tls:/run/operator-tls:ro
+      - ${EO_OPERATOR_POLICY_FILE:?set the reviewed operator policy file}:/run/operator-policy/policy.json:ro
+    depends_on:
+      - operator-harness
+
+volumes:
+  operator-harness-tls:
+    external: true
+    name: ${EO_BACKEND_OPERATOR_SERVER_TLS_VOLUME:?set EO_BACKEND_OPERATOR_SERVER_TLS_VOLUME to the reviewed operator Harness TLS volume}
+  operator-client-tls:
+    external: true
+    name: ${EO_BACKEND_OPERATOR_CLIENT_TLS_VOLUME:?set EO_BACKEND_OPERATOR_CLIENT_TLS_VOLUME to the reviewed operator client TLS volume}

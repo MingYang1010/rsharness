@@ -9,6 +9,7 @@ import sys
 import tempfile
 from datetime import timedelta
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -19,8 +20,10 @@ from app.agent_credentials import (MAX_REGISTRY_BYTES, AgentCredentialRegistry,
                                    utc_now)
 from app.control_plane import (MAX_AUDIT_BYTES, ControlEventInput,
                                append_control_event, authorize_issuance,
+                               certificate_file_sha256,
                                load_issuance_policy)
-from app.agent_gateway import AgentBinding, MAX_JSON, build_binding
+from app.agent_gateway import (AgentBinding, MAX_JSON, build_backend_ssl_context,
+                               build_binding)
 from app.v2.schemas import TaskManifest, V2EpisodeState
 from app.v2.tools.catalog import _is_public_image
 from app.v2.storage.quota import StorageQuota
@@ -57,6 +60,42 @@ def replace_private(path: Path, content: bytes):
         raise
 
 
+def operator_backend_verify(backend: str, ca_file: Path | None,
+                            certificate_file: Path | None,
+                            key_file: Path | None):
+    url = urlsplit(backend)
+    if (
+        url.scheme not in {"http", "https"}
+        or not url.hostname
+        or url.username
+        or url.password
+        or url.query
+        or url.fragment
+        or url.path not in {"", "/"}
+    ):
+        raise SystemExit("backend must be an operator-configured HTTP origin")
+    values = (ca_file, certificate_file, key_file)
+    if any(value is not None for value in values) and not all(
+        value is not None for value in values
+    ):
+        raise SystemExit("operator backend mTLS requires CA, certificate and key")
+    if not any(value is not None for value in values):
+        return True, None
+    if url.scheme != "https":
+        raise SystemExit("operator backend mTLS requires an HTTPS origin")
+    try:
+        return (
+            build_backend_ssl_context(
+                str(ca_file),
+                str(certificate_file),
+                str(key_file),
+            ),
+            certificate_file_sha256(certificate_file),
+        )
+    except ValueError as error:
+        raise SystemExit(str(error)) from None
+
+
 def publish_binding(runtime_root: Path, registry_path: Path, binding: AgentBinding,
                     ttl_seconds: int, governance: dict | None = None):
     quota = StorageQuota(runtime_root)
@@ -71,7 +110,9 @@ def publish_binding(runtime_root: Path, registry_path: Path, binding: AgentBindi
             registry = AgentCredentialRegistry()
         if governance is not None and registry.sessions:
             expected_schema = (
-                "1.2.0"
+                "1.3.0"
+                if governance["actor_certificate_sha256"] is not None
+                else "1.2.0"
                 if governance["subject_certificate_sha256"] is not None
                 else "1.1.0"
             )
@@ -90,12 +131,14 @@ def publish_binding(runtime_root: Path, registry_path: Path, binding: AgentBindi
                 item.issuance_policy_id,
                 item.issuance_policy_sha256,
                 item.subject_certificate_sha256,
+                item.issuer_certificate_sha256,
             ) != (
                 governance["actor_id"],
                 governance["subject_id"],
                 governance["policy"].policy_id,
                 governance["policy_sha256"],
                 governance["subject_certificate_sha256"],
+                governance["actor_certificate_sha256"],
             ):
                 raise SystemExit("existing episode credential has different governance")
             return
@@ -116,6 +159,9 @@ def publish_binding(runtime_root: Path, registry_path: Path, binding: AgentBindi
                     task_version=binding.task.task_version,
                     ttl_seconds=ttl_seconds,
                     active_subject_sessions=active,
+                    actor_certificate_sha256=governance[
+                        "actor_certificate_sha256"
+                    ],
                     subject_certificate_sha256=governance[
                         "subject_certificate_sha256"
                     ],
@@ -135,9 +181,15 @@ def publish_binding(runtime_root: Path, registry_path: Path, binding: AgentBindi
                                          subject_certificate_sha256=(
                                              governance["subject_certificate_sha256"]
                                              if governance else None
+                                         ),
+                                         issuer_certificate_sha256=(
+                                             governance["actor_certificate_sha256"]
+                                             if governance else None
                                          ))
         schema_version = (
-            "1.2.0"
+            "1.3.0"
+            if governance and governance["actor_certificate_sha256"] is not None
+            else "1.2.0"
             if governance and governance["subject_certificate_sha256"] is not None
             else "1.1.0" if governance else registry.schema_version
         )
@@ -150,7 +202,8 @@ def publish_binding(runtime_root: Path, registry_path: Path, binding: AgentBindi
 
 
 def _governance(args, task_ref, registry_path: Path | None,
-                *, ignore_episode_id: str | None = None) -> dict | None:
+                *, actor_certificate_sha256: str | None = None,
+                ignore_episode_id: str | None = None) -> dict | None:
     values = (
         args.issuance_policy,
         args.issuance_policy_sha256,
@@ -158,7 +211,11 @@ def _governance(args, task_ref, registry_path: Path | None,
         args.subject_id,
         args.audit_log,
     )
-    requested = (*values, args.subject_certificate_sha256)
+    requested = (
+        *values,
+        args.subject_certificate_sha256,
+        actor_certificate_sha256,
+    )
     if not any(value is not None for value in requested):
         return None
     if not all(value is not None for value in values) or registry_path is None:
@@ -180,14 +237,20 @@ def _governance(args, task_ref, registry_path: Path | None,
         if registry_path.exists():
             registry = load_agent_registry(registry_path)
             expected_schema = (
-                "1.2.0" if args.subject_certificate_sha256 is not None else "1.1.0"
+                "1.3.0"
+                if actor_certificate_sha256 is not None
+                else "1.2.0"
+                if args.subject_certificate_sha256 is not None
+                else "1.1.0"
             )
             if registry.sessions and registry.schema_version != expected_schema:
                 raise ValueError("legacy registry requires reconciliation")
         else:
             registry = AgentCredentialRegistry(
                 schema_version=(
-                    "1.2.0"
+                    "1.3.0"
+                    if actor_certificate_sha256 is not None
+                    else "1.2.0"
                     if args.subject_certificate_sha256 is not None
                     else "1.1.0"
                 )
@@ -208,6 +271,7 @@ def _governance(args, task_ref, registry_path: Path | None,
             task_version=task_ref.task_version,
             ttl_seconds=args.ttl_seconds,
             active_subject_sessions=active,
+            actor_certificate_sha256=actor_certificate_sha256,
             subject_certificate_sha256=args.subject_certificate_sha256,
             now=current,
         )
@@ -217,6 +281,7 @@ def _governance(args, task_ref, registry_path: Path | None,
         "policy": policy,
         "policy_sha256": policy_sha256,
         "actor_id": args.actor_id,
+        "actor_certificate_sha256": actor_certificate_sha256,
         "subject_id": args.subject_id,
         "subject_certificate_sha256": args.subject_certificate_sha256,
         "audit_path": audit_path,
@@ -253,6 +318,9 @@ def _audit(governance: dict, event_type: str, *, operation_id: str, task_id: str
                 subject_certificate_sha256=governance[
                     "subject_certificate_sha256"
                 ],
+                actor_certificate_sha256=governance[
+                    "actor_certificate_sha256"
+                ],
             ),
         )
 
@@ -262,6 +330,9 @@ def main():
     parser.add_argument("--job", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--backend", default="http://harness:8000")
+    parser.add_argument("--backend-ca-file", type=Path)
+    parser.add_argument("--backend-certificate-file", type=Path)
+    parser.add_argument("--backend-key-file", type=Path)
     parser.add_argument("--registry", type=Path,
                         help="shared hash-only credential registry under project runtime")
     parser.add_argument("--ttl-seconds", type=int, default=3600)
@@ -274,6 +345,12 @@ def main():
     parser.add_argument("--reviewed-public-task", action="store_true", required=True,
                         help="operator confirms prompt/schema/input IDs/descriptive fields are Agent-visible")
     args = parser.parse_args()
+    backend_verify, actor_certificate_sha256 = operator_backend_verify(
+        args.backend,
+        args.backend_ca_file,
+        args.backend_certificate_file,
+        args.backend_key_file,
+    )
     output = args.output.resolve()
     if args.output.is_symlink() or not output.is_relative_to((ROOT / "runtime").resolve()):
         raise SystemExit("session directory must be in project runtime")
@@ -307,6 +384,7 @@ def main():
             args,
             task_ref,
             registry_path,
+            actor_certificate_sha256=actor_certificate_sha256,
             ignore_episode_id=binding.episode_id,
         )
         if registry_path is not None:
@@ -337,7 +415,8 @@ def main():
             )
         print(json.dumps({"status": "existing_binding_preserved", "episode_id": binding.episode_id}))
         return
-    with httpx.Client(base_url=args.backend, timeout=40, trust_env=False, follow_redirects=False) as client:
+    with httpx.Client(base_url=args.backend, timeout=40, trust_env=False,
+                      follow_redirects=False, verify=backend_verify) as client:
         def request(method, path, body=None):
             with client.stream(method, path, json=body) as response:
                 if response.status_code not in {200, 201}:
@@ -354,7 +433,12 @@ def main():
         if any(not _is_public_image(a) for a in manifest.assets if a.asset_id in manifest.task.inputs):
             raise SystemExit("task contains private/non-image inputs; no episode created")
         capabilities = request("GET", "/v2/capabilities")
-        governance = _governance(args, task_ref, registry_path)
+        governance = _governance(
+            args,
+            task_ref,
+            registry_path,
+            actor_certificate_sha256=actor_certificate_sha256,
+        )
         if governance is not None:
             operation_id = "op-" + secrets.token_hex(16)
             _audit(
