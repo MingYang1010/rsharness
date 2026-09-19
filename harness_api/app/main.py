@@ -58,6 +58,13 @@ from .v2.store import V2EpisodeStore
 LOGGER = logging.getLogger(__name__)
 DATABASE_PATH = os.environ.get("EO_HARNESS_DB", "/app/state/episodes.sqlite3")
 REQUEST_ID_RE = re.compile(REQUEST_ID_PATTERN)
+AGENT_BACKEND_ROUTES = (
+    ("GET", re.compile(r"^/healthz$")),
+    ("GET", re.compile(r"^/v2/episodes/[^/]+/state$")),
+    ("GET", re.compile(r"^/v2/episodes/[^/]+/observations/[^/]+$")),
+    ("POST", re.compile(r"^/v2/episodes/[^/]+/step$")),
+    ("GET", re.compile(r"^/v2/artifacts/[^/]+(?:/content)?$")),
+)
 EpisodePath = Annotated[str, Path(pattern=EPISODE_ID_PATTERN)]
 RequestIdHeader = Annotated[
     Optional[str],
@@ -81,6 +88,13 @@ ERROR_RESPONSES = {
 
 def _validate_request_id(_x_request_id: RequestIdHeader = None) -> None:
     return None
+
+
+def _agent_backend_route_allowed(method: str, path: str) -> bool:
+    return any(
+        method == allowed_method and pattern.fullmatch(path)
+        for allowed_method, pattern in AGENT_BACKEND_ROUTES
+    )
 
 
 def _request_id(request: Request) -> str:
@@ -129,7 +143,15 @@ def create_app(
     v2_renderer: Optional[RendererAdapter] = None,
     v2_evaluator_registry: Optional[EvaluatorRegistry] = None,
     v2_tool_executor=None,
+    interface_role: Optional[str] = None,
 ) -> FastAPI:
+    resolved_interface_role = (
+        os.environ.get("EO_HARNESS_INTERFACE_ROLE", "operator")
+        if interface_role is None
+        else interface_role
+    )
+    if resolved_interface_role not in {"operator", "agent-backend"}:
+        raise ValueError("Harness interface role must be operator or agent-backend")
     resolved_database_path = database_path or DATABASE_PATH
     episode_store = EpisodeStore(resolved_database_path)
     enabled = (
@@ -239,6 +261,21 @@ def create_app(
     @application.get("/v2/openapi.json", include_in_schema=False)
     def v2_openapi() -> JSONResponse:
         return JSONResponse(content=build_v2_openapi_schema())
+
+    @application.middleware("http")
+    async def interface_boundary_middleware(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        if (
+            resolved_interface_role == "agent-backend"
+            and not _agent_backend_route_allowed(request.method, request.url.path)
+        ):
+            return JSONResponse(
+                {"error": {"code": "interface_route_denied"}},
+                status_code=404,
+            )
+        return await call_next(request)
 
     @application.middleware("http")
     async def request_id_middleware(

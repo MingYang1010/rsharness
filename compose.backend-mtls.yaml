@@ -1,5 +1,7 @@
 services:
   harness:
+    environment:
+      EO_HARNESS_INTERFACE_ROLE: agent-backend
     command:
       - uvicorn
       - app.main:app
