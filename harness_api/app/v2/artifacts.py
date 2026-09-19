@@ -14,6 +14,8 @@ from .schemas import (
     PixelArtifactRef,
     PixelExtent,
     SpatialExtent,
+    TemporalStackArtifactRef,
+    TemporalStackDescriptor,
     TemporalExtent,
 )
 
@@ -55,11 +57,23 @@ class ArtifactStore:
         spatial: Optional[SpatialExtent] = None,
         temporal: Optional[TemporalExtent] = None,
         pixel: Optional[PixelExtent] = None,
+        temporal_stack: Optional[TemporalStackDescriptor] = None,
     ) -> Artifact:
+        if pixel is not None and temporal_stack is not None:
+            raise ArtifactStoreError(
+                "invalid_artifact_metadata",
+                "pixel and temporal stack variants are mutually exclusive",
+            )
         if pixel is not None:
             self._validate_pixels(content, kind, media_type, pixel)
         digest = hashlib.sha256(content).hexdigest()
-        artifact_type = PixelArtifactRef if pixel is not None else ArtifactRef
+        artifact_type = (
+            TemporalStackArtifactRef
+            if temporal_stack is not None
+            else PixelArtifactRef
+            if pixel is not None
+            else ArtifactRef
+        )
         artifact = artifact_type(
             artifact_id="art-%s" % digest,
             kind=kind,
@@ -71,6 +85,7 @@ class ArtifactStore:
             temporal=temporal,
             lineage=lineage,
             **({"pixel": pixel} if pixel is not None else {}),
+            **({"temporal_stack": temporal_stack} if temporal_stack is not None else {}),
         )
         if self.broker is not None:
             try:

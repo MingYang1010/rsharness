@@ -262,6 +262,82 @@ class ArtifactRef(V2ContractModel):
     lineage: ArtifactLineage
 
 
+class TemporalStackMember(V2ContractModel):
+    item_id: Identifier
+    acquired: UtcTimestamp
+    platform: Identifier
+    instrument: Identifier
+    red_asset_id: Identifier
+    scl_asset_id: Identifier
+    bands: List[NonEmptyText] = Field(min_length=2, max_length=2)
+    coverage_fraction: float = Field(ge=0.0, le=1.0, allow_inf_nan=False)
+    cloud_fraction: float = Field(ge=0.0, le=1.0, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def fixed_bands(self) -> "TemporalStackMember":
+        if self.bands != ["red", "scl"]:
+            raise ValueError("temporal stack member bands must be red then scl")
+        if self.red_asset_id == self.scl_asset_id:
+            raise ValueError("temporal stack member inputs must be distinct")
+        return self
+
+
+class TemporalStackDescriptor(V2ContractModel):
+    before: TemporalStackMember
+    after: TemporalStackMember
+    grid_crs: NonEmptyText
+    grid_transform: List[float] = Field(min_length=6, max_length=6)
+    width: int = Field(gt=0, le=1024)
+    height: int = Field(gt=0, le=1024)
+    band_order: List[NonEmptyText] = Field(min_length=4, max_length=4)
+    cloud_policy: Identifier
+    alignment_method: Identifier
+
+    @model_validator(mode="after")
+    def ordered(self) -> "TemporalStackDescriptor":
+        if self.band_order != ["before_red", "before_scl", "after_red", "after_scl"]:
+            raise ValueError("temporal stack band order is fixed")
+        if self.before.acquired >= self.after.acquired:
+            raise ValueError("temporal stack members must be ordered")
+        input_ids = [
+            self.before.red_asset_id,
+            self.before.scl_asset_id,
+            self.after.red_asset_id,
+            self.after.scl_asset_id,
+        ]
+        if len(set(input_ids)) != 4:
+            raise ValueError("temporal stack input assets must be distinct")
+        return self
+
+
+class TemporalStackArtifactRef(ArtifactRef):
+    kind: Literal["raster"]
+    media_type: Literal["image/tiff"]
+    spatial: SpatialExtent
+    temporal: TemporalExtent
+    temporal_stack: TemporalStackDescriptor
+
+    @model_validator(mode="after")
+    def validate_temporal_stack(self) -> "TemporalStackArtifactRef":
+        stack = self.temporal_stack
+        if (
+            self.temporal.start != stack.before.acquired
+            or self.temporal.end != stack.after.acquired
+        ):
+            raise ValueError("artifact temporal extent disagrees with stack members")
+        if self.spatial.shape != [stack.height, stack.width, 4]:
+            raise ValueError("artifact spatial shape disagrees with temporal stack")
+        expected = [
+            stack.before.red_asset_id,
+            stack.before.scl_asset_id,
+            stack.after.red_asset_id,
+            stack.after.scl_asset_id,
+        ]
+        if self.lineage.input_refs != expected:
+            raise ValueError("artifact lineage disagrees with temporal stack inputs")
+        return self
+
+
 class PixelArtifactRef(ArtifactRef):
     """Opt-in decoded image dimensions; legacy ArtifactRef JSON stays unchanged."""
 
@@ -274,7 +350,7 @@ class PixelArtifactRef(ArtifactRef):
         return self
 
 
-Artifact = Union[ArtifactRef, PixelArtifactRef]
+Artifact = Union[TemporalStackArtifactRef, PixelArtifactRef, ArtifactRef]
 
 
 class EvidenceSelector(V2ContractModel):

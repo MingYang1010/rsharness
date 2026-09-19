@@ -128,7 +128,12 @@ class ToolExecutionMixin:
                 manifest = self.task_registry.get(state.task_ref.task_id, state.task_ref.task_version)
                 if manifest.task.metadata.get("artifact_identity") == DERIVATION_SCHEME:
                     try:
-                        output = ToolOutput(with_derivation_identity(output.artifact), output.metadata, output.input_bytes)
+                        output = ToolOutput(
+                            with_derivation_identity(output.artifact),
+                            output.metadata,
+                            output.input_bytes,
+                            artifact_observation_type=output.artifact_observation_type,
+                        )
                     except ValueError:
                         output = None
                         failure = V2DomainError("invalid_tool_output", "artifact derivation failed validation", phase="artifact")
@@ -153,7 +158,8 @@ class ToolExecutionMixin:
                 "tool_version": run["tool_version"], "status": "failed" if failure else "completed",
                 **({"error_code": failure.code} if failure else output.metadata)})]
             if output is not None and output.artifact is not None:
-                items.append(ObservationItem(type="raster_chip", artifact_ref=output.artifact.artifact_id))
+                items.append(ObservationItem(type=output.artifact_observation_type,
+                                             artifact_ref=output.artifact.artifact_id))
             observation = Observation(observation_id=observation_id, sequence=state.step_count, primary_type="tool_result",
                 items=items, state_hash=state_hash(state), semantic_state_hash=semantic_state_hash(state),
                 provenance={"builder": "isolated-tool", "task_manifest_hash": state.task_manifest_hash}, warnings=[])

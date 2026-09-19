@@ -23,6 +23,7 @@ from .tools.catalog import CatalogExecutor
 from .tools.eo_gym import EOGymExecutor
 from .tools.raster import RasterExecutor
 from .tools.raster_grid import RasterGridExecutor
+from .tools.temporal import TemporalExecutor
 from .tools.runtime import ToolRouter
 
 MAX_ACTIONS = 128
@@ -31,6 +32,7 @@ MAX_SNAPSHOT_BYTES = 32 * 1024 * 1024
 SUPPORTED_VERSIONS = {"eo_gym.crop": {EOGymExecutor.tool_version},
                       RasterExecutor.tool_id: RasterExecutor.tool_versions,
                       RasterGridExecutor.tool_id: {RasterGridExecutor.tool_version},
+                      TemporalExecutor.tool_id: {TemporalExecutor.tool_version},
                       **{name: {CatalogExecutor.tool_version} for name in CatalogExecutor.tool_ids}}
 
 

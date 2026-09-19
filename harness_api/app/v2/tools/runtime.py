@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
 from ..domain import V2DomainError
-from ..schemas import Artifact, TaskManifest, ToolInvokeAction
+from ..schemas import Artifact, ObservationType, TaskManifest, ToolInvokeAction
 
 
 @dataclass(frozen=True)
@@ -13,6 +13,7 @@ class ToolOutput:
     artifact: Artifact | None
     metadata: dict[str, Any]
     input_bytes: int
+    artifact_observation_type: ObservationType = "raster_chip"
 
 
 @dataclass(frozen=True)
@@ -39,14 +40,16 @@ def prepare_tool(executor, action: ToolInvokeAction, manifest: TaskManifest,
 class ToolRouter:
     """Opt-in local catalog, optionally alongside one legacy provider."""
 
-    def __init__(self, provider=None, raster=None, grid=None):
+    def __init__(self, provider=None, raster=None, grid=None, temporal=None):
         from .catalog import CatalogExecutor
         self.catalog = CatalogExecutor()
         self.provider = provider
         self.raster = raster
         self.grid = grid
+        self.temporal = temporal
         self.tool_ids = [*self.catalog.tool_ids, *([provider.tool_id] if provider else []),
-                         *([raster.tool_id] if raster else []), *([grid.tool_id] if grid else [])]
+                         *([raster.tool_id] if raster else []), *([grid.tool_id] if grid else []),
+                         *([temporal.tool_id] if temporal else [])]
 
     def plan(self, action: ToolInvokeAction, manifest: TaskManifest,
              accessible_asset_refs: list[str],
@@ -58,6 +61,8 @@ class ToolRouter:
                                     episode_artifacts or {})
         if self.grid is not None and action.tool_id == self.grid.tool_id:
             return self.grid.plan(action, manifest, accessible_asset_refs)
+        if self.temporal is not None and action.tool_id == self.temporal.tool_id:
+            return self.temporal.plan(action, manifest, accessible_asset_refs)
         if self.provider is not None and action.tool_id == self.provider.tool_id:
             return prepare_tool(self.provider, action, manifest, accessible_asset_refs)
         raise V2DomainError("policy_rejected", "tool is not available", 403, phase="policy")

@@ -23,17 +23,23 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from .agent_credentials import (AgentBinding, AgentCredentialRegistry, CredentialError,
                                 CredentialResolver, PublicTask, utc_now)
 from .eo_gym_bridge import CropArguments
-from .v2.raster_math import (BandMathArguments, MASKED_VERSION as RASTER_MASKED_VERSION,
+from .v2.raster_math import (BandMathArguments, CLOUD_POLICY,
+                             MASKED_VERSION as RASTER_MASKED_VERSION,
                              MaskedNDVIResult, NDVIResult, TOOL_ID as RASTER_TOOL,
                              VERSION as RASTER_VERSION, MAX_OUTPUT as MAX_RASTER)
 from .v2.raster_grid import (GridArguments, GridResult, TOOL_ID as GRID_TOOL,
                              VERSION as GRID_VERSION)
+from .v2.temporal import (MAX_OUTPUT as MAX_TEMPORAL,
+                          TOOL_ID as TEMPORAL_TOOL,
+                          VERSION as TEMPORAL_VERSION,
+                          TemporalSelectAlignArguments, TemporalToolResult)
 from .v2.domain import _action_allowed
 from .v2.artifact_identity import DERIVATION_SCHEME, LEGACY_SCHEME, validate_derivation_metadata
 from .v2.schemas import (Artifact, ArtifactId, AssetQuality, Identifier, MapState,
                          Observation, ObservationId, PixelExtent,
                          SemanticVersion, Sha256, SpatialBoundingBox, StepRequest,
-                         TaskManifest, TemporalExtent, V2EpisodeState)
+                         TaskManifest, TemporalExtent, TemporalStackArtifactRef,
+                         V2EpisodeState)
 from .v2.tools.catalog import InspectArguments, SearchArguments, _is_public_image
 
 MAX_REQUEST = 128 * 1024
@@ -41,7 +47,7 @@ MAX_JSON = 2 * 1024 * 1024
 MAX_IMAGE = 64 * 1024 * 1024
 TOOL_ARGUMENTS = {"catalog.search": SearchArguments, "catalog.inspect_asset": InspectArguments,
                   "eo_gym.crop": CropArguments, RASTER_TOOL: BandMathArguments,
-                  GRID_TOOL: GridArguments}
+                  GRID_TOOL: GridArguments, TEMPORAL_TOOL: TemporalSelectAlignArguments}
 SAFE_CODES = {"state_version_conflict", "episode_closed", "idempotency_conflict", "tool_in_progress",
               "tool_interrupted", "tool_budget_exceeded", "policy_rejected", "invalid_tool_arguments",
               "invalid_evidence", "invalid_answer", "tool_timeout", "tool_unavailable", "tool_failed",
@@ -210,7 +216,7 @@ def public_observation(value: dict, binding: AgentBinding) -> dict:
             items.append({"type": item.type, "asset_refs": [a for a in item.asset_refs if a in allowed]})
         elif item.type == "map_state" and item.inline is not None:
             items.append({"type": item.type, "inline": public_map(MapState.model_validate(item.inline), allowed)})
-        elif item.type in {"rendered_view", "raster_chip"} and item.artifact_ref:
+        elif item.type in {"rendered_view", "raster_chip", "temporal_stack"} and item.artifact_ref:
             items.append({"type": item.type, "artifact_ref": item.artifact_ref})
         elif item.type == "tool_result" and item.inline is not None:
             raw = item.inline
@@ -252,6 +258,19 @@ def public_observation(value: dict, binding: AgentBinding) -> dict:
                 elif tool_id == GRID_TOOL:
                     science = GridResult.model_validate({k: raw[k] for k in GridResult.model_fields})
                     if not set(science.input_asset_ids).issubset(allowed):
+                        raise GatewayError("upstream_scope_mismatch")
+                    common.update(science.model_dump(mode="json"))
+                elif tool_id == TEMPORAL_TOOL:
+                    science = TemporalToolResult.model_validate({
+                        "selection": raw["selection"], "stack": raw.get("stack")})
+                    selected_ids = set()
+                    if science.selection.before is not None:
+                        selected_ids.update({science.selection.before.red_asset_id,
+                                             science.selection.before.scl_asset_id})
+                    if science.selection.after is not None:
+                        selected_ids.update({science.selection.after.red_asset_id,
+                                             science.selection.after.scl_asset_id})
+                    if not selected_ids.issubset(allowed):
                         raise GatewayError("upstream_scope_mismatch")
                     common.update(science.model_dump(mode="json"))
                 else:
@@ -459,7 +478,7 @@ def create_app(binding: AgentBinding | None = None, base_url: str | None = None,
         binding = current_binding()
         value = await artifact(artifact_id)
         approved_science = {(RASTER_TOOL,RASTER_VERSION),(RASTER_TOOL,RASTER_MASKED_VERSION),
-                            (GRID_TOOL,GRID_VERSION)}
+                            (GRID_TOOL,GRID_VERSION),(TEMPORAL_TOOL,TEMPORAL_VERSION)}
         task_inputs=set(binding.task.input_asset_refs)
         old_science=(len(value.lineage.input_refs)==2
                      and set(value.lineage.input_refs).issubset(task_inputs))
@@ -467,11 +486,17 @@ def create_app(binding: AgentBinding | None = None, base_url: str | None = None,
                         and value.lineage.tool_version==RASTER_MASKED_VERSION
                         and len(value.lineage.input_refs)==3
                         and set(value.lineage.input_refs[:2]).issubset(task_inputs))
+        temporal_science=(isinstance(value,TemporalStackArtifactRef)
+                          and value.lineage.tool_id==TEMPORAL_TOOL
+                          and value.lineage.tool_version==TEMPORAL_VERSION
+                          and len(value.lineage.input_refs)==4
+                          and set(value.lineage.input_refs).issubset(task_inputs)
+                          and value.temporal_stack.cloud_policy==CLOUD_POLICY)
         scientific = (value.media_type == "image/tiff" and value.kind == "raster" and value.spatial is not None
-                      and value.size_bytes <= MAX_RASTER
+                      and value.size_bytes <= max(MAX_RASTER,MAX_TEMPORAL)
                       and (value.lineage.tool_id,value.lineage.tool_version) in approved_science
                       and value.lineage.tool_id in binding.task.allowed_tools
-                      and (old_science or masked_science))
+                      and (old_science or masked_science or temporal_science))
         if (value.media_type != "image/png" and not scientific) or value.size_bytes > MAX_IMAGE:
             raise GatewayError("unsupported_public_artifact", 422)
         content = await upstream("GET", f"/v2/artifacts/{artifact_id}/content?episode_id={binding.episode_id}", image=True)

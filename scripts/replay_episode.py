@@ -21,6 +21,7 @@ from app.v2.storage.quota import StorageQuota
 from app.v2.tools.eo_gym import EOGymExecutor
 from app.v2.tools.raster import RasterExecutor
 from app.v2.tools.raster_grid import RasterGridExecutor
+from app.v2.tools.temporal import TemporalExecutor
 from app.v2.tools.runtime import ToolRouter
 
 
@@ -128,7 +129,8 @@ def main():
             def executor_factory(artifacts):
                 return ToolRouter(EOGymExecutor(args.provider, artifacts),
                     RasterExecutor(args.raster_provider, artifacts) if args.raster_provider else None,
-                    RasterGridExecutor(args.raster_provider, artifacts) if args.raster_provider else None)
+                    RasterGridExecutor(args.raster_provider, artifacts) if args.raster_provider else None,
+                    TemporalExecutor(args.raster_provider, artifacts) if args.raster_provider else None)
 
             with tempfile.TemporaryDirectory(prefix="execution-replay-") as directory:
                 report = replay_episode(

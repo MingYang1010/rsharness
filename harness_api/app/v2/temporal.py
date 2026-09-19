@@ -208,6 +208,17 @@ class TemporalStackResult(V2RequestModel):
         return self
 
 
+class TemporalToolResult(V2RequestModel):
+    selection: TemporalSelectionResult
+    stack: TemporalStackResult | None = None
+
+    @model_validator(mode="after")
+    def outcome_consistent(self) -> "TemporalToolResult":
+        if (self.selection.status == "selected") != (self.stack is not None):
+            raise ValueError("selected temporal result requires stack metadata")
+        return self
+
+
 def _instant(value: str) -> datetime:
     return datetime.fromisoformat(value.removesuffix("Z") + "+00:00")
 

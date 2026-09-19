@@ -193,9 +193,11 @@ def create_app(
             from .v2.tools.runtime import ToolRouter
             from .v2.tools.raster import RasterExecutor
             from .v2.tools.raster_grid import RasterGridExecutor
+            from .v2.tools.temporal import TemporalExecutor
             tool_executor = ToolRouter(tool_executor,
                 RasterExecutor(raster_url, artifact_store) if raster_url else None,
-                RasterGridExecutor(raster_url, artifact_store) if raster_url else None)
+                RasterGridExecutor(raster_url, artifact_store) if raster_url else None,
+                TemporalExecutor(raster_url, artifact_store) if raster_url else None)
         evaluator_registry = v2_evaluator_registry or EvaluatorRegistry(
             resolved_datasets_path,
             artifact_store,

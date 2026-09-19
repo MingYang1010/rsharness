@@ -170,10 +170,13 @@
           "artifact": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ArtifactRef"
+                "$ref": "#/components/schemas/TemporalStackArtifactRef"
               },
               {
                 "$ref": "#/components/schemas/PixelArtifactRef"
+              },
+              {
+                "$ref": "#/components/schemas/ArtifactRef"
               }
             ],
             "title": "Artifact"
@@ -2643,6 +2646,221 @@
           "end"
         ],
         "title": "TemporalExtent",
+        "type": "object"
+      },
+      "TemporalStackArtifactRef": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_id": {
+            "pattern": "^art-[a-f0-9]{64}$",
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "raster",
+            "title": "Kind",
+            "type": "string"
+          },
+          "lineage": {
+            "$ref": "#/components/schemas/ArtifactLineage"
+          },
+          "media_type": {
+            "const": "image/tiff",
+            "title": "Media Type",
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "minimum": 0.0,
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "spatial": {
+            "$ref": "#/components/schemas/SpatialExtent"
+          },
+          "temporal": {
+            "$ref": "#/components/schemas/TemporalExtent"
+          },
+          "temporal_stack": {
+            "$ref": "#/components/schemas/TemporalStackDescriptor"
+          },
+          "uri": {
+            "pattern": "^artifact://sha256/[a-f0-9]{2}/[a-f0-9]{64}$",
+            "title": "Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "kind",
+          "media_type",
+          "uri",
+          "sha256",
+          "size_bytes",
+          "spatial",
+          "temporal",
+          "lineage",
+          "temporal_stack"
+        ],
+        "title": "TemporalStackArtifactRef",
+        "type": "object"
+      },
+      "TemporalStackDescriptor": {
+        "additionalProperties": false,
+        "properties": {
+          "after": {
+            "$ref": "#/components/schemas/TemporalStackMember"
+          },
+          "alignment_method": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Alignment Method",
+            "type": "string"
+          },
+          "band_order": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Band Order",
+            "type": "array"
+          },
+          "before": {
+            "$ref": "#/components/schemas/TemporalStackMember"
+          },
+          "cloud_policy": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Cloud Policy",
+            "type": "string"
+          },
+          "grid_crs": {
+            "minLength": 1,
+            "title": "Grid Crs",
+            "type": "string"
+          },
+          "grid_transform": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 6,
+            "minItems": 6,
+            "title": "Grid Transform",
+            "type": "array"
+          },
+          "height": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 1024.0,
+            "title": "Height",
+            "type": "integer"
+          },
+          "width": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 1024.0,
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "before",
+          "after",
+          "grid_crs",
+          "grid_transform",
+          "width",
+          "height",
+          "band_order",
+          "cloud_policy",
+          "alignment_method"
+        ],
+        "title": "TemporalStackDescriptor",
+        "type": "object"
+      },
+      "TemporalStackMember": {
+        "additionalProperties": false,
+        "properties": {
+          "acquired": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$",
+            "title": "Acquired",
+            "type": "string"
+          },
+          "bands": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Bands",
+            "type": "array"
+          },
+          "cloud_fraction": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Cloud Fraction",
+            "type": "number"
+          },
+          "coverage_fraction": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Coverage Fraction",
+            "type": "number"
+          },
+          "instrument": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Instrument",
+            "type": "string"
+          },
+          "item_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "platform": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Platform",
+            "type": "string"
+          },
+          "red_asset_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Red Asset Id",
+            "type": "string"
+          },
+          "scl_asset_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "title": "Scl Asset Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "item_id",
+          "acquired",
+          "platform",
+          "instrument",
+          "red_asset_id",
+          "scl_asset_id",
+          "bands",
+          "coverage_fraction",
+          "cloud_fraction"
+        ],
+        "title": "TemporalStackMember",
         "type": "object"
       },
       "ToolInvokeAction": {
