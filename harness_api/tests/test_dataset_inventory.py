@@ -10,6 +10,25 @@ inventory = load_script("inventory_datasets")
 
 
 class InventoryTests(unittest.TestCase):
+    def test_catalog_hard_page_limit_prevents_unbounded_index(self):
+        import sqlite3
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            config = {"dataset_base": str(root), "roots": []}
+            with self.assertRaisesRegex(sqlite3.OperationalError, "full"):
+                inventory.run(config, root / "out", max_catalog_bytes=4096)
+            self.assertFalse((root / "out/coverage.json").exists())
+            self.assertLessEqual((root / "out/catalog.sqlite3").stat().st_size, 4096)
+
+    def test_coverage_limit_precedes_publication(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            config = {"dataset_base": str(root), "roots": [], "sample_seed": 42}
+            with patch.object(inventory, "MAX_COVERAGE_BYTES", 1):
+                with self.assertRaisesRegex(ValueError, "coverage report byte limit"):
+                    inventory.run(config, root / "out")
+            self.assertFalse((root / "out/coverage.json").exists())
+
     def test_missing_root_does_not_claim_readiness(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

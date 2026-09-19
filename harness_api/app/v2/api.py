@@ -128,7 +128,8 @@ def capabilities(request: Request) -> CapabilitiesResponse:
     )
     if store.tool_executor is not None:
         data.actions = [*data.actions, "tool.invoke"]
-        data.tools = [store.tool_executor.tool_id]
+        data.tools = (store.tool_executor.tool_ids if hasattr(store.tool_executor, "tool_ids")
+                      else [store.tool_executor.tool_id])
     return success(
         CapabilitiesResponse,
         request,

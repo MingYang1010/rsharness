@@ -9,8 +9,16 @@ import json
 import os
 import re
 import sqlite3
+import sys
 import warnings
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "harness_api"))
+from app.v2.storage.quota import CONTROL_ALLOWANCE, StorageQuota
+
+MAX_CATALOG_BYTES = 8 * 1024 * 1024 * 1024
+MAX_COVERAGE_BYTES = 8 * 1024 * 1024
 
 IMAGE_EXTENSIONS = {".tif", ".tiff", ".jpg", ".jpeg", ".png", ".jp2", ".bmp", ".webp"}
 SKIP_DIRS = {".git", ".cache", "__pycache__", "logs"}
@@ -135,10 +143,16 @@ def scan_dataset(connection: sqlite3.Connection, dataset_id: str, root: Path, co
     return report
 
 
-def run(config: dict, output: Path) -> dict:
+def run(config: dict, output: Path, max_catalog_bytes: int = MAX_CATALOG_BYTES) -> dict:
+    if type(max_catalog_bytes) is not int or not 4096 <= max_catalog_bytes <= MAX_CATALOG_BYTES:
+        raise ValueError("invalid catalog byte limit")
     output.mkdir(parents=True, exist_ok=False)
     connection = sqlite3.connect(output / "catalog.sqlite3")
     try:
+        page_size = connection.execute("PRAGMA page_size").fetchone()[0]
+        connection.execute("PRAGMA max_page_count=%d" % (max_catalog_bytes // page_size))
+        connection.execute("PRAGMA temp_store=MEMORY")
+        connection.execute("PRAGMA journal_mode=DELETE")
         connection.execute("CREATE TABLE assets (asset_id TEXT PRIMARY KEY, dataset_id TEXT NOT NULL, relative_path TEXT NOT NULL, size_bytes INTEGER NOT NULL, role TEXT NOT NULL, sha256 TEXT, probe_json TEXT, agent_visible INTEGER NOT NULL CHECK(agent_visible IN (0,1)))")
         connection.execute("CREATE INDEX asset_dataset ON assets(dataset_id)")
         reports = []
@@ -149,7 +163,10 @@ def run(config: dict, output: Path) -> dict:
         result = {"schema_version": "inventory-1", "seed": config["sample_seed"],
                   "discovery_not_agent_access": True, "datasets": reports,
                   "validation": "three seeded image samples per dataset, not full-file validation"}
-        (output / "coverage.json").write_text(json.dumps(result, indent=2) + "\n")
+        payload = (json.dumps(result, indent=2) + "\n").encode()
+        if len(payload) > MAX_COVERAGE_BYTES:
+            raise ValueError("coverage report byte limit exceeded")
+        (output / "coverage.json").write_bytes(payload)
         return result
     finally:
         connection.close()
@@ -162,7 +179,10 @@ def main() -> None:
     args = parser.parse_args()
     if not args.output.is_absolute() or "runtime" not in args.output.parts:
         parser.error("output must be an absolute ignored runtime directory")
-    run(json.loads(args.config.read_text()), args.output)
+    quota = StorageQuota(ROOT / "runtime")
+    # Bound both the database and its rollback journal; reports are bounded too.
+    with quota.hold(args.output, 2 * MAX_CATALOG_BYTES + CONTROL_ALLOWANCE, "dataset-inventory"):
+        run(json.loads(args.config.read_text()), args.output)
 
 
 if __name__ == "__main__":

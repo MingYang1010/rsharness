@@ -1,0 +1,28 @@
+services:
+  replay:
+    image: eo-harness/harness-api:0.4.0
+    profiles: [replay]
+    working_dir: /workspace
+    read_only: true
+    init: true
+    command: ["python", "scripts/replay_episode.py", "--database", "/original-state/episodes.sqlite3", "--tasks", "/original-tasks", "--episode-id", "${EO_REPLAY_EPISODE}", "--provider-instance", "${EO_REPLAY_PROVIDER_ID}", "--report", "/managed/${EO_REPLAY_RUN}/execution.json"]
+    environment:
+      PYTHONPATH: /deps:/workspace/harness_api
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+    volumes:
+      - ./harness_api:/workspace/harness_api:ro
+      - ./scripts:/workspace/scripts:ro
+      - ./runtime/eo-gym/python:/deps:ro
+      - ${EO_SMOKE_ROOT}/tasks:/original-tasks:ro
+      - ${EO_SMOKE_ROOT}/state:/original-state:ro
+      - ./runtime:/managed:ro
+      - ./runtime/.quota:/managed/.quota:rw
+      - ./runtime/${EO_REPLAY_RUN}:/managed/${EO_REPLAY_RUN}:rw
+    tmpfs: ["/tmp:size=512m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    cpus: 2
+    mem_limit: 1g
+    pids_limit: 64
+    networks: [isolated]

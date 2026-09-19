@@ -1,0 +1,43 @@
+services:
+  raster:
+    image: eo-harness/harness-api:0.4.0
+    working_dir: /harness
+    read_only: true
+    init: true
+    command: ["uvicorn", "app.raster_bridge:create_app", "--factory", "--host", "0.0.0.0", "--port", "8084"]
+    environment:
+      PYTHONPATH: /harness
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      GDAL_NUM_THREADS: "1"
+      EO_RASTER_INPUTS: /native-inputs
+      EO_RASTER_MANIFEST: /native-inputs.json
+      EO_RASTER_WORKER: /worker.py
+      EO_RASTER_GRID_WORKER: /grid-worker.py
+    volumes:
+      - ./harness_api:/harness:ro
+      - ./scripts/raster_worker.py:/worker.py:ro
+      - ./scripts/raster_grid_worker.py:/grid-worker.py:ro
+      - ${EO_SMOKE_ROOT}/native-inputs:/native-inputs:ro
+      - ${EO_SMOKE_ROOT}/native-inputs.json:/native-inputs.json:ro
+    tmpfs: ["/tmp:size=128m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    cpus: 2
+    mem_limit: 1g
+    pids_limit: 64
+    networks: [isolated]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8084/healthz',timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+  harness:
+    environment:
+      EO_HARNESS_RASTER_URL: http://raster:8084
+  agent-check:
+    volumes:
+      - ${EO_RASTER_VERIFY_SCRIPT:-./scripts/verify_raster_smoke.py}:/verify.py:ro
+    environment:
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"

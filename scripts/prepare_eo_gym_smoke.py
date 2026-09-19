@@ -5,7 +5,12 @@ import hashlib
 import json
 import re
 import shutil
+import sys
 from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT / "harness_api"))
+from app.v2.storage.quota import StorageQuota
 
 
 def main():
@@ -17,11 +22,22 @@ def main():
     parser.add_argument("--output-name", default="eo-gym-smoke")
     args = parser.parse_args()
     root = args.root.resolve()
+    if root != PROJECT_ROOT:
+        raise SystemExit("root must be this project so all runs share its storage ledger")
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,80}", args.output_name):
         raise SystemExit("output-name must be a simple runtime directory name")
     out = root / "runtime" / args.output_name
     if out.exists():
         raise SystemExit("smoke directory exists; preserve prior run, do not overwrite")
+    with StorageQuota(root / "runtime").hold(out, 256 * 1024 * 1024, "smoke-staging"):
+        prepare(args, root, out)
+
+
+def prepare(args, root: Path, out: Path) -> None:
+    task_entries = list((root / "tasks").rglob("*"))
+    if (len(task_entries) > 1024 or any(path.is_symlink() for path in task_entries)
+            or sum(path.stat().st_size for path in task_entries if path.is_file()) > 4 * 1024 * 1024):
+        raise SystemExit("task tree exceeds staging limit or contains symlinks")
     coverage = json.loads(args.inventory.read_text())
     dataset = next((d for d in coverage["datasets"] if d["dataset_id"] == args.dataset_id), None)
     if dataset is None or not 0 <= args.sample_index < len(dataset["samples"]):

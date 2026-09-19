@@ -10,6 +10,7 @@ from pydantic import (
 )
 
 from . import API_VERSION, SCHEMA_VERSION
+from .artifact_identity import DERIVATION_SCHEME, LEGACY_SCHEME
 
 
 EPISODE_ID_PATTERN = r"^ep2-[a-f0-9]{32}$"
@@ -221,6 +222,11 @@ class TaskManifest(V2ContractModel):
 
     @model_validator(mode="after")
     def validate_asset_coordinates(self) -> "TaskManifest":
+        identity = self.task.metadata.get("artifact_identity", LEGACY_SCHEME)
+        if identity not in (LEGACY_SCHEME, DERIVATION_SCHEME):
+            raise ValueError("unsupported artifact identity policy")
+        if identity == DERIVATION_SCHEME and self.task.metadata.get("observation_profile") != "headless-tools-v1":
+            raise ValueError("derivation identity currently requires headless-tools-v1")
         asset_ids = [asset.asset_id for asset in self.assets]
         if len(asset_ids) != len(set(asset_ids)):
             raise ValueError("duplicate asset IDs are ambiguous")

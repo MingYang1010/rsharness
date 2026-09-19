@@ -1,0 +1,67 @@
+services:
+  issue-agent:
+    image: eo-harness/harness-api:0.4.0
+    profiles: [agent-setup]
+    working_dir: /workspace
+    read_only: true
+    command: ["python", "scripts/issue_agent_session.py", "--job", "/job.json", "--output", "/workspace/runtime/${EO_AGENT_RUN}/agent", "--reviewed-public-task"]
+    volumes:
+      - ./harness_api:/workspace/harness_api:ro
+      - ./scripts:/workspace/scripts:ro
+      - ./runtime:/workspace/runtime:rw
+      - ${EO_SMOKE_ROOT}/job.json:/job.json:ro
+    tmpfs: ["/tmp:size=32m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    cpus: 1
+    mem_limit: 256m
+    pids_limit: 32
+    networks: [isolated]
+  agent-gateway:
+    image: eo-harness/harness-api:0.4.0
+    profiles: [agent]
+    working_dir: /harness
+    read_only: true
+    init: true
+    command: ["uvicorn", "app.agent_gateway:create_app", "--factory", "--host", "0.0.0.0", "--port", "8083", "--no-access-log"]
+    environment:
+      PYTHONPATH: /harness
+      EO_AGENT_BACKEND_URL: http://harness:8000
+      EO_AGENT_BINDING_FILE: /run/binding.json
+    volumes:
+      - ./harness_api:/harness:ro
+      - ${EO_SMOKE_ROOT}/agent/binding.json:/run/binding.json:ro
+    tmpfs: ["/tmp:size=32m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    cpus: 1
+    mem_limit: 1g
+    pids_limit: 32
+    networks: [isolated, agent-front]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8083/healthz',timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+  agent-check:
+    image: eo-harness/harness-api:0.4.0
+    profiles: [agent]
+    read_only: true
+    init: true
+    command: ["python", "/verify.py"]
+    environment:
+      EO_TEST_BACKEND_IP: ${EO_TEST_BACKEND_IP:-}
+    volumes:
+      - ./scripts/verify_agent_smoke.py:/verify.py:ro
+      - ${EO_SMOKE_ROOT}/agent/agent-token:/run/agent-token:ro
+      - ${EO_SMOKE_ROOT}/reports:/reports:rw
+    tmpfs: ["/tmp:size=32m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    cpus: 1
+    mem_limit: 256m
+    pids_limit: 32
+    networks: [agent-front]
+networks:
+  agent-front:
+    internal: true

@@ -30,8 +30,11 @@ is verified against its pinned Git blob ID, and a runtime receipt records SHA-25
 Archive acquisition is an explicit separate `--archive` action. It uses the selected
 network mode, bounded size, resumable partial files and SHA-256 verification.
 It does not extract archives; extraction needs a separate path/link/size audit.
-New total storage is capped at 3 TB by the acquisition workflow; individual
-archive space checks alone do not constitute a global quota manager.
+A shared 3 TB runtime reservation ledger now gates the acquisition, packed-image
+extraction and inventory CLIs. See [storage-quota.md](storage-quota.md) for recovery
+and enforcement boundaries. The opt-in storage broker also gates persistent
+artifacts; provider work/cache uses bounded tmpfs. Other writers still require
+integration; this is not yet whole-system quota enforcement or a kernel quota.
 
 ## Trust and completion boundaries
 
@@ -50,7 +53,7 @@ module imports ground-truth helpers: mounting no label files is mandatory.
   rejects raw paths/URLs and simulation tools. The deployment mounts only a
   staged input image; original dataset directories, labels and indexes are absent.
 - `EO_HARNESS_EO_GYM_URL` opts the Harness into `eo_gym.crop`. With the variable
-  absent, frozen V1/M2 behavior and capability fixtures are unchanged.
+  absent and catalog disabled, frozen V1/M2 behavior and capability fixtures are unchanged.
 - `tool.invoke` reserves one in-flight action per episode, releases the SQLite
   write transaction during provider I/O, and atomically finalizes observations,
   artifacts, budgets and cached responses. Retries do not rerun successful tools.
@@ -63,9 +66,10 @@ module imports ground-truth helpers: mounting no label files is mandatory.
   reject geographic actions/evidence. Crop tool version 1.1.0 records decoded
   dimensions/channels in PixelArtifactRef; new evidence windows are bounds-checked
   from persisted metadata. PNG payloads are fully decoded before registration.
-- Same content with conflicting provenance is rejected and recorded, rather than
-  overwriting existing artifact metadata. Multiple derivations per content object
-  require a future provenance model extension.
+- New headless tasks can explicitly enable [derivation identities](artifact-derivations.md):
+  different lineage receives distinct artifact/evidence references while content
+  storage still deduplicates bytes. Old tasks retain content-only IDs and conflict
+  refusal; no old metadata, task versions or frozen contracts are rewritten.
 
 ## Reproducible smoke deployment
 
@@ -82,7 +86,10 @@ install offline into `runtime/eo-gym/python`. Do not upgrade shared environments
    runtime/inventory-20260917-01/coverage.json`. It stages one audited FAIR1M2
    georeferenced image and creates separate task/state/artifact directories. It
    refuses to overwrite an existing smoke directory.
-3. Run `docker --context rootless compose -f compose.eo-gym-smoke.yaml up -d
+3. Initialize the private credential/store with `python3 scripts/prepare_storage_broker.py`.
+   Use a fresh smoke directory; existing local artifact stores are not migrated.
+   See [storage-broker.md](storage-broker.md). Run
+   `docker --context rootless compose -f compose.eo-gym-smoke.yaml up -d
    --wait provider harness`, then `... run --rm --no-deps verify`.
 4. Recreate only the smoke Harness, then run `... run --rm --no-deps verify
    python /verify.py --resume-check` to verify persisted state, trace and content.
@@ -96,7 +103,7 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
 
 ## Verified results and unfinished scope
 
-- A800: 88 Python tests pass, including the 44 original regressions and real
+- A800: 223 Python tests pass, including the 44 original regressions and real
   upstream CPU tests. Synthetic test fixtures are not counted as dataset coverage.
 - Live HTTP smoke: real FAIR1M2 image, 400x300 crop, one tool call, frozen evidence,
   answer submission and passed structural checks. Container recreation preserves
@@ -113,12 +120,54 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
   Parquet has fixture acceptance only. Oversized images remain coverage gaps.
 - Full EO-Gym archives are not downloaded: both HF and HF-mirror range probes
   reset through the current system proxy. PyPI succeeds through the same proxy.
-- This is scripted interaction acceptance, NOT Qwen inference, semantic task
-  accuracy, full dataset integration or execution replay. `replay` remains the
-  existing structural verifier. The smoke task intentionally has no semantic score.
-- Still needed: broader packed-source coverage, reviewed catalog access,
-  remaining raster/STAC tools, public imagery subsets, semantic evaluators and
-  the Qwen runner. A800 GPU allocation remains blocked by occupied cards/DRAIN.
+- Reviewed [Sentinel-2 STAC admission](stac-admission.md) now reads bounded COG
+  windows via the A800 system proxy. Three dated Nanjing scenes produced12 native
+  windows; only3 display-RGB inputs enter the Agent catalog. Twelve scripted
+  actions, four-service recovery and fresh-provider execution replay pass.
+  A separate [native NDVI task](native-raster-tools.md) now admits six red/NIR
+  inputs, with14 scripted actions, exact independent pixel checks, five-service
+  recovery and fresh-provider replay. SCL/cloud and semantic temporal evaluation
+  remain unimplemented; the original RGB task has not changed.
+- These smoke runs are scripted interaction acceptance, NOT Qwen inference,
+  semantic task accuracy or full dataset integration. The existing HTTP `replay`
+  remains structural. The separate operator [execution replay](execution-replay.md)
+  reruns supported terminal actions with a fresh provider, compares full normalized
+  trace/state and regenerated artifact hashes, and never reads old output blobs.
+  Its three-image12-action positive and provider-offline negative checks pass.
+  The smoke task intentionally has no semantic score; historical runtime identity
+  and model reasoning replay are not established.
+- Episode-local `catalog.search`/`catalog.inspect_asset` are opt-in; see
+  [catalog.md](catalog.md) for query semantics, logical metadata costs and the
+  Agent gateway/privacy boundary. They do not expose the private index.
+- A separate [Agent gateway](agent-gateway.md) binds one credential to one pinned
+  episode, projects public fields and denies raw operator routes. A three-image
+  split-network smoke denies backend DNS/IP access and preserves12 cached actions
+  and artifact hashes after recreating gateway/provider/storage/Harness. Reports:
+  `runtime/agent-xlrs-20260917-01/reports/`. This is not real model inference.
+- A800 also has an explicit `raster.resample@1.0.0` categorical path: reviewed
+  same-scene SCL is aligned to a pinned reference grid with nearest-neighbor only.
+  Three dates passed exact independent pixel/mask comparison,14-step Agent
+  interaction, five-service recovery and positive/offline execution replay. This
+  is not a cloud mask or general-purpose reprojection facility.
+- Still needed: broader packed-source coverage, production multi-session/auth lifecycle,
+  general continuous raster reprojection, zonal statistics, other STAC providers/public imagery subsets, semantic evaluators and
+  the Qwen runner. Latest GPU preflight reports DRAIN and NVML library/driver
+  mismatch; no driver or scheduler changes were made.
+
+The latest broker smoke uses three XLRS caption images. After the crop, all three
+services (provider, broker and Harness) were recreated; cached action, durable
+artifact bytes, evidence validation and submission remained valid for all samples.
+Sample 0 additionally recreated broker/Harness after submission. Reports remain
+under `runtime/broker-xlrs-20260917-{0,1,2}/reports/`. Provider cache and old local
+artifact directories contain no persistent content; checksum-verified blobs live
+only in `runtime/managed-artifacts/`. The three dedicated projects were removed.
+
+The subsequent catalog smoke combined those three images in one episode:
+two search pages, three inspections/crops, three evidence saves and submission
+(12 actions). Recreating provider/storage/Harness preserved all cached responses,
+state/budgets and three artifact hashes. Reports are in
+`runtime/catalog-xlrs-20260917-01/reports/`; the dedicated project is removed.
+This uses catalog output to select crop inputs, not the raw task manifest route.
 
 ## Pixel-only smoke variants
 
@@ -149,7 +198,8 @@ read bug; it is a required client change, not an authentication system. Tests
 cover omitted/invalid scope, unrelated episodes and foreign evidence. Old
 artifact JSON and hashes remain unchanged. Legacy sources without dimensions
 cannot support new pixel evidence. Re-execution producing the same content with
-different metadata still fails explicitly pending multi-derivation provenance.
+different metadata still fails explicitly for legacy-policy tasks; opt-in
+derivation-policy tasks retain both independent references without overwriting.
 
 For a live restart check before evidence submission, run the verifier with
 `--pause-after-crop`, recreate only the Harness, then `--complete-after-restart`.

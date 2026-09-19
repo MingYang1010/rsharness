@@ -5,6 +5,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+from .storage.client import BrokerClient, BrokerError
 
 from .schemas import (
     ArtifactLineage,
@@ -36,8 +37,9 @@ class ArtifactStoreError(Exception):
 class ArtifactStore:
     """Content-addressed artifact storage scaffold used by M2 workers."""
 
-    def __init__(self, root: str):
+    def __init__(self, root: str, broker: Optional[BrokerClient] = None):
         self.root = Path(root).resolve()
+        self.broker = broker
 
     def content_path(self, sha256: str) -> Path:
         if len(sha256) != 64 or any(character not in "0123456789abcdef" for character in sha256):
@@ -70,6 +72,12 @@ class ArtifactStore:
             lineage=lineage,
             **({"pixel": pixel} if pixel is not None else {}),
         )
+        if self.broker is not None:
+            try:
+                self.broker.put(digest, content)
+            except BrokerError as error:
+                raise ArtifactStoreError(error.code, "artifact storage request failed") from None
+            return artifact
         destination = self.content_path(digest)
         destination.parent.mkdir(parents=True, exist_ok=True)
         write_required = not destination.is_file()
@@ -122,6 +130,13 @@ class ArtifactStore:
             raise ArtifactStoreError("invalid_pixel_artifact", "pixel artifact could not be decoded") from None
 
     def audit_exists(self, artifact: ArtifactRef) -> bool:
+        if self.broker is not None:
+            try:
+                content = self.broker.get(artifact.sha256)
+                return (len(content) == artifact.size_bytes
+                        and hashlib.sha256(content).hexdigest() == artifact.sha256)
+            except BrokerError:
+                return False
         path = self.content_path(artifact.sha256)
         if not path.is_file() or path.stat().st_size != artifact.size_bytes:
             return False
@@ -172,6 +187,17 @@ class ArtifactStore:
         artifact: ArtifactRef,
         range_header: Optional[str] = None,
     ) -> ArtifactContent:
+        if self.broker is not None:
+            try:
+                content = self.broker.get(artifact.sha256)
+            except BrokerError as error:
+                raise ArtifactStoreError(error.code, "artifact content unavailable") from None
+            if (len(content) != artifact.size_bytes
+                    or hashlib.sha256(content).hexdigest() != artifact.sha256):
+                raise ArtifactStoreError("artifact_content_corrupt", "artifact content does not match metadata")
+            start, end, partial = self._range_bounds(range_header, len(content))
+            return ArtifactContent(content=content[start:end + 1], start=start, end=end,
+                                   partial=partial, total=len(content))
         path = self.content_path(artifact.sha256)
         if not path.is_file():
             raise ArtifactStoreError(

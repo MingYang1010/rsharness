@@ -46,7 +46,10 @@ and redistribution approval remain separate work.
   during reading, fail without publishing a provider manifest. Preserve existing
   output directories; retries need a fresh name. Incomplete staging is not ready.
 
-These bounds do not replace the planned global 3 TB reservation/ledger.
+The CLI now reserves its scope through the shared 3 TB runtime ledger before
+extraction; combined metadata output is bounded to 8 MiB. See
+[storage-quota.md](storage-quota.md). Other write paths still require integration
+before whole-system quota enforcement can be claimed.
 
 ## Commands and outputs
 

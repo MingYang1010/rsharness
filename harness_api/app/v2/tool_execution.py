@@ -6,10 +6,12 @@ import time
 import uuid
 
 from .budgets import exhausted, update_budget
+from .artifact_identity import DERIVATION_SCHEME, with_derivation_identity
 from .domain import V2DomainError, _action_allowed, elapsed_ms, utc_now
-from .events import canonical_json, create_event
+from .events import canonical_json, create_event, sha256_json
 from .observations import semantic_state_hash, state_hash
 from .schemas import EpisodeResultData, Observation, ObservationItem, V2EpisodeState
+from .tools.runtime import ToolOutput, prepare_tool
 
 LEASE_SECONDS = 90
 
@@ -59,20 +61,23 @@ class ToolExecutionMixin:
             manifest = self._manifest_for_row(row)
             if not _action_allowed("tool.invoke", manifest.scenario.allowed_actions):
                 raise V2DomainError("policy_rejected", "task does not allow tools", 403, phase="policy")
-            _, asset = self.tool_executor.prepare(action, manifest)
-            if asset.asset_id not in state.accessible_asset_refs:
-                raise V2DomainError("policy_rejected", "asset is not accessible in this episode", 403, phase="policy")
+            # Validate episode ownership while the reservation transaction is
+            # open. The prepared closure may read authorized content only
+            # after this transaction is committed and its write lock released.
+            episode_artifacts = self._artifacts_for_episode(connection, episode_id)
+            prepared = prepare_tool(self.tool_executor, action, manifest,
+                                    state.accessible_asset_refs, episode_artifacts)
             budget = state.budget
             if budget.steps.remaining < 1 or budget.tool_calls.remaining < 1 or elapsed_ms(state.created_at, utc_now()) >= budget.wall_time_ms.limit:
                 raise V2DomainError("tool_budget_exceeded", "step, tool or time budget exhausted", phase="policy")
-            if asset.size_bytes > budget.input_bytes.remaining or budget.artifact_bytes.remaining < self.tool_executor.max_output_bytes:
+            if prepared.input_bytes > budget.input_bytes.remaining or budget.artifact_bytes.remaining < prepared.max_output_bytes:
                 raise V2DomainError("tool_budget_exceeded", "insufficient input or output byte reservation", phase="policy")
             timestamp = utc_now()
             run_id = "tool-" + uuid.uuid4().hex
             run = {"client_action_id": client_action_id, "request_json": request_json,
-                   "lease_until": time.time() + LEASE_SECONDS, "input_bytes_reserved": asset.size_bytes,
-                   "output_bytes_reserved": self.tool_executor.max_output_bytes,
-                   "tool_version": self.tool_executor.tool_version, "expected_state_version": expected_state_version}
+                   "lease_until": time.time() + LEASE_SECONDS, "input_bytes_reserved": prepared.input_bytes,
+                   "output_bytes_reserved": prepared.max_output_bytes, "metadata_only": prepared.metadata_only,
+                   "tool_version": prepared.tool_version, "expected_state_version": expected_state_version}
             connection.execute("INSERT INTO v2_tool_runs VALUES (?,?,?,?,?,?)", (run_id, episode_id, action.tool_id, "running", canonical_json(run), timestamp))
             self._insert_event(connection, create_event(episode_id, self._next_sequence(connection, episode_id),
                 "action.accepted", state.state_version, timestamp, {"client_action_id": client_action_id,
@@ -87,7 +92,7 @@ class ToolExecutionMixin:
         output = None
         failure = None
         try:
-            output = self.tool_executor.invoke(action, manifest)
+            output = prepared.invoke()
         except V2DomainError as error:
             failure = error
         except Exception:
@@ -112,10 +117,22 @@ class ToolExecutionMixin:
             state = V2EpisodeState.model_validate_json(self._load_episode(connection, episode_id)["state_json"])
             if state.state_version != run["expected_state_version"]:
                 raise RuntimeError("episode changed while reserved tool was executing")
-            if output is not None and output.artifact.size_bytes > run["output_bytes_reserved"]:
+            if output is not None and (output.input_bytes < 0 or output.input_bytes > run["input_bytes_reserved"]
+                    or (output.artifact is None) != run.get("metadata_only", False)):
+                output = None
+                failure = V2DomainError("invalid_tool_output", "tool result disagrees with reservation", phase="tool")
+            if output is not None and output.artifact is not None and output.artifact.size_bytes > run["output_bytes_reserved"]:
                 output = None
                 failure = V2DomainError("tool_output_too_large", "artifact exceeded reservation", phase="tool")
-            if output is not None:
+            if output is not None and output.artifact is not None:
+                manifest = self.task_registry.get(state.task_ref.task_id, state.task_ref.task_version)
+                if manifest.task.metadata.get("artifact_identity") == DERIVATION_SCHEME:
+                    try:
+                        output = ToolOutput(with_derivation_identity(output.artifact), output.metadata, output.input_bytes)
+                    except ValueError:
+                        output = None
+                        failure = V2DomainError("invalid_tool_output", "artifact derivation failed validation", phase="artifact")
+            if output is not None and output.artifact is not None:
                 existing = connection.execute("SELECT artifact_json FROM v2_artifacts WHERE artifact_id=?", (output.artifact.artifact_id,)).fetchone()
                 if existing and existing["artifact_json"] != canonical_json(output.artifact.model_dump(mode="json")):
                     output = None
@@ -126,7 +143,7 @@ class ToolExecutionMixin:
             state.updated_at = timestamp
             state.budget = update_budget(state.budget, elapsed_ms(state.created_at, timestamp), step_increment=1,
                 tool_call_increment=1, input_byte_increment=output.input_bytes if output else 0,
-                artifact_byte_increment=output.artifact.size_bytes if output else 0)
+                artifact_byte_increment=output.artifact.size_bytes if output and output.artifact else 0)
             if exhausted(state.budget):
                 state.status = "truncated"
             failure_json = error_value(failure) if failure else None
@@ -135,19 +152,21 @@ class ToolExecutionMixin:
             items = [ObservationItem(type="tool_result", inline={"tool_id": row["tool_id"],
                 "tool_version": run["tool_version"], "status": "failed" if failure else "completed",
                 **({"error_code": failure.code} if failure else output.metadata)})]
-            if output is not None:
+            if output is not None and output.artifact is not None:
                 items.append(ObservationItem(type="raster_chip", artifact_ref=output.artifact.artifact_id))
             observation = Observation(observation_id=observation_id, sequence=state.step_count, primary_type="tool_result",
                 items=items, state_hash=state_hash(state), semantic_state_hash=semantic_state_hash(state),
                 provenance={"builder": "isolated-tool", "task_manifest_hash": state.task_manifest_hash}, warnings=[])
             self._insert_observation(connection, episode_id, observation, timestamp)
-            if output is not None:
+            if output is not None and output.artifact is not None:
                 self._register_artifact(connection, episode_id, observation_id, output.artifact, timestamp)
             event_values = [("action.failed" if failure else "action.completed", {
                 "action_type": "tool.invoke", "tool_id": row["tool_id"], "tool_version": run["tool_version"],
                 "observation_id": observation_id, "state_hash": state_hash(state),
-                **({"code": failure.code} if failure else {"artifact_sha256": output.artifact.sha256})})]
-            if output is not None:
+                **({"code": failure.code} if failure else
+                   {"artifact_sha256": output.artifact.sha256} if output.artifact else
+                   {"metadata_sha256": sha256_json(output.metadata)})})]
+            if output is not None and output.artifact is not None:
                 event_values.append(("artifact.created", {"artifact": output.artifact.model_dump(mode="json"), "observation_id": observation_id}))
             event_values.append(("observation.emitted", {"observation": observation.model_dump(mode="json")}))
             if state.status == "truncated":
@@ -162,7 +181,7 @@ class ToolExecutionMixin:
             connection.execute("UPDATE v2_episodes SET updated_at=?,status=?,state_version=?,step_count=?,state_json=? WHERE episode_id=?",
                 (timestamp, state.status, state.state_version, state.step_count, canonical_json(state.model_dump(mode="json")), episode_id))
             run.update(error=failure_json, completed_at=timestamp, logical_input_bytes=output.input_bytes if output else None,
-                       output_bytes=output.artifact.size_bytes if output else 0)
+                       output_bytes=output.artifact.size_bytes if output and output.artifact else 0)
             connection.execute("UPDATE v2_tool_runs SET status=?,run_json=? WHERE tool_run_id=?", ("failed" if failure else "completed", canonical_json(run), run_id))
             connection.commit()
             return (None, failure_json) if failure else (response, None)

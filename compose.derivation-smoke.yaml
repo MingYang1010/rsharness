@@ -1,0 +1,4 @@
+services:
+  agent-check:
+    volumes:
+      - ./scripts/verify_derivation_smoke.py:/verify.py:ro

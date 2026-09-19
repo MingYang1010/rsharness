@@ -6,6 +6,7 @@ an image-only input mount, never the original dataset root or annotation index.
 from __future__ import annotations
 
 import hashlib
+import fcntl
 import json
 import os
 import re
@@ -24,6 +25,7 @@ REVISION = "d168c28e870ccbf75f63ce60d087420a6babed9e"
 SOURCE_FILES_HASH = "0c139f2ba5ffa81a9a3490448863bf5988645f98980b252888aefdcfa555b968"
 MAX_INPUT_BYTES = 128 * 1024 * 1024
 MAX_OUTPUT_BYTES = 64 * 1024 * 1024
+MAX_OUTPUT_STORE_BYTES = 128 * 1024 * 1024
 
 
 class CropArguments(BaseModel):
@@ -76,6 +78,47 @@ class CropBridge:
         self.worker = worker.resolve()
         self.slot = threading.BoundedSemaphore(1)
 
+    def publish(self, source: Path, digest: str) -> None:
+        """Bound cumulative provider cache, including a temporary atomic copy.
+
+        Production mounts outputs and work as bounded tmpfs. The durable copy is
+        owned by the Harness storage broker, not this ephemeral provider cache.
+        """
+        with (self.outputs / ".publish.lock").open("a+b") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            destination = self.outputs / (digest + ".png")
+            if destination.is_symlink():
+                raise HTTPException(502, "invalid provider output path")
+            if destination.is_file():
+                if hash_file(destination) != digest:
+                    raise HTTPException(409, "provider cache corrupt")
+                return
+            used = 0
+            for path in self.outputs.rglob("*"):
+                if path.is_symlink():
+                    raise HTTPException(502, "invalid provider cache entry")
+                info = path.stat()
+                used += max(info.st_size, getattr(info, "st_blocks", 0) * 512)
+            incoming = ((source.stat().st_size + 4095) // 4096) * 4096 + 16384
+            if used + incoming > MAX_OUTPUT_STORE_BYTES:
+                raise HTTPException(507, "provider cache capacity exceeded")
+            descriptor, name = tempfile.mkstemp(prefix="publish-", dir=self.outputs)
+            try:
+                with os.fdopen(descriptor, "wb") as output, source.open("rb") as input_file:
+                    copied = 0
+                    for block in iter(lambda: input_file.read(1024 * 1024), b""):
+                        copied += len(block)
+                        if copied > MAX_OUTPUT_BYTES:
+                            raise HTTPException(502, "provider output grew beyond byte limit")
+                        output.write(block)
+                    output.flush()
+                    os.fsync(output.fileno())
+                if hash_file(Path(name)) != digest:
+                    raise HTTPException(502, "provider output changed during copy")
+                os.replace(name, destination)
+            finally:
+                Path(name).unlink(missing_ok=True)
+
     def resolve(self, asset_id: str) -> tuple[Path, str]:
         entry = self.manifest.get(asset_id)
         if not isinstance(entry, dict) or entry.get("role") != "input_image":
@@ -98,7 +141,7 @@ class CropBridge:
             raise HTTPException(429, "provider busy; retry later")
         try:
             path, input_hash = self.resolve(call.arguments.asset_id)
-            with tempfile.TemporaryDirectory(prefix="crop-", dir=self.outputs) as work:
+            with tempfile.TemporaryDirectory(prefix="crop-") as work:
                 command = [sys.executable, str(self.worker), str(self.source), str(path), work, json.dumps(call.arguments.aoi)]
                 try:
                     run = subprocess.run(command, capture_output=True, text=True, timeout=20, check=False)
@@ -115,12 +158,11 @@ class CropBridge:
                 except (ValueError, TypeError):
                     raise HTTPException(502, "invalid upstream crop result") from None
                 temporary = Path(work) / "result.png"
-                if not temporary.is_file() or temporary.stat().st_size > MAX_OUTPUT_BYTES:
+                if temporary.is_symlink() or not temporary.is_file() or temporary.stat().st_size > MAX_OUTPUT_BYTES:
                     raise HTTPException(502, "invalid or oversized upstream artifact")
                 digest = hash_file(temporary)
-                destination = self.outputs / (digest + ".png")
                 size = temporary.stat().st_size
-                temporary.replace(destination)
+                self.publish(temporary, digest)
                 return {"output": {**result, "artifact_id": "art-" + digest, "sha256": digest,
                                    "size_bytes": size, "media_type": "image/png",
                                    "input_asset_id": call.arguments.asset_id, "input_sha256": input_hash,

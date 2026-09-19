@@ -176,6 +176,16 @@ class PackedImageTests(unittest.TestCase):
         self.assertFalse((self.output / "inputs.json").exists())
         self.assertFalse((self.output / "coverage.json").exists())
 
+    def test_receipt_budget_precedes_any_metadata_publication(self):
+        from unittest.mock import patch
+        self.write()
+        with patch("app.v2.data.packed.MAX_RECEIPT_BYTES", 1):
+            with self.assertRaisesRegex(AdmissionError, "receipt_size_limit"):
+                extract_samples(self.spec, self.output)
+        self.assertFalse((self.output / "inputs.json").exists())
+        self.assertFalse((self.output / "coverage.json").exists())
+        self.assertFalse((self.output / "private/receipt.json").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

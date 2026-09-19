@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
-from typing import Any
 
 import httpx
 from pydantic import ValidationError
@@ -13,13 +11,7 @@ from ..artifacts import ArtifactStore, ArtifactStoreError
 from ..domain import V2DomainError
 from ..events import sha256_json
 from ..schemas import ArtifactLineage, Artifact, PixelExtent, PixelAssetRef, TaskAsset, TaskManifest, ToolInvokeAction
-
-
-@dataclass(frozen=True)
-class ToolOutput:
-    artifact: Artifact
-    metadata: dict[str, Any]
-    input_bytes: int
+from .runtime import ToolOutput
 
 
 class EOGymExecutor:
@@ -49,6 +41,8 @@ class EOGymExecutor:
     @staticmethod
     def _bounded_response(client: httpx.Client, method: str, url: str, limit: int, **kwargs) -> bytes:
         with client.stream(method, url, **kwargs) as response:
+            if response.status_code == 507:
+                raise V2DomainError("provider_storage_capacity", "provider temporary cache is full", 507, False, "tool")
             response.raise_for_status()
             content = bytearray()
             for chunk in response.iter_bytes():
@@ -105,7 +99,11 @@ class EOGymExecutor:
                 parameters_hash=sha256_json({"arguments": arguments.model_dump(), "input_sha256": asset.sha256,
                                             "upstream_revision": REVISION}),
             ))
-        except ArtifactStoreError:
+        except ArtifactStoreError as error:
+            if error.code in {"artifact_storage_capacity", "artifact_store_unavailable"}:
+                raise V2DomainError(error.code, "artifact storage cannot accept output",
+                                    507 if error.code == "artifact_storage_capacity" else 503,
+                                    error.code == "artifact_store_unavailable", "artifact") from None
             raise V2DomainError("invalid_tool_output", "EO-Gym image payload failed validation", 502, phase="tool") from None
         # Do not infer crop georeferencing from a PNG. Pixel metadata and lineage
         # are sufficient until a separately verified raster transform is available.

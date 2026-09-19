@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+"""Trusted operator issuance; never run inside the Agent sandbox."""
+import argparse
+import hashlib
+import json
+import os
+import secrets
+import sys
+from pathlib import Path
+
+import httpx
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "harness_api"))
+from app.agent_gateway import AgentBinding, MAX_JSON, build_binding
+from app.v2.schemas import TaskManifest, V2EpisodeState
+from app.v2.tools.catalog import _is_public_image
+from app.v2.storage.quota import StorageQuota
+
+
+def write_private(path: Path, content: bytes):
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "wb") as stream:
+        stream.write(content)
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--job", required=True, type=Path)
+    parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--backend", default="http://harness:8000")
+    parser.add_argument("--reviewed-public-task", action="store_true", required=True,
+                        help="operator confirms prompt/schema/input IDs/descriptive fields are Agent-visible")
+    args = parser.parse_args()
+    output = args.output.resolve()
+    if args.output.is_symlink() or not output.is_relative_to((ROOT / "runtime").resolve()):
+        raise SystemExit("session directory must be in project runtime")
+    if args.job.stat().st_size > 1024 * 1024:
+        raise SystemExit("job exceeds limit")
+    job = json.loads(args.job.read_text())
+    from app.v2.schemas import TaskRef
+    task_ref = TaskRef.model_validate(job["task_ref"])
+    if output.exists():
+        # Never repeat an ambiguous backend reset. Preserve pending receipt/token.
+        if not (output / "binding.json").is_file() or not (output / "agent-token").is_file():
+            raise SystemExit("incomplete issuance; operator must reconcile pending reset, do not automatically retry")
+        if ((output / "binding.json").is_symlink() or (output / "agent-token").is_symlink()
+                or (output / "binding.json").stat().st_size > 256 * 1024
+                or (output / "agent-token").stat().st_size > 128):
+            raise SystemExit("existing credential/binding is not a bounded regular file")
+        binding = AgentBinding.model_validate_json((output / "binding.json").read_bytes())
+        if (binding.task.task_id, binding.task.task_version) != (task_ref.task_id, task_ref.task_version):
+            raise SystemExit("existing binding belongs to a different task; preserve it")
+        if hashlib.sha256((output / "agent-token").read_bytes().strip()).hexdigest() != binding.token_sha256:
+            raise SystemExit("existing credential/binding mismatch")
+        print(json.dumps({"status": "existing_binding_preserved", "episode_id": binding.episode_id}))
+        return
+    with httpx.Client(base_url=args.backend, timeout=40, trust_env=False, follow_redirects=False) as client:
+        def request(method, path, body=None):
+            with client.stream(method, path, json=body) as response:
+                if response.status_code not in {200, 201}:
+                    raise RuntimeError("operator request failed; inspect backend privately")
+                content = bytearray()
+                for chunk in response.iter_bytes():
+                    if len(content) + len(chunk) > MAX_JSON:
+                        raise RuntimeError("operator response exceeds bound")
+                    content.extend(chunk)
+            return json.loads(content)["data"]
+        ref = job["task_ref"]
+        # Validate identifiers before interpolating the trusted task reference.
+        manifest = TaskManifest.model_validate(request("GET", f"/v2/tasks/{task_ref.task_id}/versions/{task_ref.task_version}")["manifest"])
+        if any(not _is_public_image(a) for a in manifest.assets if a.asset_id in manifest.task.inputs):
+            raise SystemExit("task contains private/non-image inputs; no episode created")
+        capabilities = request("GET", "/v2/capabilities")
+        with StorageQuota(ROOT / "runtime").hold(output, 2 * 1024 * 1024, "agent-session-issuance"):
+            output.mkdir(mode=0o700)
+            token = secrets.token_hex(32)
+            write_private(output / "agent-token", (token + "\n").encode())
+            write_private(output / "reset-pending.json", json.dumps({"task_ref": ref,
+                "task_manifest_hash": manifest.task_manifest_hash, "public_task_reviewed": True,
+                "warning": "if binding is absent, reset outcome is unknown; no automatic retry"}).encode())
+            reset = request("POST", "/v2/reset", {"task_ref": ref, "seed": job.get("seed", 42)})
+            binding = build_binding(manifest, V2EpisodeState.model_validate(reset["state"]), capabilities,
+                                    hashlib.sha256(token.encode()).hexdigest())
+            content = binding.model_dump_json(indent=2).encode()
+            if len(content) > 256 * 1024:
+                raise RuntimeError("public binding exceeds gateway limit")
+            write_private(output / "binding.json", content)
+            print(json.dumps({"status": "issued", "episode_id": binding.episode_id,
+                              "task_manifest_hash": binding.task_manifest_hash}))
+
+
+if __name__ == "__main__":
+    main()

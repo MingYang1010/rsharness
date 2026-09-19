@@ -11,11 +11,14 @@ import hashlib
 import json
 import os
 import shutil
+import sys
 import urllib.parse
 import urllib.request
 from pathlib import Path, PurePosixPath
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "harness_api"))
+from app.v2.storage.quota import CONTROL_ALLOWANCE, StorageQuota, checked_path
 LOCK = REPO_ROOT / "config" / "eo-gym-source.json"
 
 
@@ -70,6 +73,7 @@ def fetch_source(destination: Path, lock: dict, network: str = "system-proxy") -
             raise ValueError("unexpected large file in source selection")
         relative = safe_relative(entry["path"])
         target = destination.joinpath(*relative.parts)
+        checked_path(destination.resolve(), target)
         if not target.resolve().is_relative_to(destination.resolve()):
             raise ValueError("source path escapes destination")
         data = target.read_bytes() if target.is_file() else None
@@ -86,12 +90,15 @@ def fetch_source(destination: Path, lock: dict, network: str = "system-proxy") -
                 raise ValueError(f"upstream Git blob verification failed: {relative}")
             target.parent.mkdir(parents=True, exist_ok=True)
             temporary = target.with_name(target.name + ".partial")
+            checked_path(destination.resolve(), temporary)
             temporary.write_bytes(data)
             temporary.replace(target)
         records.append({"path": str(relative), "size": len(data), "sha256": hashlib.sha256(data).hexdigest()})
     report = {"revision": revision, "files": records, "bytes": size, "network": network,
               "software_license": lock["software_license"]}
-    (destination / "acquisition.json").write_text(json.dumps(report, indent=2) + "\n")
+    receipt = destination / "acquisition.json"
+    checked_path(destination.resolve(), receipt)
+    receipt.write_text(json.dumps(report, indent=2) + "\n")
     return report
 
 
@@ -99,11 +106,13 @@ def fetch_archive(destination: Path, name: str, lock: dict, network: str = "syst
     entry = lock["archives"][name]
     destination.mkdir(parents=True, exist_ok=True)
     target = destination / name
+    partial = destination / (name + ".partial")
+    checked_path(destination.resolve(), target)
+    checked_path(destination.resolve(), partial)
     if target.is_file():
         if target.stat().st_size == entry["size"] and digest(target) == entry["sha256"]:
             return target
         raise ValueError("existing archive checksum differs; preserve it for inspection")
-    partial = destination / (name + ".partial")
     offset = partial.stat().st_size if partial.exists() else 0
     if offset > entry["size"]:
         raise ValueError("oversized partial archive")
@@ -142,17 +151,29 @@ def main() -> None:
     args = parser.parse_args()
     if not args.destination.is_absolute():
         parser.error("destination must be absolute and outside tracked source paths")
-    # Only the ignored runtime subtree may be used inside this repository.
-    root = REPO_ROOT.resolve()
-    destination = args.destination.resolve()
-    if destination.is_relative_to(root) and not destination.is_relative_to(root / "runtime"):
-        parser.error("in-repository downloads must be under ignored runtime/")
     lock = json.loads(LOCK.read_text())
+    result = acquire(args.destination, lock, args.archive, args.network,
+                     StorageQuota(REPO_ROOT / "runtime"))
     if args.archive:
-        print(fetch_archive(destination, args.archive, lock, args.network))
+        print(result)
     else:
-        report = fetch_source(destination, lock, args.network)
-        print(json.dumps({"revision": report["revision"], "files": len(report["files"]), "bytes": report["bytes"], "network": args.network}))
+        print(json.dumps({"revision": result["revision"], "files": len(result["files"]), "bytes": result["bytes"], "network": args.network}))
+
+
+def acquire(destination: Path, lock: dict, archive: str | None,
+            network: str, quota: StorageQuota):
+    """The CLI's mandatory reservation boundary, before network or payload writes."""
+    checked_path(quota.root, destination)
+    if archive:
+        # One dedicated directory per acquisition. Existing partial files count
+        # within—not in addition to—the maximum total directory reservation.
+        capacity = lock["archives"][archive]["size"] * 6 + CONTROL_ALLOWANCE
+    else:
+        capacity = lock["source_budget_bytes"] * 2 + CONTROL_ALLOWANCE
+    with quota.hold(destination, capacity, "eo-gym-archive" if archive else "eo-gym-source"):
+        if archive:
+            return fetch_archive(destination, archive, lock, network)
+        return fetch_source(destination, lock, network)
 
 
 if __name__ == "__main__":

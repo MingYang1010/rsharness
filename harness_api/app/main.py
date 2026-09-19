@@ -176,12 +176,26 @@ def create_app(
                 raise RuntimeError("V2 renderer config must contain a JSON object")
             renderer_config = renderer_config_value
 
-        artifact_store = ArtifactStore(resolved_artifacts_path)
+        broker = None
+        broker_url = os.environ.get("EO_HARNESS_ARTIFACT_BROKER_URL")
+        if broker_url:
+            from .v2.storage.client import BrokerClient
+            token = FilePath(os.environ["EO_HARNESS_ARTIFACT_TOKEN_FILE"]).read_text().strip()
+            broker = BrokerClient(broker_url, token)
+        artifact_store = ArtifactStore(resolved_artifacts_path, broker=broker)
         tool_executor = v2_tool_executor
         provider_url = os.environ.get("EO_HARNESS_EO_GYM_URL")
         if tool_executor is None and provider_url:
             from .v2.tools.eo_gym import EOGymExecutor
             tool_executor = EOGymExecutor(provider_url, artifact_store)
+        raster_url = os.environ.get("EO_HARNESS_RASTER_URL")
+        if os.environ.get("EO_HARNESS_CATALOG_ENABLED") == "1" or raster_url:
+            from .v2.tools.runtime import ToolRouter
+            from .v2.tools.raster import RasterExecutor
+            from .v2.tools.raster_grid import RasterGridExecutor
+            tool_executor = ToolRouter(tool_executor,
+                RasterExecutor(raster_url, artifact_store) if raster_url else None,
+                RasterGridExecutor(raster_url, artifact_store) if raster_url else None)
         evaluator_registry = v2_evaluator_registry or EvaluatorRegistry(
             resolved_datasets_path,
             artifact_store,

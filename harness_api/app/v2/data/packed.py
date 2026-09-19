@@ -11,6 +11,7 @@ from typing import Iterator
 MAX_IMAGE_BYTES = 128 * 1024 * 1024
 MAX_IMAGE_PIXELS = 20_000_000
 MAX_SHARD_BYTES = 2 * 1024 * 1024 * 1024
+MAX_RECEIPT_BYTES = 8 * 1024 * 1024
 DENIED_COLUMNS = {"label", "labels", "answer", "answers", "mask", "masks", "annotation", "annotations", "bbox", "gt", "groundtruth"}
 
 
@@ -257,8 +258,12 @@ def extract_samples(spec: dict, output: Path, sample_count: int = 3,
     receipt = {"dataset_id": spec["dataset_id"], "source_root": str(root), "review_id": spec["review_id"],
                "image_column": column, "sources": sources, "origins": origins,
                "pyarrow_version": pa.__version__, "license_status": spec["license"]}
-    (output / "private" / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
-    (output / "coverage.json").write_text(json.dumps(report, indent=2) + "\n")
     manifest = {s["asset_id"]: {"role": "input_image", "filename": s["relative_path"], "sha256": s["sha256"]} for s in samples}
-    (output / "inputs.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    metadata = [(output / "private/receipt.json", receipt), (output / "coverage.json", report),
+                (output / "inputs.json", manifest)]
+    payloads = [(path, (json.dumps(value, indent=2) + "\n").encode()) for path, value in metadata]
+    if sum(len(value) for _, value in payloads) > MAX_RECEIPT_BYTES:
+        raise AdmissionError("receipt_size_limit")
+    for path, value in payloads:
+        path.write_bytes(value)
     return report
