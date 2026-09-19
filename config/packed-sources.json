@@ -1,0 +1,30 @@
+{
+  "schema_version": "reviewed-packed-columns-1",
+  "scope": "local research image-only samples; not dataset-wide admission or redistribution approval",
+  "sources": [
+    {
+      "dataset_id": "XLRS-Bench-lite",
+      "root": "/sata/yangm/datasets/XLRS-Bench-lite",
+      "image_column": "image",
+      "reviewed_role": "input_image",
+      "review_id": "xlrs-lite-arrow-image-list-schema-20260917",
+      "license": "existing-local-research-copy; redistribution-not-authorized"
+    },
+    {
+      "dataset_id": "XLRS-Bench_caption_en",
+      "root": "/sata/yangm/datasets/XLRS-Bench_caption_en",
+      "image_column": "image",
+      "reviewed_role": "input_image",
+      "review_id": "xlrs-caption-arrow-image-schema-20260917",
+      "license": "existing-local-research-copy; redistribution-not-authorized"
+    },
+    {
+      "dataset_id": "XLRS-Bench_visual_grounding_en",
+      "root": "/sata/yangm/datasets/XLRS-Bench_visual_grounding_en",
+      "image_column": "image",
+      "reviewed_role": "input_image",
+      "review_id": "xlrs-grounding-arrow-image-schema-20260917",
+      "license": "existing-local-research-copy; redistribution-not-authorized"
+    }
+  ]
+}

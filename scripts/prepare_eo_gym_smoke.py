@@ -60,7 +60,8 @@ def main():
     task_dir = out / "tasks" / "eo-gym-crop-smoke"
     shutil.copytree(root / "tasks" / "worldcover-grounded-vqa", task_dir)
     task = json.loads((task_dir / "task.json").read_text())
-    task_id = "eo-gym-crop-" + hashlib.sha256((sample["asset_id"] + digest).encode()).hexdigest()[:16]
+    task_identity = [args.dataset_id, sample["asset_id"], digest, sample.get("source_snapshot_hash")]
+    task_id = "eo-gym-crop-" + hashlib.sha256(json.dumps(task_identity, separators=(",", ":")).encode()).hexdigest()[:16]
     task.update(task_id=task_id, inputs=[sample["asset_id"]],
         prompt="Crop the central half of the supplied image, report its pixel dimensions and cite the frozen crop artifact.",
         metadata={"observation_profile": "headless-tools-v1", "acceptance": "interaction-only-not-semantic-benchmark"})
@@ -75,6 +76,8 @@ def main():
         "spatial": spatial,
         "license": "existing-local-research-copy-redistribution-not-authorized",
         "source": args.dataset_id + " local image sample; no fabricated georeferencing"}
+    if sample.get("source_snapshot_hash"):
+        asset["source_snapshot_hash"] = sample["source_snapshot_hash"]
     if spatial is None:
         asset["pixel"] = {"coordinate_system": "pixel", "width": sample["width"],
                           "height": sample["height"], "channels": sample["bands"]}

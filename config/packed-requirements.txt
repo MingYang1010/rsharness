@@ -1,0 +1,3 @@
+# Install only into ignored runtime/packed/python, via the A800 system proxy.
+# Pinned A800 base-image wheel: CPython 3.12, Linux x86_64.
+pyarrow==21.0.0 --hash=sha256:b7ae0bbdc8c6674259b25bef5d2a1d6af5d39d7200c819cf99e07f7dfef1c51e

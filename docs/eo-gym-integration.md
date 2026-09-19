@@ -96,7 +96,7 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
 
 ## Verified results and unfinished scope
 
-- A800: 77 Python tests pass, including the 44 original regressions and real
+- A800: 88 Python tests pass, including the 44 original regressions and real
   upstream CPU tests. Synthetic test fixtures are not counted as dataset coverage.
 - Live HTTP smoke: real FAIR1M2 image, 400x300 crop, one tool call, frozen evidence,
   answer submission and passed structural checks. Container recreation preserves
@@ -104,14 +104,19 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
   `runtime/eo-gym-smoke/reports/`.
 - Inventory: 31 roots; 15 sampled-readable, 7 partial, 9 unavailable to the current
   image-file scanner. All 65 selected samples read successfully. Counts include
-  duplicate dataset versions; they are not unique observations. Parquet/Arrow
-  packages need dedicated adapters. The approximately 651 MB index is not in Git.
+  duplicate dataset versions; they are not unique observations. These are the
+  original file-scanner counts, not current packed-source admission counts.
+  The approximately 651 MB index is not in Git.
+- Reviewed Arrow/Parquet image-only sample admission is implemented; see
+  [packed-data.md](packed-data.md). Three real XLRS Arrow sources each supplied
+  three distinct images; all nine real HTTP crop/submission/restart tests passed.
+  Parquet has fixture acceptance only. Oversized images remain coverage gaps.
 - Full EO-Gym archives are not downloaded: both HF and HF-mirror range probes
   reset through the current system proxy. PyPI succeeds through the same proxy.
 - This is scripted interaction acceptance, NOT Qwen inference, semantic task
   accuracy, full dataset integration or execution replay. `replay` remains the
   existing structural verifier. The smoke task intentionally has no semantic score.
-- Still needed: packed-dataset adapters, reviewed asset access,
+- Still needed: broader packed-source coverage, reviewed catalog access,
   remaining raster/STAC tools, public imagery subsets, semantic evaluators and
   the Qwen runner. A800 GPU allocation remains blocked by occupied cards/DRAIN.
 
