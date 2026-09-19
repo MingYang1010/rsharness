@@ -78,9 +78,17 @@ def prepare(args, root: Path, out: Path) -> None:
     task = json.loads((task_dir / "task.json").read_text())
     task_identity = [args.dataset_id, sample["asset_id"], digest, sample.get("source_snapshot_hash")]
     task_id = "eo-gym-crop-" + hashlib.sha256(json.dumps(task_identity, separators=(",", ":")).encode()).hexdigest()[:16]
+    task_metadata = {
+        "observation_profile": "headless-tools-v1",
+        "acceptance": "interaction-only-not-semantic-benchmark",
+    }
+    if sample.get("admission_profile"):
+        task_metadata["admission_profile"] = sample["admission_profile"]
+        task_metadata["output_profile"] = sample["output_profile"]
+        task_metadata["pixel_window"] = sample["pixel_window"]
     task.update(task_id=task_id, inputs=[sample["asset_id"]],
         prompt="Crop the central half of the supplied image, report its pixel dimensions and cite the frozen crop artifact.",
-        metadata={"observation_profile": "headless-tools-v1", "acceptance": "interaction-only-not-semantic-benchmark"})
+        metadata=task_metadata)
     task["budget"].update(max_input_bytes=512 * 1024 * 1024, max_artifact_bytes=128 * 1024 * 1024, max_wall_time_ms=300000)
     (task_dir / "task.json").write_text(json.dumps(task, indent=2) + "\n")
     scenario = json.loads((task_dir / "scenario.json").read_text())
@@ -102,6 +110,9 @@ def prepare(args, root: Path, out: Path) -> None:
            "asset_id": sample["asset_id"], "source_width": sample["width"], "source_height": sample["height"],
            "source_sha256": digest, "coordinate_system": "pixel" if spatial is None else "geographic",
            "dataset_id": args.dataset_id, "sample_index": args.sample_index, "aoi": [0.25, 0.25, 0.75, 0.75]}
+    if sample.get("admission_profile"):
+        job["admission_profile"] = sample["admission_profile"]
+        job["pixel_window"] = sample["pixel_window"]
     (out / "job.json").write_text(json.dumps(job, indent=2) + "\n")
     print(json.dumps({"output": str(out), "input_bytes": source.stat().st_size, "source_sha256": digest}))
 

@@ -11,6 +11,7 @@
       "allowed_path_prefixes": ["LRS_VQA/image"],
       "reviewed_role": "input_image",
       "review_id": "lrs-vqa-image-path-schema-20260919",
+      "window_policy": "reviewed-raster-window-v1",
       "license": "existing-local-research-copy; redistribution-not-authorized"
     },
     {
