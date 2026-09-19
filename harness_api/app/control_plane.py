@@ -29,8 +29,19 @@ class IssuanceGrant(V2RequestModel):
     max_ttl_seconds: int = Field(ge=60, le=7 * 24 * 60 * 60)
 
 
+class SubjectCertificate(V2RequestModel):
+    subject_id: str
+    certificate_sha256: Sha256
+
+    @model_validator(mode="after")
+    def valid_subject(self):
+        if IDENTITY_PATTERN.fullmatch(self.subject_id) is None:
+            raise ValueError("certificate subject identity is invalid")
+        return self
+
+
 class AgentIssuancePolicy(V2RequestModel):
-    schema_version: Literal["1.0.0"] = "1.0.0"
+    schema_version: Literal["1.0.0", "1.1.0"] = "1.0.0"
     policy_id: Identifier
     valid_from: AwareDatetime
     expires_at: AwareDatetime
@@ -38,6 +49,9 @@ class AgentIssuancePolicy(V2RequestModel):
     subjects: list[str] = Field(min_length=1, max_length=256)
     grants: list[IssuanceGrant] = Field(min_length=1, max_length=256)
     max_active_sessions_per_subject: int = Field(ge=1, le=32)
+    subject_certificates: list[SubjectCertificate] = Field(
+        default_factory=list, max_length=256
+    )
 
     @model_validator(mode="after")
     def valid_policy(self):
@@ -56,6 +70,16 @@ class AgentIssuancePolicy(V2RequestModel):
         references = [(grant.task_id, grant.task_version) for grant in self.grants]
         if len(set(references)) != len(references):
             raise ValueError("issuance policy contains duplicate task grants")
+        certificate_subjects = [item.subject_id for item in self.subject_certificates]
+        certificate_hashes = [item.certificate_sha256 for item in self.subject_certificates]
+        if self.schema_version == "1.0.0" and self.subject_certificates:
+            raise ValueError("policy schema does not support certificate identities")
+        if self.schema_version == "1.1.0" and (
+            set(certificate_subjects) != set(self.subjects)
+            or len(set(certificate_subjects)) != len(certificate_subjects)
+            or len(set(certificate_hashes)) != len(certificate_hashes)
+        ):
+            raise ValueError("certificate policy must bind every subject exactly once")
         return self
 
 
@@ -79,6 +103,7 @@ class ControlEventInput(V2RequestModel):
     task_manifest_hash: Sha256
     episode_id: EpisodeId | None = None
     generation: int | None = Field(default=None, ge=1, le=1_000_000)
+    subject_certificate_sha256: Sha256 | None = None
 
     @model_validator(mode="after")
     def identities(self):
@@ -157,6 +182,7 @@ def authorize_issuance(
     task_version: str,
     ttl_seconds: int,
     active_subject_sessions: int,
+    subject_certificate_sha256: str | None = None,
     now: datetime | None = None,
 ) -> IssuanceGrant:
     current = now or datetime.now(timezone.utc)
@@ -166,6 +192,20 @@ def authorize_issuance(
         raise ValueError("issuance policy is not currently valid")
     if actor_id not in policy.issuers or subject_id not in policy.subjects:
         raise ValueError("issuance identity is not allowed")
+    certificate_pins = {
+        item.subject_id: item.certificate_sha256
+        for item in policy.subject_certificates
+    }
+    if policy.schema_version == "1.1.0":
+        expected = certificate_pins.get(subject_id)
+        if (
+            subject_certificate_sha256 is None
+            or expected is None
+            or not hmac.compare_digest(expected, subject_certificate_sha256)
+        ):
+            raise ValueError("subject certificate identity is not allowed")
+    elif subject_certificate_sha256 is not None:
+        raise ValueError("issuance policy does not grant certificate identity")
     grants = [
         grant
         for grant in policy.grants
@@ -193,10 +233,25 @@ def authorize_management(
     task_version: str,
     ttl_seconds: int | None,
     rotate: bool,
+    subject_certificate_sha256: str | None = None,
     now: datetime | None = None,
 ) -> None:
     if actor_id not in policy.issuers or subject_id not in policy.subjects:
         raise ValueError("management identity is not allowed")
+    certificate_pins = {
+        item.subject_id: item.certificate_sha256
+        for item in policy.subject_certificates
+    }
+    if policy.schema_version == "1.1.0":
+        expected = certificate_pins.get(subject_id)
+        if (
+            subject_certificate_sha256 is None
+            or expected is None
+            or not hmac.compare_digest(expected, subject_certificate_sha256)
+        ):
+            raise ValueError("subject certificate identity is not allowed")
+    elif subject_certificate_sha256 is not None:
+        raise ValueError("issuance policy does not grant certificate identity")
     grants = [
         grant
         for grant in policy.grants
@@ -213,6 +268,7 @@ def authorize_management(
             task_version=task_version,
             ttl_seconds=ttl_seconds,
             active_subject_sessions=0,
+            subject_certificate_sha256=subject_certificate_sha256,
             now=now,
         )
 
@@ -343,6 +399,7 @@ __all__ = [
     "ControlEventInput",
     "ControlPlaneEvent",
     "IssuanceGrant",
+    "SubjectCertificate",
     "MAX_AUDIT_BYTES",
     "append_control_event",
     "authorize_issuance",

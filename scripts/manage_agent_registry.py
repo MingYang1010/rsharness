@@ -78,6 +78,7 @@ def audit_event(runtime_root: Path, audit_path: Path, governance: dict,
                 task_manifest_hash=session.binding.task_manifest_hash,
                 episode_id=session.binding.episode_id if completed else None,
                 generation=session.generation if completed else None,
+                subject_certificate_sha256=session.subject_certificate_sha256,
             ),
         )
 
@@ -95,6 +96,7 @@ def main():
     parser.add_argument("--issuance-policy-sha256")
     parser.add_argument("--actor-id")
     parser.add_argument("--subject-id")
+    parser.add_argument("--subject-certificate-sha256")
     parser.add_argument("--audit-log", type=Path)
     args = parser.parse_args()
 
@@ -142,6 +144,8 @@ def main():
                 or audit_path == registry_path
                 or audit_path == token_path
                 or args.subject_id != current.subject_id
+                or args.subject_certificate_sha256
+                != current.subject_certificate_sha256
             ):
                 raise SystemExit("governed management scope or subject is invalid")
             try:
@@ -162,6 +166,7 @@ def main():
                     task_version=current.binding.task.task_version,
                     ttl_seconds=args.ttl_seconds if args.rotate else None,
                     rotate=args.rotate,
+                    subject_certificate_sha256=args.subject_certificate_sha256,
                 )
             except ValueError as error:
                 raise SystemExit(str(error)) from None
@@ -178,7 +183,10 @@ def main():
                 current,
                 completed=False,
             )
-        elif any(value is not None for value in governed_arguments):
+        elif any(
+            value is not None
+            for value in (*governed_arguments, args.subject_certificate_sha256)
+        ):
             raise SystemExit("legacy credential cannot use governed management arguments")
         token = secrets.token_hex(32) if args.rotate else None
         if token is not None:

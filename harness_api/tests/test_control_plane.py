@@ -37,6 +37,7 @@ QUERY_SPEC.loader.exec_module(QUERY)
 NOW = datetime(2026, 9, 20, 12, 0, tzinfo=timezone.utc)
 POLICY_SHA = "a" * 64
 MANIFEST_SHA = "b" * 64
+CERTIFICATE_SHA = "c" * 64
 
 
 def policy() -> AgentIssuancePolicy:
@@ -142,6 +143,54 @@ class IssuancePolicyTests(unittest.TestCase):
             path.chmod(0o666)
             with self.assertRaisesRegex(ValueError, "permissions"):
                 load_issuance_policy(path, hashlib.sha256(content).hexdigest())
+
+    def test_certificate_policy_binds_each_subject_to_one_sha256(self):
+        certificate_policy = AgentIssuancePolicy(
+            schema_version="1.1.0",
+            policy_id="certificate-policy-v1",
+            valid_from=NOW - timedelta(days=1),
+            expires_at=NOW + timedelta(days=1),
+            issuers=["trusted-operator"],
+            subjects=["approved-runner"],
+            subject_certificates=[{
+                "subject_id": "approved-runner",
+                "certificate_sha256": CERTIFICATE_SHA,
+            }],
+            grants=[{
+                "task_id": "task-a",
+                "task_version": "1.0.0",
+                "max_ttl_seconds": 3600,
+            }],
+            max_active_sessions_per_subject=1,
+        )
+        arguments = {
+            "actor_id": "trusted-operator",
+            "subject_id": "approved-runner",
+            "task_id": "task-a",
+            "task_version": "1.0.0",
+            "ttl_seconds": 3600,
+            "active_subject_sessions": 0,
+            "subject_certificate_sha256": CERTIFICATE_SHA,
+            "now": NOW,
+        }
+        authorize_issuance(certificate_policy, **arguments)
+        with self.assertRaisesRegex(ValueError, "certificate identity"):
+            authorize_issuance(
+                certificate_policy,
+                **{**arguments, "subject_certificate_sha256": "d" * 64},
+            )
+        with self.assertRaisesRegex(ValueError, "does not grant certificate"):
+            authorize_issuance(
+                policy(),
+                **arguments,
+            )
+        with self.assertRaisesRegex(ValueError, "every subject"):
+            AgentIssuancePolicy(
+                **certificate_policy.model_dump(
+                    exclude={"subject_certificates"}
+                ),
+                subject_certificates=[],
+            )
 
     def test_expired_policy_still_allows_revocation_but_not_rotation(self):
         expired = policy().model_copy(
@@ -252,10 +301,22 @@ class GovernedRegistryTests(unittest.TestCase):
         )
         AgentCredentialRegistry(schema_version="1.0.0", sessions=[legacy])
         AgentCredentialRegistry(schema_version="1.1.0", sessions=[governed])
+        certificate_bound = governed.model_copy(
+            update={"subject_certificate_sha256": CERTIFICATE_SHA}
+        )
+        AgentCredentialRegistry(
+            schema_version="1.2.0", sessions=[certificate_bound]
+        )
         with self.assertRaisesRegex(ValueError, "legacy registry"):
             AgentCredentialRegistry(schema_version="1.0.0", sessions=[governed])
         with self.assertRaisesRegex(ValueError, "governed registry"):
             AgentCredentialRegistry(schema_version="1.1.0", sessions=[legacy])
+        with self.assertRaisesRegex(ValueError, "does not support certificate"):
+            AgentCredentialRegistry(
+                schema_version="1.1.0", sessions=[certificate_bound]
+            )
+        with self.assertRaisesRegex(ValueError, "requires a pin"):
+            AgentCredentialRegistry(schema_version="1.2.0", sessions=[governed])
 
 
 if __name__ == "__main__":

@@ -49,6 +49,7 @@ class AgentSessionCredential(V2RequestModel):
     subject_id: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9._-]{0,63}$")
     issuance_policy_id: Identifier | None = None
     issuance_policy_sha256: Sha256 | None = None
+    subject_certificate_sha256: Sha256 | None = None
 
     @model_validator(mode="after")
     def valid_lifecycle(self):
@@ -79,7 +80,7 @@ class AgentSessionCredential(V2RequestModel):
 
 
 class AgentCredentialRegistry(V2RequestModel):
-    schema_version: Literal["1.0.0", "1.1.0"] = "1.0.0"
+    schema_version: Literal["1.0.0", "1.1.0", "1.2.0"] = "1.0.0"
     sessions: list[AgentSessionCredential] = Field(default_factory=list, max_length=MAX_SESSIONS)
 
     @model_validator(mode="after")
@@ -91,10 +92,17 @@ class AgentCredentialRegistry(V2RequestModel):
         if len(set(episode_ids)) != len(episode_ids):
             raise ValueError("duplicate episode scope")
         governed = [item.issuer_id is not None for item in self.sessions]
+        certificate_bound = [
+            item.subject_certificate_sha256 is not None for item in self.sessions
+        ]
         if self.schema_version == "1.0.0" and any(governed):
             raise ValueError("legacy registry cannot contain governed sessions")
-        if self.schema_version == "1.1.0" and not all(governed):
+        if self.schema_version in {"1.1.0", "1.2.0"} and not all(governed):
             raise ValueError("governed registry requires policy metadata for every session")
+        if self.schema_version in {"1.0.0", "1.1.0"} and any(certificate_bound):
+            raise ValueError("registry schema does not support certificate-bound sessions")
+        if self.schema_version == "1.2.0" and not all(certificate_bound):
+            raise ValueError("certificate-bound registry requires a pin for every session")
         return self
 
 
@@ -172,10 +180,10 @@ class CredentialResolver:
         if self.binding is None:
             self._validated_registry()
 
-    def resolve(self, token_sha256: str) -> AgentBinding:
+    def _resolve(self, token_sha256: str) -> tuple[AgentBinding, str | None]:
         if self.binding is not None:
             if hmac.compare_digest(token_sha256, self.binding.token_sha256):
-                return self.binding
+                return self.binding, None
             raise CredentialError("unauthorized", 401)
         try:
             registry = self._validated_registry()
@@ -196,4 +204,10 @@ class CredentialResolver:
             raise CredentialError("session_not_yet_valid", 401)
         if current >= selected.expires_at:
             raise CredentialError("session_expired", 401)
-        return selected.binding
+        return selected.binding, selected.subject_certificate_sha256
+
+    def resolve(self, token_sha256: str) -> AgentBinding:
+        return self._resolve(token_sha256)[0]
+
+    def resolve_with_certificate(self, token_sha256: str) -> tuple[AgentBinding, str | None]:
+        return self._resolve(token_sha256)

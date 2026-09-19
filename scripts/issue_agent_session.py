@@ -69,8 +69,16 @@ def publish_binding(runtime_root: Path, registry_path: Path, binding: AgentBindi
             registry = load_agent_registry(registry_path)
         else:
             registry = AgentCredentialRegistry()
-        if governance is not None and registry.sessions and registry.schema_version != "1.1.0":
-            raise SystemExit("legacy credential registry requires explicit reconciliation")
+        if governance is not None and registry.sessions:
+            expected_schema = (
+                "1.2.0"
+                if governance["subject_certificate_sha256"] is not None
+                else "1.1.0"
+            )
+            if registry.schema_version != expected_schema:
+                raise SystemExit(
+                    "legacy credential registry requires explicit reconciliation"
+                )
         for item in registry.sessions:
             if item.binding.episode_id != binding.episode_id:
                 continue
@@ -81,11 +89,13 @@ def publish_binding(runtime_root: Path, registry_path: Path, binding: AgentBindi
                 item.subject_id,
                 item.issuance_policy_id,
                 item.issuance_policy_sha256,
+                item.subject_certificate_sha256,
             ) != (
                 governance["actor_id"],
                 governance["subject_id"],
                 governance["policy"].policy_id,
                 governance["policy_sha256"],
+                governance["subject_certificate_sha256"],
             ):
                 raise SystemExit("existing episode credential has different governance")
             return
@@ -106,6 +116,9 @@ def publish_binding(runtime_root: Path, registry_path: Path, binding: AgentBindi
                     task_version=binding.task.task_version,
                     ttl_seconds=ttl_seconds,
                     active_subject_sessions=active,
+                    subject_certificate_sha256=governance[
+                        "subject_certificate_sha256"
+                    ],
                     now=current,
                 )
             except ValueError as error:
@@ -118,8 +131,17 @@ def publish_binding(runtime_root: Path, registry_path: Path, binding: AgentBindi
                                          issuance_policy_id=(governance["policy"].policy_id
                                                              if governance else None),
                                          issuance_policy_sha256=(governance["policy_sha256"]
-                                                                 if governance else None))
-        updated = AgentCredentialRegistry(schema_version="1.1.0" if governance else registry.schema_version,
+                                                                 if governance else None),
+                                         subject_certificate_sha256=(
+                                             governance["subject_certificate_sha256"]
+                                             if governance else None
+                                         ))
+        schema_version = (
+            "1.2.0"
+            if governance and governance["subject_certificate_sha256"] is not None
+            else "1.1.0" if governance else registry.schema_version
+        )
+        updated = AgentCredentialRegistry(schema_version=schema_version,
                                           sessions=[*registry.sessions, session])
         content = updated.model_dump_json(indent=2).encode()
         if len(content) > MAX_REGISTRY_BYTES:
@@ -136,7 +158,8 @@ def _governance(args, task_ref, registry_path: Path | None,
         args.subject_id,
         args.audit_log,
     )
-    if not any(value is not None for value in values):
+    requested = (*values, args.subject_certificate_sha256)
+    if not any(value is not None for value in requested):
         return None
     if not all(value is not None for value in values) or registry_path is None:
         raise SystemExit("governed issuance requires policy checksum, identities, audit log and registry")
@@ -156,10 +179,19 @@ def _governance(args, task_ref, registry_path: Path | None,
         )
         if registry_path.exists():
             registry = load_agent_registry(registry_path)
-            if registry.sessions and registry.schema_version != "1.1.0":
+            expected_schema = (
+                "1.2.0" if args.subject_certificate_sha256 is not None else "1.1.0"
+            )
+            if registry.sessions and registry.schema_version != expected_schema:
                 raise ValueError("legacy registry requires reconciliation")
         else:
-            registry = AgentCredentialRegistry(schema_version="1.1.0")
+            registry = AgentCredentialRegistry(
+                schema_version=(
+                    "1.2.0"
+                    if args.subject_certificate_sha256 is not None
+                    else "1.1.0"
+                )
+            )
         current = utc_now()
         active = sum(
             item.status == "active"
@@ -176,6 +208,7 @@ def _governance(args, task_ref, registry_path: Path | None,
             task_version=task_ref.task_version,
             ttl_seconds=args.ttl_seconds,
             active_subject_sessions=active,
+            subject_certificate_sha256=args.subject_certificate_sha256,
             now=current,
         )
     except ValueError as error:
@@ -185,6 +218,7 @@ def _governance(args, task_ref, registry_path: Path | None,
         "policy_sha256": policy_sha256,
         "actor_id": args.actor_id,
         "subject_id": args.subject_id,
+        "subject_certificate_sha256": args.subject_certificate_sha256,
         "audit_path": audit_path,
     }
 
@@ -216,6 +250,9 @@ def _audit(governance: dict, event_type: str, *, operation_id: str, task_id: str
                 task_manifest_hash=task_manifest_hash,
                 episode_id=episode_id,
                 generation=generation,
+                subject_certificate_sha256=governance[
+                    "subject_certificate_sha256"
+                ],
             ),
         )
 
@@ -232,6 +269,7 @@ def main():
     parser.add_argument("--issuance-policy-sha256")
     parser.add_argument("--actor-id")
     parser.add_argument("--subject-id")
+    parser.add_argument("--subject-certificate-sha256")
     parser.add_argument("--audit-log", type=Path)
     parser.add_argument("--reviewed-public-task", action="store_true", required=True,
                         help="operator confirms prompt/schema/input IDs/descriptive fields are Agent-visible")

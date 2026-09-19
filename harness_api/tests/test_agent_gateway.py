@@ -29,6 +29,7 @@ from app.v2.tools.runtime import ToolRouter, ToolOutput
 
 TOKEN = "1" * 64  # Isolated test credential, never deployed.
 TOKEN2 = "2" * 64
+CERTIFICATE_SHA = "3" * 64
 
 
 class PublicFakeExecutor(FakeExecutor):
@@ -227,6 +228,72 @@ class AgentGatewayTests(unittest.TestCase):
             self.assertEqual(first.post("/agent/step", json=body).status_code, 200)
             self.assertEqual(second.get("/agent/state").json()["state"]["state_version"], 0)
 
+    def test_certificate_bound_session_requires_trusted_matching_mtls_identity(self):
+        credential = self.credential().model_copy(update={
+            "issuer_id": "trusted-operator",
+            "subject_id": "approved-runner",
+            "issuance_policy_id": "certificate-policy-v1",
+            "issuance_policy_sha256": "4" * 64,
+            "subject_certificate_sha256": CERTIFICATE_SHA,
+        })
+        registry = AgentCredentialRegistry(
+            schema_version="1.2.0", sessions=[credential]
+        )
+        unavailable = create_app(
+            None,
+            "http://operator",
+            httpx.ASGITransport(app=self.backend),
+            registry=registry,
+            trusted_mtls_header=False,
+        )
+        with TestClient(
+            unavailable, headers={"Authorization": "Bearer " + TOKEN}
+        ) as client:
+            response = client.get("/agent/state")
+            self.assertEqual(
+                (response.status_code, response.json()["error"]["code"]),
+                (503, "client_identity_unavailable"),
+            )
+
+        def certificate_digest(value):
+            if value == "authorized-certificate":
+                return CERTIFICATE_SHA
+            if value == "other-certificate":
+                return "5" * 64
+            raise ValueError("missing certificate")
+
+        app = create_app(
+            None,
+            "http://operator",
+            httpx.ASGITransport(app=self.backend),
+            registry=registry,
+            trusted_mtls_header=True,
+        )
+        with patch(
+            "app.agent_gateway.client_certificate_sha256",
+            side_effect=certificate_digest,
+        ), TestClient(
+            app, headers={"Authorization": "Bearer " + TOKEN}
+        ) as client:
+            response = client.get("/agent/state")
+            self.assertEqual(
+                (response.status_code, response.json()["error"]["code"]),
+                (401, "client_identity_required"),
+            )
+            response = client.get(
+                "/agent/state",
+                headers={"x-eo-client-cert": "other-certificate"},
+            )
+            self.assertEqual(
+                (response.status_code, response.json()["error"]["code"]),
+                (401, "client_identity_mismatch"),
+            )
+            response = client.get(
+                "/agent/state",
+                headers={"x-eo-client-cert": "authorized-certificate"},
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+
     def test_registry_expiry_revocation_rotation_and_restart_fail_closed(self):
         path = self.root / "credentials" / "registry.json"
         self.write_registry(path, [self.credential()])
@@ -355,11 +422,16 @@ class AgentGatewayTests(unittest.TestCase):
         job.write_text(json.dumps({"task_ref": {"task_id": "crop-smoke", "task_version": "1.0.0"}}))
         current = datetime.now(timezone.utc)
         policy = AgentIssuancePolicy(
+            schema_version="1.1.0",
             policy_id="test-research-policy",
             valid_from=current - timedelta(days=1),
             expires_at=current + timedelta(days=1),
             issuers=["trusted-operator"],
             subjects=["approved-runner"],
+            subject_certificates=[{
+                "subject_id": "approved-runner",
+                "certificate_sha256": CERTIFICATE_SHA,
+            }],
             grants=[{"task_id": "crop-smoke", "task_version": "1.0.0",
                      "max_ttl_seconds": 3600}],
             max_active_sessions_per_subject=1,
@@ -375,6 +447,7 @@ class AgentGatewayTests(unittest.TestCase):
                   "--issuance-policy-sha256", policy_sha,
                   "--actor-id", "trusted-operator",
                   "--subject-id", "approved-runner",
+                  "--subject-certificate-sha256", CERTIFICATE_SHA,
                   "--audit-log", str(audit)]
         arguments = [str(issue_path), "--job", str(job), "--output", str(output),
                      "--registry", str(registry), "--ttl-seconds", "3600",
@@ -385,10 +458,14 @@ class AgentGatewayTests(unittest.TestCase):
             token = (output / "agent-token").read_text().strip()
             issue.main()
         governed = load_agent_registry(registry)
-        self.assertEqual(governed.schema_version, "1.1.0")
+        self.assertEqual(governed.schema_version, "1.2.0")
         self.assertEqual(
             (governed.sessions[0].issuer_id, governed.sessions[0].subject_id),
             ("trusted-operator", "approved-runner"),
+        )
+        self.assertEqual(
+            governed.sessions[0].subject_certificate_sha256,
+            CERTIFICATE_SHA,
         )
         self.assertEqual(
             [item.event_type for item in verify_control_audit(audit)],
@@ -414,6 +491,7 @@ class AgentGatewayTests(unittest.TestCase):
                     "policy_sha256": policy_sha,
                     "actor_id": "trusted-operator",
                     "subject_id": "approved-runner",
+                    "subject_certificate_sha256": CERTIFICATE_SHA,
                 },
             )
         self.assertEqual(len(load_agent_registry(registry).sessions), 1)
@@ -478,8 +556,8 @@ class AgentGuardConcurrencyTests(unittest.IsolatedAsyncioTestCase):
             await send({"type": "http.response.body", "body": b"ok"})
 
         class Resolver:
-            def resolve(self, token_sha256):
-                return None
+            def resolve_with_certificate(self, token_sha256):
+                return None, None
 
         guard = AgentGuard(app, Resolver())
         scope = {"type": "http", "path": "/agent/state", "method": "GET", "query_string": b"",

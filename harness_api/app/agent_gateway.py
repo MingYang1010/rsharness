@@ -6,13 +6,15 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import hmac
 import json
 import os
+import ssl
 from contextvars import ContextVar
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 import httpx
 from fastapi import FastAPI, Request
@@ -45,6 +47,7 @@ from .v2.tools.catalog import InspectArguments, SearchArguments, _is_public_imag
 MAX_REQUEST = 128 * 1024
 MAX_JSON = 2 * 1024 * 1024
 MAX_IMAGE = 64 * 1024 * 1024
+MAX_CLIENT_CERT_HEADER = 32 * 1024
 TOOL_ARGUMENTS = {"catalog.search": SearchArguments, "catalog.inspect_asset": InspectArguments,
                   "eo_gym.crop": CropArguments, RASTER_TOOL: BandMathArguments,
                   GRID_TOOL: GridArguments, TEMPORAL_TOOL: TemporalSelectAlignArguments}
@@ -141,11 +144,27 @@ class GatewayError(Exception):
         self.code, self.status, self.retryable = code, status, retryable
 
 
+def client_certificate_sha256(value: str) -> str:
+    """Hash one Nginx `$ssl_client_escaped_cert` header as DER."""
+    if not value or len(value) > MAX_CLIENT_CERT_HEADER:
+        raise ValueError("client certificate header is unavailable")
+    try:
+        pem = unquote(value, errors="strict")
+        if "\x00" in pem or not pem.startswith("-----BEGIN CERTIFICATE-----"):
+            raise ValueError("client certificate header is invalid")
+        der = ssl.PEM_cert_to_DER_cert(pem)
+    except (UnicodeError, ValueError) as error:
+        raise ValueError("client certificate header is invalid") from error
+    return hashlib.sha256(der).hexdigest()
+
+
 class AgentGuard:
     """Hold concurrency/time bounds through the final response byte, not headers."""
 
-    def __init__(self, app: ASGIApp, resolver: CredentialResolver):
+    def __init__(self, app: ASGIApp, resolver: CredentialResolver,
+                 trusted_mtls_header: bool = False):
         self.app, self.resolver = app, resolver
+        self.trusted_mtls_header = trusted_mtls_header
         self.slots = asyncio.Semaphore(4)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
@@ -157,9 +176,31 @@ class AgentGuard:
         if len(token) != 64:
             return await JSONResponse({"error": {"code": "unauthorized"}}, status_code=401)(scope, receive, send)
         try:
-            binding = self.resolver.resolve(hashlib.sha256(token.encode()).hexdigest())
+            binding, certificate_pin = self.resolver.resolve_with_certificate(
+                hashlib.sha256(token.encode()).hexdigest()
+            )
         except CredentialError as error:
             return await JSONResponse({"error": {"code": error.code}}, status_code=error.status)(scope, receive, send)
+        if certificate_pin is not None:
+            if not self.trusted_mtls_header:
+                return await JSONResponse(
+                    {"error": {"code": "client_identity_unavailable"}},
+                    status_code=503,
+                )(scope, receive, send)
+            try:
+                certificate_sha256 = client_certificate_sha256(
+                    request.headers.get("x-eo-client-cert", "")
+                )
+            except ValueError:
+                return await JSONResponse(
+                    {"error": {"code": "client_identity_required"}},
+                    status_code=401,
+                )(scope, receive, send)
+            if not hmac.compare_digest(certificate_pin, certificate_sha256):
+                return await JSONResponse(
+                    {"error": {"code": "client_identity_mismatch"}},
+                    status_code=401,
+                )(scope, receive, send)
         if scope.get("query_string"):
             return await JSONResponse({"error": {"code": "query_parameters_not_allowed"}}, status_code=422)(scope, receive, send)
         started = False
@@ -292,7 +333,8 @@ def public_observation(value: dict, binding: AgentBinding) -> dict:
 def create_app(binding: AgentBinding | None = None, base_url: str | None = None, transport=None,
                registry: AgentCredentialRegistry | None = None,
                registry_path: str | Path | None = None,
-               credential_now: Callable[[], datetime] = utc_now) -> FastAPI:
+               credential_now: Callable[[], datetime] = utc_now,
+               trusted_mtls_header: bool | None = None) -> FastAPI:
     if binding is not None and (registry is not None or registry_path is not None):
         raise ValueError("legacy binding and credential registry are mutually exclusive")
     if binding is not None:
@@ -319,9 +361,18 @@ def create_app(binding: AgentBinding | None = None, base_url: str | None = None,
     url = urlsplit(base_url)
     if url.scheme not in {"http", "https"} or not url.hostname or url.username or url.password or url.query or url.fragment or url.path not in {"", "/"}:
         raise ValueError("backend must be an operator-configured HTTP origin")
+    if trusted_mtls_header is None:
+        configured_mtls = os.environ.get("EO_AGENT_TRUSTED_MTLS_HEADER", "0")
+        if configured_mtls not in {"0", "1"}:
+            raise ValueError("trusted mTLS header mode must be 0 or 1")
+        trusted_mtls_header = configured_mtls == "1"
     app = FastAPI(title="EO Harness scoped Agent API", docs_url=None, redoc_url=None,
                   openapi_url=None, redirect_slashes=False)
-    app.add_middleware(AgentGuard, resolver=resolver)
+    app.add_middleware(
+        AgentGuard,
+        resolver=resolver,
+        trusted_mtls_header=trusted_mtls_header,
+    )
 
     @app.exception_handler(GatewayError)
     async def gateway_error(request, error):
