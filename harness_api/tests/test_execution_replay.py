@@ -2,6 +2,7 @@ import copy
 import gc
 import hashlib
 import json
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -251,6 +252,26 @@ class ExecutionReplayTests(unittest.TestCase):
         with self.assertRaises(ReplayError) as error:
             read_snapshot(self.root / "original.db", "ep2-" + "f" * 32)
         self.assertEqual(error.exception.code, "unknown_episode")
+
+    def test_snapshot_opens_original_database_as_immutable_readonly(self):
+        self.record()
+        checkpointed = self.root / "checkpointed.db"
+        source = sqlite3.connect(self.root / "original.db")
+        destination = sqlite3.connect(checkpointed)
+        try:
+            source.backup(destination)
+        finally:
+            destination.close()
+            source.close()
+        with patch(
+            "app.v2.execution_replay.sqlite3.connect",
+            wraps=sqlite3.connect,
+        ) as connect:
+            read_snapshot(checkpointed, self.initial.episode_id)
+        uri = connect.call_args.args[0]
+        self.assertIn("mode=ro", uri)
+        self.assertIn("immutable=1", uri)
+        self.assertTrue(connect.call_args.kwargs["uri"])
 
     def test_replay_workspace_is_never_overwritten(self):
         snapshot = self.record()

@@ -1,0 +1,21 @@
+services:
+  replay:
+    command:
+      - python
+      - scripts/replay_episode.py
+      - --database
+      - /original-state/episodes.sqlite3
+      - --tasks
+      - /original-tasks
+      - --episode-id
+      - ${EO_REPLAY_EPISODE}
+      - --raster-provider
+      - http://raster:8084
+      - --raster-provider-instance
+      - ${EO_REPLAY_RASTER_PROVIDER_ID}
+      - --datasets
+      - /evaluator-datasets
+      - --report
+      - /managed/${EO_REPLAY_RUN}/execution.json
+    volumes:
+      - ${EO_SMOKE_ROOT}/evaluator-datasets:/evaluator-datasets:ro

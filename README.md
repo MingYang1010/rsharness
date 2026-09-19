@@ -54,6 +54,8 @@ The V2 OpenAPI document is served at `http://127.0.0.1:8000/v2/openapi.json` and
 
 The headless temporal checkpoint adds a checksum-pinned WHU building-change evaluator with hidden labels, two-date crop evidence, scoped Agent acceptance, and fresh execution replay. Its data boundary and runbook are documented in [docs/whu-change-evaluation.md](docs/whu-change-evaluation.md).
 
+The Sentinel-2 temporal-selection checkpoint adds deterministic date/coverage/cloud filtering, aligned red/SCL stack artifacts, hidden abstention evaluation, scoped Agent acceptance and fresh execution replay. Its frozen cases, operator-oracle boundary and accepted results are documented in [docs/temporal-benchmark-v1.md](docs/temporal-benchmark-v1.md).
+
 Set `EO_HARNESS_V2_ENABLED=0` on the API container to disable the V2 runtime. V2 routes remain registered and return typed HTTP `503 v2_disabled`; this does not remove V2 tables or artifacts and leaves V1 available. The default Compose configuration enables V2 and mounts `tasks/`, `config/v2/`, and datasets read-only while mounting the artifact store read-write.
 
 ## Start
@@ -79,7 +81,7 @@ Run the complete V1 and V2 regression suite from the source root:
 PYTHON=python3 /sata/yangm/eo-harness/scripts/test-harness.sh
 ```
 
-The current Python gate contains 15 frozen V1 tests and 29 V2 tests. It checks contract snapshots, typed errors, idempotency, optimistic concurrency, cursor pagination, semantic hashes, additive migration rollback, evidence selectors, rendered observations, artifact integrity and Range reads, WorldCover evaluation, restart persistence, and structural replay. The renderer has four Node tests for map-state validation, capture-quality rejection, PNG hashing, and offline request routing.
+The current isolated A800 source gate discovers 290 Python tests; 256 pass and 34 environment-dependent integration tests skip when their opt-in external inputs are absent. It checks frozen contracts, typed errors, idempotency, concurrency, catalogs, raster tools, temporal selection/artifacts/evaluation, execution replay, restart persistence and repository payload controls. The renderer has four Node tests for map-state validation, capture-quality rejection, PNG hashing, and offline request routing.
 
 ## Inspect
 

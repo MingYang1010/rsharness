@@ -103,8 +103,9 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
 
 ## Verified results and unfinished scope
 
-- A800: 223 Python tests pass, including the 44 original regressions and real
-  upstream CPU tests. Synthetic test fixtures are not counted as dataset coverage.
+- A800 isolated source gate: 290 Python tests discovered, 256 passed and 34
+  environment-dependent tests skipped. This includes the 44 original regressions;
+  synthetic test fixtures are not counted as dataset coverage.
 - Live HTTP smoke: real FAIR1M2 image, 400x300 crop, one tool call, frozen evidence,
   answer submission and passed structural checks. Container recreation preserves
   state, trace hash and artifact hash. Reports are under ignored
@@ -121,13 +122,16 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
 - Full EO-Gym archives are not downloaded: both HF and HF-mirror range probes
   reset through the current system proxy. PyPI succeeds through the same proxy.
 - Reviewed [Sentinel-2 STAC admission](stac-admission.md) now reads bounded COG
-  windows via the A800 system proxy. Three dated Nanjing scenes produced12 native
-  windows; only3 display-RGB inputs enter the Agent catalog. Twelve scripted
+  windows via the A800 system proxy. Three dated Nanjing scenes produced 12 native
+  windows; only 3 display-RGB inputs enter the Agent catalog. Twelve scripted
   actions, four-service recovery and fresh-provider execution replay pass.
   A separate [native NDVI task](native-raster-tools.md) now admits six red/NIR
-  inputs, with14 scripted actions, exact independent pixel checks, five-service
-  recovery and fresh-provider replay. SCL/cloud and semantic temporal evaluation
-  remain unimplemented; the original RGB task has not changed.
+  inputs, with 14 scripted actions, exact independent pixel checks, five-service
+  recovery and fresh-provider replay. The bounded
+  [Sentinel-2 temporal benchmark](temporal-benchmark-v1.md) now covers
+  deterministic pair selection, aligned red/SCL stacks, typed lineage,
+  hidden semantic scoring, correct abstention, false-confidence detection and
+  fresh-provider execution replay. The original RGB and NDVI tasks have not changed.
 - These smoke runs are scripted interaction acceptance, NOT Qwen inference,
   semantic task accuracy or full dataset integration. The existing HTTP `replay`
   remains structural. The separate operator [execution replay](execution-replay.md)
@@ -149,10 +153,11 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
   Three dates passed exact independent pixel/mask comparison,14-step Agent
   interaction, five-service recovery and positive/offline execution replay. This
   is not a cloud mask or general-purpose reprojection facility.
-- Still needed: broader packed-source coverage, production multi-session/auth lifecycle,
-  general continuous raster reprojection, zonal statistics, other STAC providers/public imagery subsets, semantic evaluators and
-  the Qwen runner. Latest GPU preflight reports DRAIN and NVML library/driver
-  mismatch; no driver or scheduler changes were made.
+- Still needed: independent cloud ground truth, broader packed-source coverage,
+  production multi-session/auth lifecycle, general continuous raster reprojection,
+  zonal statistics, other STAC providers/public imagery subsets, cross-task
+  evidence memory and the Qwen runner. Latest GPU preflight reports DRAIN and
+  NVML library/driver mismatch; no driver or scheduler changes were made.
 
 The latest broker smoke uses three XLRS caption images. After the crop, all three
 services (provider, broker and Harness) were recreated; cached action, durable

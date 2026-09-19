@@ -107,7 +107,11 @@ def read_snapshot(database: Path, episode_id: str) -> EpisodeSnapshot:
     TypeAdapter(EpisodeId).validate_python(episode_id)
     if database.is_symlink() or not database.is_file():
         raise ReplayError("original_database_unavailable")
-    connection = sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True, timeout=5)
+    resolved = database.resolve()
+    uri = resolved.as_uri() + "?mode=ro"
+    if not Path(str(resolved) + "-wal").exists():
+        uri += "&immutable=1"
+    connection = sqlite3.connect(uri, uri=True, timeout=5)
     connection.row_factory = sqlite3.Row
     try:
         connection.execute("PRAGMA query_only=ON")

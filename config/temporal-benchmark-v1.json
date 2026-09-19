@@ -1,0 +1,158 @@
+{
+  "schema_version": "1.0.0",
+  "source": {
+    "assets_sha256": "67110421abe7447ce769939c18967841059d7776bd0923a1365c53c7284c8f3b",
+    "native_inputs_sha256": "288f64efee0b7a47f939683746ec3471f9be816a059283e384e1deeee9fe9d59",
+    "license_review_sha256": "be20239217260bf034ddf1dcf4d6c25dd6baa931f238a0023793c72d8e2cfe47",
+    "attribution": "Contains modified Copernicus Sentinel data (2024)",
+    "scope": "local-research",
+    "not_redistribution_authorization": true
+  },
+  "items": [
+    {
+      "item_id": "S2A_50SPA_20240405_0_L2A",
+      "red_asset_id": "asset-740b8d1a9dbab21b15e81f5158652080a47b096a59df7fd8e0e56d1718767145",
+      "scl_asset_id": "asset-dc1e48a002ecb536af20cf3b32dfd3bee0165375cb4a963dbeef5f9c106569bd"
+    },
+    {
+      "item_id": "S2A_50SPA_20240415_0_L2A",
+      "red_asset_id": "asset-ea62dc3ed32b9d768ccab8bbf9ba1bec8d2a56bb48d551b62e0ab88d139c5902",
+      "scl_asset_id": "asset-72ba3dbd13288f60ece3605ca65ae0226533026745086f1ad5fa8fe7b9bc6b2c"
+    },
+    {
+      "item_id": "S2B_50SPA_20240510_0_L2A",
+      "red_asset_id": "asset-32f3154fb873022f1b4c74e5bccf799d9ed213866a5730d56fb5863d8f1fe2c1",
+      "scl_asset_id": "asset-f20ed933bf930db43d55f311e771c96499eaf7d3efcfac4e40c034da570fcf46"
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "valid-pair",
+      "task_id": "sentinel-temporal-valid-pair",
+      "arguments": {
+        "operation": "select_align",
+        "before": {
+          "start": "2024-04-01T00:00:00Z",
+          "end": "2024-04-10T23:59:59Z"
+        },
+        "after": {
+          "start": "2024-05-01T00:00:00Z",
+          "end": "2024-05-15T23:59:59Z"
+        },
+        "aoi": {
+          "west": 118.79,
+          "south": 31.99,
+          "east": 118.81,
+          "north": 32.01
+        },
+        "band": "red",
+        "minimum_coverage_fraction": 0.9,
+        "maximum_cloud_fraction": 0.2,
+        "cloud_policy": "sentinel-2-scl-cloud-shadow-cirrus-snow-saturation-v1"
+      },
+      "truth": {
+        "expected_selection_status": "selected",
+        "expected_selection_reason": "selected",
+        "expected_coverage_decision": "pass",
+        "expected_before_item_id": "S2A_50SPA_20240405_0_L2A",
+        "expected_after_item_id": "S2B_50SPA_20240510_0_L2A",
+        "expected_input_asset_ids": [
+          "asset-740b8d1a9dbab21b15e81f5158652080a47b096a59df7fd8e0e56d1718767145",
+          "asset-dc1e48a002ecb536af20cf3b32dfd3bee0165375cb4a963dbeef5f9c106569bd",
+          "asset-32f3154fb873022f1b4c74e5bccf799d9ed213866a5730d56fb5863d8f1fe2c1",
+          "asset-f20ed933bf930db43d55f311e771c96499eaf7d3efcfac4e40c034da570fcf46"
+        ]
+      }
+    },
+    {
+      "case_id": "cloudy-rejection",
+      "task_id": "sentinel-temporal-cloudy-rejection",
+      "arguments": {
+        "operation": "select_align",
+        "before": {
+          "start": "2024-04-01T00:00:00Z",
+          "end": "2024-04-10T23:59:59Z"
+        },
+        "after": {
+          "start": "2024-05-01T00:00:00Z",
+          "end": "2024-05-15T23:59:59Z"
+        },
+        "aoi": {
+          "west": 118.79,
+          "south": 31.99,
+          "east": 118.81,
+          "north": 32.01
+        },
+        "band": "red",
+        "minimum_coverage_fraction": 0.9,
+        "maximum_cloud_fraction": 0.001,
+        "cloud_policy": "sentinel-2-scl-cloud-shadow-cirrus-snow-saturation-v1"
+      },
+      "truth": {
+        "expected_selection_status": "rejected",
+        "expected_selection_reason": "cloudy",
+        "expected_coverage_decision": "pass"
+      }
+    },
+    {
+      "case_id": "insufficient-coverage",
+      "task_id": "sentinel-temporal-insufficient-coverage",
+      "arguments": {
+        "operation": "select_align",
+        "before": {
+          "start": "2024-04-01T00:00:00Z",
+          "end": "2024-04-10T23:59:59Z"
+        },
+        "after": {
+          "start": "2024-05-01T00:00:00Z",
+          "end": "2024-05-15T23:59:59Z"
+        },
+        "aoi": {
+          "west": 118.78,
+          "south": 31.98,
+          "east": 118.82,
+          "north": 32.02
+        },
+        "band": "red",
+        "minimum_coverage_fraction": 0.9,
+        "maximum_cloud_fraction": 0.5,
+        "cloud_policy": "sentinel-2-scl-cloud-shadow-cirrus-snow-saturation-v1"
+      },
+      "truth": {
+        "expected_selection_status": "rejected",
+        "expected_selection_reason": "insufficient_coverage",
+        "expected_coverage_decision": "fail"
+      }
+    },
+    {
+      "case_id": "wrong-date",
+      "task_id": "sentinel-temporal-wrong-date",
+      "arguments": {
+        "operation": "select_align",
+        "before": {
+          "start": "2023-04-01T00:00:00Z",
+          "end": "2023-04-10T23:59:59Z"
+        },
+        "after": {
+          "start": "2024-05-01T00:00:00Z",
+          "end": "2024-05-15T23:59:59Z"
+        },
+        "aoi": {
+          "west": 118.79,
+          "south": 31.99,
+          "east": 118.81,
+          "north": 32.01
+        },
+        "band": "red",
+        "minimum_coverage_fraction": 0.9,
+        "maximum_cloud_fraction": 0.5,
+        "cloud_policy": "sentinel-2-scl-cloud-shadow-cirrus-snow-saturation-v1"
+      },
+      "truth": {
+        "expected_selection_status": "rejected",
+        "expected_selection_reason": "wrong_date",
+        "expected_coverage_decision": "not_evaluated"
+      }
+    }
+  ]
+}

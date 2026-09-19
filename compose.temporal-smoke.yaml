@@ -1,0 +1,38 @@
+services:
+  harness:
+    environment:
+      EO_HARNESS_DATASETS: /evaluator-datasets
+    volumes:
+      - ${EO_SMOKE_ROOT}/evaluator-datasets:/evaluator-datasets:ro
+
+  issue-agent:
+    command: ["python", "scripts/issue_agent_session.py", "--job", "/job.json", "--output", "/workspace/${EO_SMOKE_ROOT}/agent", "--registry", "/workspace/${EO_SMOKE_ROOT}/credentials/registry.json", "--ttl-seconds", "${EO_AGENT_TTL_SECONDS:-3600}", "--reviewed-public-task"]
+
+  agent-check:
+    command: ["python", "/verify.py", "--job", "/job.json", "--report", "/reports/gateway.json"]
+    volumes:
+      - ./scripts/verify_temporal_gateway.py:/verify.py:ro
+      - ${EO_SMOKE_ROOT}/job.json:/job.json:ro
+      - ${EO_SMOKE_ROOT}/agent/agent-token:/run/agent-token:ro
+      - ${EO_SMOKE_ROOT}/reports:/reports:rw
+
+  backend-check:
+    image: eo-harness/harness-api:0.4.0
+    profiles: [temporal-verify]
+    read_only: true
+    init: true
+    command: ["python", "/verify.py", "--job", "/smoke/job.json", "--gateway-report", "/reports/gateway.json", "--report", "/reports/accepted.json"]
+    volumes:
+      - ./scripts/verify_temporal_backend.py:/verify.py:ro
+      - ${EO_SMOKE_ROOT}:/smoke:ro
+      - ${EO_SMOKE_ROOT}/reports:/reports:rw
+    tmpfs: ["/tmp:size=32m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    cpus: 1
+    mem_limit: 256m
+    pids_limit: 32
+    networks: [isolated]
+    depends_on:
+      harness:
+        condition: service_started
