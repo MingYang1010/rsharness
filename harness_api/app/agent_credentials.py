@@ -45,6 +45,10 @@ class AgentSessionCredential(V2RequestModel):
     status: Literal["active", "revoked"] = "active"
     revoked_at: AwareDatetime | None = None
     generation: int = Field(default=1, ge=1, le=1_000_000)
+    issuer_id: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9._-]{0,63}$")
+    subject_id: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9._-]{0,63}$")
+    issuance_policy_id: Identifier | None = None
+    issuance_policy_sha256: Sha256 | None = None
 
     @model_validator(mode="after")
     def valid_lifecycle(self):
@@ -61,11 +65,21 @@ class AgentSessionCredential(V2RequestModel):
         if self.revoked_at is not None:
             if self.revoked_at.utcoffset() != zero or self.revoked_at < self.issued_at:
                 raise ValueError("invalid revocation timestamp")
+        governance = (
+            self.issuer_id,
+            self.subject_id,
+            self.issuance_policy_id,
+            self.issuance_policy_sha256,
+        )
+        if any(value is not None for value in governance) and not all(
+            value is not None for value in governance
+        ):
+            raise ValueError("credential governance metadata must be complete")
         return self
 
 
 class AgentCredentialRegistry(V2RequestModel):
-    schema_version: Literal["1.0.0"] = "1.0.0"
+    schema_version: Literal["1.0.0", "1.1.0"] = "1.0.0"
     sessions: list[AgentSessionCredential] = Field(default_factory=list, max_length=MAX_SESSIONS)
 
     @model_validator(mode="after")
@@ -76,6 +90,11 @@ class AgentCredentialRegistry(V2RequestModel):
             raise ValueError("duplicate credential hash")
         if len(set(episode_ids)) != len(episode_ids):
             raise ValueError("duplicate episode scope")
+        governed = [item.issuer_id is not None for item in self.sessions]
+        if self.schema_version == "1.0.0" and any(governed):
+            raise ValueError("legacy registry cannot contain governed sessions")
+        if self.schema_version == "1.1.0" and not all(governed):
+            raise ValueError("governed registry requires policy metadata for every session")
         return self
 
 

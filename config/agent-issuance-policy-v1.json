@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0.0",
+  "policy_id": "internal-research-v1",
+  "valid_from": "2026-01-01T00:00:00Z",
+  "expires_at": "2027-01-01T00:00:00Z",
+  "issuers": [
+    "trusted-operator"
+  ],
+  "subjects": [
+    "approved-runner"
+  ],
+  "grants": [
+    {
+      "task_id": "worldcover-grounded-vqa",
+      "task_version": "1.0.0",
+      "max_ttl_seconds": 3600
+    },
+    {
+      "task_id": "worldcover-grounded-vqa",
+      "task_version": "1.1.0",
+      "max_ttl_seconds": 3600
+    }
+  ],
+  "max_active_sessions_per_subject": 2
+}
