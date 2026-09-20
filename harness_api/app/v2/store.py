@@ -668,7 +668,11 @@ class V2EpisodeStore(ToolExecutionMixin):
         return (
             cls._uses_rendered_observations(manifest)
             or manifest.task.metadata.get("evaluation_profile")
-            in {"whu-building-change-v1", "temporal-selection-v1"}
+            in {
+                "whu-building-change-v1",
+                "temporal-selection-v1",
+                "evidence-memory-v1",
+            }
         )
 
     def _should_render(self, manifest: TaskManifest, action_type: str) -> bool:

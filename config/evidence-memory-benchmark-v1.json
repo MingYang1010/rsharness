@@ -1,0 +1,51 @@
+{
+  "as_of": "2026-08-02T00:00:00Z",
+  "benchmark_id": "evidence-memory-benchmark-v1",
+  "budget": {
+    "max_artifact_bytes": 0,
+    "max_input_bytes": 1048576,
+    "max_steps": 3,
+    "max_tool_calls": 1,
+    "max_wall_time_ms": 30000
+  },
+  "expected_label": "built-up",
+  "labels": [
+    "tree-cover",
+    "shrubland",
+    "grassland",
+    "cropland",
+    "built-up",
+    "bare-sparse-vegetation",
+    "snow-ice",
+    "permanent-water-bodies",
+    "herbaceous-wetland",
+    "mangroves",
+    "moss-lichen"
+  ],
+  "policy_id": "research-memory-v1",
+  "prompt": "Use governed cross-task evidence, when available, to identify the reviewed dominant land-cover class for the fixed AOI and time range. If evidence is unavailable, abstain. A submitted answer must cite exactly the returned memory_id in answer.memory_ids.",
+  "query": {
+    "bbox": {
+      "east": 120.9,
+      "north": 30.9,
+      "south": 30.6,
+      "west": 120.6
+    },
+    "limit": 5,
+    "object_type": "land-cover-assessment",
+    "offset": 0,
+    "time_range": {
+      "end": "2021-06-30T00:00:00Z",
+      "start": "2021-06-01T00:00:00Z"
+    }
+  },
+  "schema_version": "1.0.0",
+  "scope_id": "nanjing-temporal-memory",
+  "source_task_ref": {
+    "task_id": "worldcover-grounded-vqa",
+    "task_version": "1.1.0"
+  },
+  "task_id": "evidence-memory-benchmark",
+  "with_memory_version": "1.0.0",
+  "without_memory_version": "1.0.1"
+}

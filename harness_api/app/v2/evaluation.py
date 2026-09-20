@@ -24,6 +24,8 @@ from .temporal import (
     VERSION as TEMPORAL_TOOL_VERSION,
     TemporalToolResult,
 )
+from .evidence_memory import MemorySearchResult
+from .tools.memory import TOOL_ID as MEMORY_TOOL_ID, TOOL_VERSION as MEMORY_TOOL_VERSION
 
 
 class EvaluatorError(Exception):
@@ -108,6 +110,11 @@ class EvaluatorRegistry:
                 return self._evaluate_whu_change(**arguments)
             if evaluator_id == "temporal-selection-v1":
                 return self._evaluate_temporal_selection(
+                    **arguments,
+                    tool_results=tool_results or [],
+                )
+            if evaluator_id == "evidence-memory-v1":
+                return self._evaluate_evidence_memory(
                     **arguments,
                     tool_results=tool_results or [],
                 )
@@ -727,6 +734,190 @@ class EvaluatorRegistry:
                 ],
                 "temporal_tool_calls": temporal_call_count,
                 "unnecessary_abstention": unnecessary_abstention,
+            },
+        )
+
+    @staticmethod
+    def _memory_tool_results(
+        tool_results: list[dict],
+    ) -> Tuple[list[MemorySearchResult], int, list[str]]:
+        matching = [
+            value
+            for value in tool_results
+            if isinstance(value, dict) and value.get("tool_id") == MEMORY_TOOL_ID
+        ]
+        completed = [value for value in matching if value.get("status") == "completed"]
+        results: list[MemorySearchResult] = []
+        for value in completed:
+            if value.get("tool_version") != MEMORY_TOOL_VERSION:
+                raise EvaluatorError(
+                    "memory_tool_version_mismatch",
+                    "memory tool result version does not match the evaluator",
+                )
+            try:
+                results.append(
+                    MemorySearchResult.model_validate(
+                        {key: value[key] for key in MemorySearchResult.model_fields}
+                    )
+                )
+            except (KeyError, TypeError, ValidationError):
+                raise EvaluatorError(
+                    "memory_tool_result_invalid",
+                    "memory tool result failed contract validation",
+                ) from None
+        return results, len(matching), [str(value.get("status")) for value in matching]
+
+    def _evaluate_evidence_memory(
+        self,
+        evaluation_id: str,
+        manifest: TaskManifest,
+        state: V2EpisodeState,
+        artifacts: Dict[str, ArtifactRef],
+        renderer_calls: int,
+        failed_actions: int,
+        wall_time_ms: int,
+        tool_results: list[dict],
+    ) -> MetricResult:
+        del artifacts
+        if manifest.evaluator.evaluator_version != "1.0.0":
+            raise EvaluatorError(
+                "evaluator_version_not_supported",
+                "evidence memory evaluator version is not implemented",
+            )
+        config = manifest.evaluator.config
+        treatment = config.get("treatment")
+        expected_label = config.get("expected_label")
+        expected_memory_id = config.get("expected_memory_id")
+        expected_snapshot = config.get("expected_snapshot_sha256")
+        if (
+            treatment not in {"with_memory", "without_memory"}
+            or not isinstance(expected_label, str)
+            or not expected_label
+            or not isinstance(expected_memory_id, str)
+            or not expected_memory_id.startswith("mem-")
+            or len(expected_memory_id) != 68
+            or not isinstance(expected_snapshot, str)
+            or len(expected_snapshot) != 64
+        ):
+            raise EvaluatorError(
+                "evaluator_config_invalid",
+                "evidence memory benchmark truth or treatment is invalid",
+            )
+        results, call_count, statuses = self._memory_tool_results(tool_results)
+        result = results[0] if len(results) == 1 else None
+        returned_ids = (
+            [record.memory_id for record in result.records] if result is not None else []
+        )
+        retrieval_valid = bool(
+            treatment == "with_memory"
+            and call_count == 1
+            and len(results) == 1
+            and result.snapshot_sha256 == expected_snapshot
+            and expected_memory_id in returned_ids
+        )
+        protocol_valid = (
+            retrieval_valid if treatment == "with_memory" else call_count == 0
+        )
+
+        answer = state.final_answer
+        submitted = bool(answer is not None and answer.outcome == "submitted")
+        answer_value = answer.answer if answer is not None else None
+        label = answer_value.get("label") if isinstance(answer_value, dict) else None
+        cited_memory_ids = (
+            answer_value.get("memory_ids", []) if isinstance(answer_value, dict) else []
+        )
+        if not isinstance(cited_memory_ids, list) or not all(
+            isinstance(value, str) for value in cited_memory_ids
+        ):
+            cited_memory_ids = []
+        accuracy = float(submitted and label == expected_label)
+        faithfulness = float(
+            accuracy == 1.0
+            and retrieval_valid
+            and cited_memory_ids == [expected_memory_id]
+        )
+
+        efficiency_config = config.get("efficiency", {})
+        ideal_steps = int(
+            efficiency_config.get(
+                "ideal_steps", 2 if treatment == "with_memory" else 1
+            )
+        )
+        wall_limit = int(efficiency_config.get("wall_time_soft_limit_ms", 30000))
+        if ideal_steps <= 0 or wall_limit <= 0:
+            raise EvaluatorError(
+                "evaluator_config_invalid",
+                "evidence memory efficiency bounds must be positive",
+            )
+        step_score = min(1.0, ideal_steps / max(state.step_count, 1))
+        wall_score = min(1.0, wall_limit / max(wall_time_ms, 1))
+        failure_score = 1.0 / (1.0 + max(failed_actions, 0))
+        renderer_score = 1.0 if renderer_calls == 0 else 0.0
+        efficiency = round(
+            float(protocol_valid)
+            * step_score
+            * wall_score
+            * failure_score
+            * renderer_score,
+            6,
+        )
+        values = {
+            "task.accuracy": (
+                accuracy,
+                {
+                    "expected_label": expected_label,
+                    "submitted_label": label,
+                    "submitted": submitted,
+                },
+            ),
+            "evidence.memory_faithfulness": (
+                faithfulness,
+                {
+                    "cited_memory_ids": cited_memory_ids,
+                    "expected_memory_id": expected_memory_id,
+                    "retrieval_valid": retrieval_valid,
+                    "returned_memory_ids": returned_ids,
+                },
+            ),
+            "process.efficiency": (
+                efficiency,
+                {
+                    "failed_actions": failed_actions,
+                    "ideal_steps": ideal_steps,
+                    "memory_tool_calls": call_count,
+                    "protocol_valid": protocol_valid,
+                    "renderer_calls": renderer_calls,
+                    "steps": state.step_count,
+                    "wall_time_ms": wall_time_ms,
+                    "wall_time_soft_limit_ms": wall_limit,
+                },
+            ),
+        }
+        if any(name not in values for name in manifest.evaluator.metric_names):
+            raise EvaluatorError(
+                "evaluator_metric_not_supported",
+                "evidence memory evaluator metric list contains an unknown metric",
+            )
+        metrics = [
+            Metric(
+                name=name,
+                value=values[name][0],
+                weight=manifest.evaluator.aggregate_weights.get(name),
+                diagnostics=values[name][1],
+            )
+            for name in manifest.evaluator.metric_names
+        ]
+        return MetricResult(
+            evaluation_id=evaluation_id,
+            status="completed",
+            metrics=metrics,
+            aggregate_reward=aggregate_metrics(metrics),
+            evaluator_id=manifest.evaluator.evaluator_id,
+            evaluator_version=manifest.evaluator.evaluator_version,
+            diagnostics={
+                "memory_tool_result_statuses": statuses,
+                "retrieval_valid": retrieval_valid,
+                "treatment": treatment,
             },
         )
 
