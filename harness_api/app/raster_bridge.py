@@ -18,10 +18,13 @@ from .v2.raster_grid import (CONTINUOUS_VERSION as CONTINUOUS_GRID_VERSION,
                              GridResult, NativeSCL, VERSION as GRID_VERSION,
                              checked_continuous_grids, checked_grids,
                              validate_continuous_grid, validate_grid)
-from .v2.raster_math import (BandMathArguments, MASKED_VERSION, MaskArtifactInput,
-                             MaskedNDVIResult, NativeBand, NDVIResult, MAX_INPUT,
-                             MAX_OUTPUT, VERSION, checked_pair,
-                             validate_masked_ndvi, validate_ndvi)
+from .v2.raster_math import (NDMI_VERSION, AlignedSWIRInput,
+                             BandMathArguments, MASKED_VERSION,
+                             MaskArtifactInput, MaskedNDVIResult, NativeBand,
+                             NDMIResult, NDVIResult, MAX_INPUT, MAX_OUTPUT,
+                             VERSION, checked_ndmi_inputs, checked_pair,
+                             validate_aligned_swir, validate_masked_ndvi,
+                             validate_ndmi, validate_ndvi)
 from .v2.raster_zonal import (TOOL_ID as ZONAL_TOOL_ID,
                               VERSION as ZONAL_VERSION, ZonalRequest,
                               ZonalResult,
@@ -34,11 +37,13 @@ from .v2.temporal import (TemporalAlignRequest, TemporalStackResult,
 class RasterBridge:
     def __init__(self, inputs: Path, manifest: dict, worker: Path, grid_worker: Path | None = None,
                  temporal_worker: Path | None = None,
-                 zonal_worker: Path | None = None):
+                 zonal_worker: Path | None = None,
+                 ndmi_worker: Path | None = None):
         self.inputs,self.manifest,self.worker = inputs.resolve(),manifest,worker.resolve()
         self.grid_worker = grid_worker.resolve() if grid_worker is not None else None
         self.temporal_worker = temporal_worker.resolve() if temporal_worker is not None else None
         self.zonal_worker = zonal_worker.resolve() if zonal_worker is not None else None
+        self.ndmi_worker = ndmi_worker.resolve() if ndmi_worker is not None else None
         self.slot = threading.BoundedSemaphore(1)
 
     def resolve(self, asset_id: str, profile_type=NativeBand):
@@ -57,7 +62,7 @@ class RasterBridge:
         return path,band
 
     def execute(self, args: BandMathArguments) -> tuple[bytes,NDVIResult]:
-        if args.masked:
+        if args.operation != "ndvi" or args.masked:
             raise HTTPException(422,"mask requires the bounded binary endpoint")
         if not self.slot.acquire(blocking=False):
             raise HTTPException(429,"raster provider busy")
@@ -81,6 +86,52 @@ class RasterBridge:
             raise HTTPException(504,"raster worker timed out") from None
         except (ValueError,OSError):
             raise HTTPException(422,"reviewed raster inputs or output invalid") from None
+        finally:
+            self.slot.release()
+
+    def execute_ndmi(self, args: BandMathArguments, swir: AlignedSWIRInput,
+                     swir_content: bytes) -> tuple[bytes, NDMIResult]:
+        if self.ndmi_worker is None:
+            raise HTTPException(503, "NDMI worker unavailable")
+        if (args.operation != "ndmi" or args.swir_artifact_id != swir.artifact_id
+                or len(swir_content) != swir.size_bytes
+                or hashlib.sha256(swir_content).hexdigest() != swir.sha256):
+            raise HTTPException(422, "NDMI request identity invalid")
+        if not self.slot.acquire(blocking=False):
+            raise HTTPException(429, "raster provider busy")
+        try:
+            nir_path, nir = self.resolve(args.nir_asset_id, NativeBand)
+            checked_ndmi_inputs(args, nir, swir)
+            validate_aligned_swir(swir_content, swir)
+            with tempfile.TemporaryDirectory(prefix="ndmi-") as directory:
+                swir_path = Path(directory) / "aligned-swir.tif"
+                output = Path(directory) / "ndmi.tif"
+                with swir_path.open("xb") as stream:
+                    stream.write(swir_content)
+                run = subprocess.run(
+                    [sys.executable, str(self.ndmi_worker), str(nir_path),
+                     str(swir_path), str(output),
+                     args.model_dump_json(exclude_none=True),
+                     json.dumps([nir.model_dump(mode="json"),
+                                 swir.model_dump(mode="json")])],
+                    capture_output=True, timeout=20, check=False)
+                if (run.returncode or len(run.stdout) > 16384
+                        or not output.is_file()
+                        or output.stat().st_size > MAX_OUTPUT):
+                    raise ValueError("invalid NDMI worker output")
+                result = NDMIResult.model_validate_json(run.stdout)
+                content = output.read_bytes()
+                validate_ndmi(content, result)
+                if (result.input_asset_ids != [nir.asset_id, swir.source_asset_id]
+                        or result.input_sha256 != [nir.sha256, swir.source_sha256]
+                        or result.swir_artifact_id != swir.artifact_id
+                        or result.swir_artifact_sha256 != swir.sha256):
+                    raise ValueError("NDMI worker source mismatch")
+                return content, result
+        except subprocess.TimeoutExpired:
+            raise HTTPException(504, "NDMI worker timed out") from None
+        except (ValueError, OSError):
+            raise HTTPException(422, "reviewed NDMI input or output invalid") from None
         finally:
             self.slot.release()
 
@@ -247,15 +298,17 @@ def create_app(bridge: RasterBridge | None = None):
         grid_worker = Path(os.environ["EO_RASTER_GRID_WORKER"]) if os.environ.get("EO_RASTER_GRID_WORKER") else None
         temporal_worker = Path(os.environ["EO_RASTER_TEMPORAL_WORKER"]) if os.environ.get("EO_RASTER_TEMPORAL_WORKER") else None
         zonal_worker = Path(os.environ["EO_RASTER_ZONAL_WORKER"]) if os.environ.get("EO_RASTER_ZONAL_WORKER") else None
+        ndmi_worker = Path(os.environ["EO_RASTER_NDMI_WORKER"]) if os.environ.get("EO_RASTER_NDMI_WORKER") else None
         bridge = RasterBridge(Path(os.environ["EO_RASTER_INPUTS"]),json.loads(manifest.read_text()),
                               Path(os.environ["EO_RASTER_WORKER"]),grid_worker,
-                              temporal_worker,zonal_worker)
+                              temporal_worker,zonal_worker,ndmi_worker)
     app = FastAPI(docs_url=None,redoc_url=None,openapi_url=None)
 
     @app.get("/healthz")
     def health():
         return {"status":"ok","tool_version":VERSION,"grid_tool_version":GRID_VERSION if bridge.grid_worker else None,
                 "grid_tool_versions":[GRID_VERSION,CONTINUOUS_GRID_VERSION] if bridge.grid_worker else [],
+                "ndmi_tool_version":NDMI_VERSION if bridge.ndmi_worker else None,
                 "zonal_tool_version":ZONAL_VERSION if bridge.zonal_worker else None,
                 "temporal_tool_version":TEMPORAL_VERSION if bridge.temporal_worker else None}
 
@@ -287,6 +340,29 @@ def create_app(bridge: RasterBridge | None = None):
         return Response(output,media_type="image/tiff",headers={
             "X-Raster-Metadata":result.model_dump_json(),"X-Raster-Version":MASKED_VERSION,
             "X-Content-SHA256":hashlib.sha256(output).hexdigest()})
+
+    @app.post("/ndmi-band-math")
+    async def ndmi_band_math(request: Request):
+        raw_args = request.headers.get("X-Raster-Arguments", "")
+        raw_swir = request.headers.get("X-Raster-NDMI-Input", "")
+        if len(raw_args) > 4096 or len(raw_swir) > 8192:
+            raise HTTPException(422, "NDMI request metadata too large")
+        try:
+            args = BandMathArguments.model_validate_json(raw_args)
+            swir = AlignedSWIRInput.model_validate_json(raw_swir)
+        except ValueError:
+            raise HTTPException(422, "NDMI request metadata invalid") from None
+        content = bytearray()
+        async for chunk in request.stream():
+            if len(content) + len(chunk) > MAX_OUTPUT:
+                raise HTTPException(413, "aligned SWIR body too large")
+            content.extend(chunk)
+        output, result = bridge.execute_ndmi(args, swir, bytes(content))
+        return Response(output, media_type="image/tiff", headers={
+            "X-Raster-Metadata": result.model_dump_json(),
+            "X-Raster-Version": NDMI_VERSION,
+            "X-Content-SHA256": hashlib.sha256(output).hexdigest(),
+        })
 
     @app.post("/resample-grid")
     def resample_grid(args: GridArguments):

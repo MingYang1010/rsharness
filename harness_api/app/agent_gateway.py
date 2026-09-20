@@ -27,7 +27,9 @@ from .agent_credentials import (AgentBinding, AgentCredentialRegistry, Credentia
 from .eo_gym_bridge import CropArguments
 from .v2.raster_math import (BandMathArguments, CLOUD_POLICY,
                              MASKED_VERSION as RASTER_MASKED_VERSION,
-                             MaskedNDVIResult, NDVIResult, TOOL_ID as RASTER_TOOL,
+                             NDMI_VERSION as RASTER_NDMI_VERSION,
+                             MaskedNDVIResult, NDMIResult, NDVIResult,
+                             TOOL_ID as RASTER_TOOL,
                              VERSION as RASTER_VERSION, MAX_OUTPUT as MAX_RASTER)
 from .v2.raster_grid import (CONTINUOUS_VERSION as CONTINUOUS_GRID_VERSION,
                              ContinuousGridResult, GridArguments, GridResult,
@@ -329,7 +331,11 @@ def public_observation(value: dict, binding: AgentBinding) -> dict:
                             else:
                                 raise GatewayError("invalid_upstream_response")
                 elif tool_id == RASTER_TOOL:
-                    result_type = MaskedNDVIResult if raw.get("cloud_mask_applied") is True else NDVIResult
+                    result_type = (NDMIResult
+                                   if common["tool_version"] == RASTER_NDMI_VERSION
+                                   else MaskedNDVIResult
+                                   if raw.get("cloud_mask_applied") is True
+                                   else NDVIResult)
                     science = result_type.model_validate({k: raw[k] for k in result_type.model_fields})
                     if not set(science.input_asset_ids).issubset(allowed):
                         raise GatewayError("upstream_scope_mismatch")
@@ -556,8 +562,12 @@ def create_app(binding: AgentBinding | None = None, base_url: str | None = None,
                 arguments = TOOL_ARGUMENTS[action.tool_id].model_validate(action.arguments)
                 if hasattr(arguments, "asset_id") and arguments.asset_id not in binding.task.input_asset_refs:
                     raise GatewayError("policy_rejected", 403)
-                if isinstance(arguments, BandMathArguments) and not {arguments.red_asset_id, arguments.nir_asset_id}.issubset(binding.task.input_asset_refs):
-                    raise GatewayError("policy_rejected", 403)
+                if isinstance(arguments, BandMathArguments):
+                    raster_assets = ({arguments.red_asset_id, arguments.nir_asset_id}
+                                     if arguments.operation == "ndvi"
+                                     else {arguments.nir_asset_id})
+                    if not raster_assets.issubset(binding.task.input_asset_refs):
+                        raise GatewayError("policy_rejected", 403)
                 if isinstance(arguments, GridArguments) and not {arguments.source_asset_id, arguments.reference_asset_id}.issubset(binding.task.input_asset_refs):
                     raise GatewayError("policy_rejected", 403)
         except ValidationError:

@@ -10,13 +10,18 @@ from ..artifacts import ArtifactStoreError
 from ..artifact_identity import DERIVATION_SCHEME, validate_derivation_metadata
 from ..domain import V2DomainError
 from ..events import sha256_json
-from ..raster_grid import (GridArguments, NativeSCL, TOOL_ID as GRID_TOOL,
-                           VERSION as GRID_VERSION)
+from ..raster_grid import (CONTINUOUS_VERSION, ContinuousBand, GridArguments,
+                           NativeSCL, TOOL_ID as GRID_TOOL,
+                           VERSION as GRID_VERSION,
+                           checked_continuous_grids)
 from ..raster_math import (BandMathArguments, CLOUD_POLICY, MASKED_VERSION,
+                           NDMI_FORMULA, NDMI_VERSION, AlignedSWIRInput,
                            MaskArtifactInput, MaskedNDVIResult, NativeBand,
-                           NDVIResult, TOOL_ID, VERSION, MAX_OUTPUT, MAX_INPUT,
-                           MEDIA_TYPE, checked_pair, read_cloud_mask,
-                           validate_masked_ndvi, validate_ndvi)
+                           NDMIResult, NDVIResult, TOOL_ID, VERSION, MAX_OUTPUT,
+                           MAX_INPUT, MEDIA_TYPE, checked_ndmi_inputs,
+                           checked_pair, ndmi_lineage_payload, read_cloud_mask,
+                           validate_aligned_swir, validate_masked_ndvi,
+                           validate_ndmi, validate_ndvi)
 from ..schemas import ArtifactLineage, SpatialExtent, SpatialBoundingBox, TemporalExtent
 from .catalog import _is_public_image
 from .runtime import PreparedTool, ToolOutput
@@ -25,7 +30,7 @@ from .runtime import PreparedTool, ToolOutput
 class RasterExecutor:
     tool_id = TOOL_ID
     tool_version = VERSION
-    tool_versions = {VERSION, MASKED_VERSION}
+    tool_versions = {VERSION, MASKED_VERSION, NDMI_VERSION}
 
     def __init__(self,base_url,artifacts,transport=None):
         self.base_url,self.artifacts,self.transport = base_url,artifacts,transport
@@ -35,6 +40,10 @@ class RasterExecutor:
             raise V2DomainError("policy_rejected","raster tool not allowed",403,phase="policy")
         try:
             args = BandMathArguments.model_validate(action.arguments)
+            if args.operation == "ndmi":
+                return self.plan_ndmi(
+                    args, manifest, accessible_asset_refs,
+                    episode_artifacts or {})
             ids = [args.red_asset_id,args.nir_asset_id]
             if not set(ids).issubset(set(manifest.task.inputs).intersection(accessible_asset_refs)):
                 raise V2DomainError("policy_rejected","native input not accessible",403,phase="policy")
@@ -92,6 +101,183 @@ class RasterExecutor:
         size += mask.size_bytes
         return PreparedTool(MASKED_VERSION,size,MAX_OUTPUT,
                             lambda:self.invoke(args,bands,size,mask,mask_input))
+
+    def plan_ndmi(self, args, manifest, accessible_asset_refs, episode_artifacts):
+        try:
+            if (manifest.task.metadata.get("artifact_identity") != DERIVATION_SCHEME
+                    or manifest.task.metadata.get("band_math_formula") != NDMI_FORMULA):
+                raise ValueError("task does not opt into fixed NDMI")
+            allowed = set(manifest.task.inputs).intersection(accessible_asset_refs)
+            artifact = episode_artifacts.get(args.swir_artifact_id)
+            if artifact is None:
+                raise V2DomainError(
+                    "policy_rejected",
+                    "aligned SWIR artifact is not accessible in this episode",
+                    403,
+                    phase="policy",
+                )
+            validate_derivation_metadata(artifact.model_dump(mode="json"))
+            if (artifact.kind != "raster" or artifact.media_type != MEDIA_TYPE
+                    or artifact.size_bytes > MAX_OUTPUT
+                    or artifact.spatial is None or artifact.temporal is None
+                    or artifact.spatial.crs != "EPSG:4326"
+                    or artifact.lineage.tool_id != GRID_TOOL
+                    or artifact.lineage.tool_version != CONTINUOUS_VERSION
+                    or len(artifact.lineage.input_refs) != 2):
+                raise ValueError("current-episode continuous SWIR artifact required")
+            source_id, reference_id = artifact.lineage.input_refs
+            if (args.nir_asset_id != reference_id
+                    or not {source_id, reference_id}.issubset(allowed)):
+                raise ValueError("NDMI inputs are outside the reviewed task")
+            raw = manifest.task.metadata["grid_inputs"]
+            source = ContinuousBand.model_validate(raw[source_id])
+            nir = ContinuousBand.model_validate(raw[reference_id])
+            checked_continuous_grids(source, nir)
+            if source.band != "swir16" or nir.band != "nir":
+                raise ValueError("fixed B08 NIR and B11 SWIR16 inputs required")
+            nir_asset = next(a for a in manifest.assets
+                             if a.asset_id == nir.asset_id)
+            if (not _is_public_image(nir_asset)
+                    or "reflectance" not in nir_asset.roles
+                    or nir_asset.bands != ["nir"]
+                    or nir_asset.sha256 != nir.sha256
+                    or nir_asset.size_bytes > MAX_INPUT
+                    or nir_asset.spatial is None or nir_asset.temporal is None
+                    or nir_asset.temporal.start != nir.acquired
+                    or nir_asset.temporal.end != nir.acquired):
+                raise ValueError("reviewed B08 asset required")
+            expected_grid_lineage = sha256_json({
+                "arguments": GridArguments(
+                    source_asset_id=source_id,
+                    reference_asset_id=reference_id,
+                    method="bilinear",
+                ).model_dump(),
+                "grid_inputs": [source.model_dump(mode="json"),
+                                nir.model_dump(mode="json")],
+                "invalid_policy": (
+                    "source-mask-or-nodata-or-nonfinite-or-outside-source-"
+                    "or-incomplete-bilinear-neighborhood"
+                ),
+                "reference_policy": "geometry-only-ignore-reference-values-and-mask",
+            })
+            if artifact.lineage.parameters_hash != expected_grid_lineage:
+                raise ValueError("aligned SWIR lineage policy mismatch")
+            west, south, east, north = (
+                artifact.spatial.bbox.west, artifact.spatial.bbox.south,
+                artifact.spatial.bbox.east, artifact.spatial.bbox.north)
+            if (artifact.spatial.shape != [nir.height, nir.width, 1]
+                    or artifact.spatial.gsd_meters != nir.transform[0]
+                    or artifact.temporal.start != nir.acquired
+                    or artifact.temporal.end != nir.acquired
+                    or not -180 <= west < east <= 180
+                    or not -90 <= south < north <= 90):
+                raise ValueError("aligned SWIR metadata differs from B08 grid")
+            swir = AlignedSWIRInput(
+                artifact_id=artifact.artifact_id,
+                sha256=artifact.sha256,
+                size_bytes=artifact.size_bytes,
+                source_asset_id=source.asset_id,
+                source_sha256=source.sha256,
+                reference_asset_id=nir.asset_id,
+                reference_sha256=nir.sha256,
+                acquired=nir.acquired,
+                crs=nir.crs,
+                transform=nir.transform,
+                width=nir.width,
+                height=nir.height,
+                dtype="float32",
+                nodata=-9999.,
+                lineage_parameters_hash=expected_grid_lineage,
+            )
+            checked_ndmi_inputs(args, nir, swir)
+        except V2DomainError:
+            raise
+        except (ValueError, KeyError, TypeError, StopIteration):
+            raise V2DomainError(
+                "invalid_tool_arguments",
+                "reviewed B08 and current-episode aligned B11 artifact required",
+                phase="request",
+            ) from None
+        size = nir_asset.size_bytes + artifact.size_bytes
+        return PreparedTool(
+            NDMI_VERSION, size, MAX_OUTPUT,
+            lambda: self.invoke_ndmi(args, nir, swir, artifact, size))
+
+    def invoke_ndmi(self, args, nir, swir, artifact, size):
+        try:
+            try:
+                swir_content = self.artifacts.read_content(artifact).content
+            except ArtifactStoreError as error:
+                raise V2DomainError(
+                    error.code, "aligned SWIR artifact unavailable", 409,
+                    phase="artifact") from None
+            validate_aligned_swir(swir_content, swir)
+            with httpx.Client(
+                    base_url=self.base_url, timeout=30, transport=self.transport,
+                    trust_env=False, follow_redirects=False) as client:
+                with client.stream(
+                        "POST", "/ndmi-band-math", content=swir_content,
+                        headers={
+                            "Content-Type": MEDIA_TYPE,
+                            "X-Raster-Arguments": args.model_dump_json(exclude_none=True),
+                            "X-Raster-NDMI-Input": swir.model_dump_json(),
+                        }) as response:
+                    response.raise_for_status()
+                    if (response.status_code != 200
+                            or response.headers.get("X-Raster-Version") != NDMI_VERSION):
+                        raise ValueError("unsupported NDMI provider response")
+                    raw = response.headers.get("X-Raster-Metadata", "")
+                    if len(raw) > 16384:
+                        raise ValueError("oversized NDMI metadata")
+                    result = NDMIResult.model_validate_json(raw)
+                    content = bytearray()
+                    for block in response.iter_bytes():
+                        if len(content) + len(block) > MAX_OUTPUT:
+                            raise ValueError("oversized NDMI output")
+                        content.extend(block)
+                    content = bytes(content)
+                    if hashlib.sha256(content).hexdigest() != response.headers.get(
+                            "X-Content-SHA256"):
+                        raise ValueError("NDMI content checksum mismatch")
+            if (result.input_asset_ids != [nir.asset_id, swir.source_asset_id]
+                    or result.input_sha256 != [nir.sha256, swir.source_sha256]
+                    or result.swir_artifact_id != artifact.artifact_id
+                    or result.swir_artifact_sha256 != artifact.sha256
+                    or result.acquired != nir.acquired or result.crs != nir.crs
+                    or result.transform != nir.transform
+                    or result.width != nir.width or result.height != nir.height):
+                raise ValueError("NDMI source, artifact or grid mismatch")
+            validate_ndmi(content, result)
+        except httpx.TimeoutException:
+            raise V2DomainError("tool_timeout", "raster provider timed out", 504,
+                                True, "tool") from None
+        except httpx.HTTPError:
+            raise V2DomainError("tool_unavailable", "raster provider failed", 502,
+                                True, "tool") from None
+        except (ValueError, KeyError, TypeError):
+            raise V2DomainError("invalid_tool_output", "NDMI output validation failed",
+                                502, phase="tool") from None
+        west, south, east, north = result.bbox_wgs84
+        spatial = SpatialExtent(
+            crs="EPSG:4326",
+            bbox=SpatialBoundingBox(west=west, south=south, east=east, north=north),
+            gsd_meters=nir.transform[0], shape=[nir.height, nir.width, 1])
+        try:
+            derived = self.artifacts.put_bytes(
+                content, kind="raster", media_type=MEDIA_TYPE,
+                spatial=spatial,
+                temporal=TemporalExtent(start=nir.acquired, end=nir.acquired),
+                lineage=ArtifactLineage(
+                    tool_id=TOOL_ID, tool_version=NDMI_VERSION,
+                    input_refs=[nir.asset_id, artifact.artifact_id],
+                    parameters_hash=sha256_json(
+                        ndmi_lineage_payload(args, nir, swir)),
+                ))
+        except ArtifactStoreError as error:
+            raise V2DomainError(
+                error.code, "NDMI artifact storage failed", 503, True,
+                "artifact") from None
+        return ToolOutput(derived, result.model_dump(mode="json"), size)
 
     def invoke(self,args,bands,size,mask=None,mask_input=None):
         try:

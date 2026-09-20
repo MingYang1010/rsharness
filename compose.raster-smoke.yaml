@@ -14,12 +14,14 @@ services:
       EO_RASTER_MANIFEST: /native-inputs.json
       EO_RASTER_WORKER: /worker.py
       EO_RASTER_GRID_WORKER: /grid-worker.py
+      EO_RASTER_NDMI_WORKER: /ndmi-worker.py
       EO_RASTER_ZONAL_WORKER: /zonal-worker.py
       EO_RASTER_TEMPORAL_WORKER: /temporal-worker.py
     volumes:
       - ./harness_api:/harness:ro
       - ./scripts/raster_worker.py:/worker.py:ro
       - ./scripts/raster_grid_worker.py:/grid-worker.py:ro
+      - ./scripts/raster_ndmi_worker.py:/ndmi-worker.py:ro
       - ./scripts/raster_zonal_worker.py:/zonal-worker.py:ro
       - ./scripts/temporal_stack_worker.py:/temporal-worker.py:ro
       - ${EO_SMOKE_ROOT}/native-inputs:/native-inputs:ro

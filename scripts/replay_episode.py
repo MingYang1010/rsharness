@@ -34,6 +34,7 @@ def runtime_fingerprint(renderer_config=None):
              "harness_api/app/v2/artifacts.py", "harness_api/app/v2/artifact_identity.py",
              "harness_api/app/v2/execution_replay.py", "harness_api/app/raster_bridge.py",
              "harness_api/app/v2/raster_math.py", "harness_api/app/v2/tools/raster.py", "scripts/raster_worker.py",
+             "scripts/raster_ndmi_worker.py",
              "harness_api/app/v2/raster_grid.py", "harness_api/app/v2/tools/raster_grid.py", "scripts/raster_grid_worker.py",
              "harness_api/app/v2/raster_zonal.py", "harness_api/app/v2/tools/raster_zonal.py", "scripts/raster_zonal_worker.py",
              "harness_api/app/v2/temporal.py", "harness_api/app/v2/tools/temporal.py", "scripts/temporal_stack_worker.py",
