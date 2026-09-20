@@ -21,6 +21,7 @@ from app.v2.storage.quota import StorageQuota
 from app.v2.tools.eo_gym import EOGymExecutor
 from app.v2.tools.raster import RasterExecutor
 from app.v2.tools.raster_grid import RasterGridExecutor
+from app.v2.tools.raster_zonal import RasterZonalExecutor
 from app.v2.tools.temporal import TemporalExecutor
 from app.v2.tools.runtime import ToolRouter
 
@@ -34,6 +35,7 @@ def runtime_fingerprint(renderer_config=None):
              "harness_api/app/v2/execution_replay.py", "harness_api/app/raster_bridge.py",
              "harness_api/app/v2/raster_math.py", "harness_api/app/v2/tools/raster.py", "scripts/raster_worker.py",
              "harness_api/app/v2/raster_grid.py", "harness_api/app/v2/tools/raster_grid.py", "scripts/raster_grid_worker.py",
+             "harness_api/app/v2/raster_zonal.py", "harness_api/app/v2/tools/raster_zonal.py", "scripts/raster_zonal_worker.py",
              "harness_api/app/v2/temporal.py", "harness_api/app/v2/tools/temporal.py", "scripts/temporal_stack_worker.py",
              "harness_api/app/v2/evaluation.py", "harness_api/app/v2/renderer/terriamap.py"]
     versions = {}
@@ -131,6 +133,7 @@ def main():
                 return ToolRouter(EOGymExecutor(args.provider, artifacts),
                     RasterExecutor(args.raster_provider, artifacts) if args.raster_provider else None,
                     RasterGridExecutor(args.raster_provider, artifacts) if args.raster_provider else None,
+                    RasterZonalExecutor(args.raster_provider, artifacts) if args.raster_provider else None,
                     TemporalExecutor(args.raster_provider, artifacts) if args.raster_provider else None)
 
             with tempfile.TemporaryDirectory(prefix="execution-replay-") as directory:

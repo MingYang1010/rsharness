@@ -242,22 +242,25 @@ def create_app(
             from .v2.tools.runtime import ToolRouter
             from .v2.tools.raster import RasterExecutor
             from .v2.tools.raster_grid import RasterGridExecutor
+            from .v2.tools.raster_zonal import RasterZonalExecutor
             from .v2.tools.temporal import TemporalExecutor
             if isinstance(tool_executor, ToolRouter):
                 existing = tool_executor
                 provider = existing.provider
                 raster = existing.raster
                 grid = existing.grid
+                zonal = existing.zonal
                 temporal = existing.temporal
                 configured_memory = existing.memory
                 catalog_enabled = catalog_enabled or existing.catalog is not None
             else:
                 provider = tool_executor
-                raster = grid = temporal = configured_memory = None
+                raster = grid = zonal = temporal = configured_memory = None
             tool_executor = ToolRouter(
                 provider=provider,
                 raster=RasterExecutor(raster_url, artifact_store) if raster_url else raster,
                 grid=RasterGridExecutor(raster_url, artifact_store) if raster_url else grid,
+                zonal=RasterZonalExecutor(raster_url, artifact_store) if raster_url else zonal,
                 temporal=TemporalExecutor(raster_url, artifact_store) if raster_url else temporal,
                 memory=memory_executor or configured_memory,
                 catalog_enabled=catalog_enabled or bool(raster_url),

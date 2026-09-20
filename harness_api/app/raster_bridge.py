@@ -11,7 +11,7 @@ import threading
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 
 from .v2.raster_grid import (CONTINUOUS_VERSION as CONTINUOUS_GRID_VERSION,
                              ContinuousBand, ContinuousGridResult, GridArguments,
@@ -22,6 +22,10 @@ from .v2.raster_math import (BandMathArguments, MASKED_VERSION, MaskArtifactInpu
                              MaskedNDVIResult, NativeBand, NDVIResult, MAX_INPUT,
                              MAX_OUTPUT, VERSION, checked_pair,
                              validate_masked_ndvi, validate_ndvi)
+from .v2.raster_zonal import (TOOL_ID as ZONAL_TOOL_ID,
+                              VERSION as ZONAL_VERSION, ZonalRequest,
+                              ZonalResult,
+                              validate_zonal_source)
 from .v2.temporal import (TemporalAlignRequest, TemporalStackResult,
                           VERSION as TEMPORAL_VERSION, checked_temporal_inputs,
                           validate_temporal_stack)
@@ -29,10 +33,12 @@ from .v2.temporal import (TemporalAlignRequest, TemporalStackResult,
 
 class RasterBridge:
     def __init__(self, inputs: Path, manifest: dict, worker: Path, grid_worker: Path | None = None,
-                 temporal_worker: Path | None = None):
+                 temporal_worker: Path | None = None,
+                 zonal_worker: Path | None = None):
         self.inputs,self.manifest,self.worker = inputs.resolve(),manifest,worker.resolve()
         self.grid_worker = grid_worker.resolve() if grid_worker is not None else None
         self.temporal_worker = temporal_worker.resolve() if temporal_worker is not None else None
+        self.zonal_worker = zonal_worker.resolve() if zonal_worker is not None else None
         self.slot = threading.BoundedSemaphore(1)
 
     def resolve(self, asset_id: str, profile_type=NativeBand):
@@ -156,6 +162,44 @@ class RasterBridge:
         finally:
             self.slot.release()
 
+    def execute_zonal(self, request: ZonalRequest, content: bytes) -> ZonalResult:
+        if self.zonal_worker is None:
+            raise HTTPException(503, "raster zonal worker unavailable")
+        try:
+            validate_zonal_source(content, request.source)
+        except ValueError:
+            raise HTTPException(422, "reviewed zonal source invalid") from None
+        if not self.slot.acquire(blocking=False):
+            raise HTTPException(429, "raster provider busy")
+        try:
+            with tempfile.TemporaryDirectory(prefix="zonal-") as directory:
+                source_path = Path(directory) / "source.tif"
+                with source_path.open("xb") as stream:
+                    stream.write(content)
+                run = subprocess.run(
+                    [sys.executable, str(self.zonal_worker), str(source_path),
+                     request.model_dump_json()],
+                    capture_output=True,
+                    timeout=20,
+                    check=False,
+                )
+                if run.returncode or len(run.stdout) > 16384:
+                    raise ValueError("invalid zonal worker output")
+                result = ZonalResult.model_validate_json(run.stdout)
+                if (result.source_artifact_id != request.source.artifact_id
+                        or result.source_sha256 != request.source.sha256
+                        or result.source_lineage_parameters_hash !=
+                        request.source.lineage_parameters_hash
+                        or result.zone_id != request.zone.zone_id):
+                    raise ValueError("zonal worker identity mismatch")
+                return result
+        except subprocess.TimeoutExpired:
+            raise HTTPException(504, "raster zonal worker timed out") from None
+        except (ValueError, OSError):
+            raise HTTPException(422, "reviewed zonal input or output invalid") from None
+        finally:
+            self.slot.release()
+
     def execute_temporal(self, args: TemporalAlignRequest) -> tuple[bytes, TemporalStackResult]:
         if self.temporal_worker is None:
             raise HTTPException(503, "temporal worker unavailable")
@@ -202,14 +246,17 @@ def create_app(bridge: RasterBridge | None = None):
             raise ValueError("bounded manifest required")
         grid_worker = Path(os.environ["EO_RASTER_GRID_WORKER"]) if os.environ.get("EO_RASTER_GRID_WORKER") else None
         temporal_worker = Path(os.environ["EO_RASTER_TEMPORAL_WORKER"]) if os.environ.get("EO_RASTER_TEMPORAL_WORKER") else None
+        zonal_worker = Path(os.environ["EO_RASTER_ZONAL_WORKER"]) if os.environ.get("EO_RASTER_ZONAL_WORKER") else None
         bridge = RasterBridge(Path(os.environ["EO_RASTER_INPUTS"]),json.loads(manifest.read_text()),
-                              Path(os.environ["EO_RASTER_WORKER"]),grid_worker,temporal_worker)
+                              Path(os.environ["EO_RASTER_WORKER"]),grid_worker,
+                              temporal_worker,zonal_worker)
     app = FastAPI(docs_url=None,redoc_url=None,openapi_url=None)
 
     @app.get("/healthz")
     def health():
         return {"status":"ok","tool_version":VERSION,"grid_tool_version":GRID_VERSION if bridge.grid_worker else None,
                 "grid_tool_versions":[GRID_VERSION,CONTINUOUS_GRID_VERSION] if bridge.grid_worker else [],
+                "zonal_tool_version":ZONAL_VERSION if bridge.zonal_worker else None,
                 "temporal_tool_version":TEMPORAL_VERSION if bridge.temporal_worker else None}
 
     @app.post("/band-math")
@@ -256,5 +303,26 @@ def create_app(bridge: RasterBridge | None = None):
             "X-Temporal-Metadata": result.model_dump_json(),
             "X-Temporal-Version": TEMPORAL_VERSION,
             "X-Content-SHA256": hashlib.sha256(content).hexdigest()})
+
+    @app.post("/zonal-stats")
+    async def zonal_stats(request: Request):
+        raw = request.headers.get("X-Raster-Zonal-Request", "")
+        if len(raw) > 16384:
+            raise HTTPException(422, "zonal request metadata too large")
+        try:
+            parsed = ZonalRequest.model_validate_json(raw)
+        except ValueError:
+            raise HTTPException(422, "zonal request metadata invalid") from None
+        content = bytearray()
+        async for chunk in request.stream():
+            if len(content) + len(chunk) > MAX_OUTPUT:
+                raise HTTPException(413, "zonal source body too large")
+            content.extend(chunk)
+        result = bridge.execute_zonal(parsed, bytes(content))
+        return JSONResponse(
+            result.model_dump(mode="json"),
+            headers={"X-Raster-Zonal-Version": ZONAL_VERSION,
+                     "X-Raster-Zonal-Tool": ZONAL_TOOL_ID},
+        )
 
     return app

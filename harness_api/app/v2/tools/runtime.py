@@ -40,18 +40,20 @@ def prepare_tool(executor, action: ToolInvokeAction, manifest: TaskManifest,
 class ToolRouter:
     """Small allowlisted router for configured local and isolated tools."""
 
-    def __init__(self, provider=None, raster=None, grid=None, temporal=None,
+    def __init__(self, provider=None, raster=None, grid=None, zonal=None, temporal=None,
                  memory=None, *, catalog_enabled=True):
         from .catalog import CatalogExecutor
         self.catalog = CatalogExecutor() if catalog_enabled else None
         self.provider = provider
         self.raster = raster
         self.grid = grid
+        self.zonal = zonal
         self.temporal = temporal
         self.memory = memory
         self.tool_ids = [*([*self.catalog.tool_ids] if self.catalog else []),
                          *([provider.tool_id] if provider else []),
                          *([raster.tool_id] if raster else []), *([grid.tool_id] if grid else []),
+                         *([zonal.tool_id] if zonal else []),
                          *([temporal.tool_id] if temporal else []),
                          *([memory.tool_id] if memory else [])]
 
@@ -65,6 +67,9 @@ class ToolRouter:
                                     episode_artifacts or {})
         if self.grid is not None and action.tool_id == self.grid.tool_id:
             return self.grid.plan(action, manifest, accessible_asset_refs)
+        if self.zonal is not None and action.tool_id == self.zonal.tool_id:
+            return self.zonal.plan(action, manifest, accessible_asset_refs,
+                                   episode_artifacts or {})
         if self.temporal is not None and action.tool_id == self.temporal.tool_id:
             return self.temporal.plan(action, manifest, accessible_asset_refs)
         if self.memory is not None and action.tool_id == self.memory.tool_id:

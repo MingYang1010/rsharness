@@ -32,6 +32,9 @@ from .v2.raster_math import (BandMathArguments, CLOUD_POLICY,
 from .v2.raster_grid import (CONTINUOUS_VERSION as CONTINUOUS_GRID_VERSION,
                              ContinuousGridResult, GridArguments, GridResult,
                              TOOL_ID as GRID_TOOL, VERSION as GRID_VERSION)
+from .v2.raster_zonal import (TOOL_ID as ZONAL_TOOL,
+                              VERSION as ZONAL_VERSION, ZonalArguments,
+                              ZonalResult)
 from .v2.temporal import (MAX_OUTPUT as MAX_TEMPORAL,
                           TOOL_ID as TEMPORAL_TOOL,
                           VERSION as TEMPORAL_VERSION,
@@ -55,6 +58,7 @@ MAX_BACKEND_TLS_FILE = 1024 * 1024
 TOOL_ARGUMENTS = {"catalog.search": SearchArguments, "catalog.inspect_asset": InspectArguments,
                   "eo_gym.crop": CropArguments, RASTER_TOOL: BandMathArguments,
                   GRID_TOOL: GridArguments, TEMPORAL_TOOL: TemporalSelectAlignArguments,
+                  ZONAL_TOOL: ZonalArguments,
                   MEMORY_TOOL: MemorySearchArguments}
 SAFE_CODES = {"state_version_conflict", "episode_closed", "idempotency_conflict", "tool_in_progress",
               "tool_interrupted", "tool_budget_exceeded", "policy_rejected", "invalid_tool_arguments",
@@ -340,6 +344,12 @@ def public_observation(value: dict, binding: AgentBinding) -> dict:
                     science = result_type.model_validate({k: raw[k] for k in result_type.model_fields})
                     if not set(science.input_asset_ids).issubset(allowed):
                         raise GatewayError("upstream_scope_mismatch")
+                    common.update(science.model_dump(mode="json"))
+                elif tool_id == ZONAL_TOOL:
+                    if common["tool_version"] != ZONAL_VERSION:
+                        raise GatewayError("unsupported_public_observation")
+                    science = ZonalResult.model_validate(
+                        {key: raw[key] for key in ZonalResult.model_fields})
                     common.update(science.model_dump(mode="json"))
                 elif tool_id == TEMPORAL_TOOL:
                     science = TemporalToolResult.model_validate({
