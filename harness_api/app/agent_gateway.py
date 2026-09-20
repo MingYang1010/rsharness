@@ -35,6 +35,8 @@ from .v2.temporal import (MAX_OUTPUT as MAX_TEMPORAL,
                           TOOL_ID as TEMPORAL_TOOL,
                           VERSION as TEMPORAL_VERSION,
                           TemporalSelectAlignArguments, TemporalToolResult)
+from .v2.evidence_memory import MemorySearchArguments, MemorySearchResult
+from .v2.tools.memory import TOOL_ID as MEMORY_TOOL
 from .v2.domain import _action_allowed
 from .v2.artifact_identity import DERIVATION_SCHEME, LEGACY_SCHEME, validate_derivation_metadata
 from .v2.schemas import (Artifact, ArtifactId, AssetQuality, Identifier, MapState,
@@ -51,7 +53,8 @@ MAX_CLIENT_CERT_HEADER = 32 * 1024
 MAX_BACKEND_TLS_FILE = 1024 * 1024
 TOOL_ARGUMENTS = {"catalog.search": SearchArguments, "catalog.inspect_asset": InspectArguments,
                   "eo_gym.crop": CropArguments, RASTER_TOOL: BandMathArguments,
-                  GRID_TOOL: GridArguments, TEMPORAL_TOOL: TemporalSelectAlignArguments}
+                  GRID_TOOL: GridArguments, TEMPORAL_TOOL: TemporalSelectAlignArguments,
+                  MEMORY_TOOL: MemorySearchArguments}
 SAFE_CODES = {"state_version_conflict", "episode_closed", "idempotency_conflict", "tool_in_progress",
               "tool_interrupted", "tool_budget_exceeded", "policy_rejected", "invalid_tool_arguments",
               "invalid_evidence", "invalid_answer", "tool_timeout", "tool_unavailable", "tool_failed",
@@ -344,6 +347,11 @@ def public_observation(value: dict, binding: AgentBinding) -> dict:
                     if not selected_ids.issubset(allowed):
                         raise GatewayError("upstream_scope_mismatch")
                     common.update(science.model_dump(mode="json"))
+                elif tool_id == MEMORY_TOOL:
+                    memory = MemorySearchResult.model_validate(
+                        {key: raw[key] for key in MemorySearchResult.model_fields}
+                    )
+                    common.update(memory.model_dump(mode="json"))
                 else:
                     crop = CropResult.model_validate(raw)
                     if crop.input_asset_id not in allowed:

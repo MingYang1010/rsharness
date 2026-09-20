@@ -38,23 +38,27 @@ def prepare_tool(executor, action: ToolInvokeAction, manifest: TaskManifest,
 
 
 class ToolRouter:
-    """Opt-in local catalog, optionally alongside one legacy provider."""
+    """Small allowlisted router for configured local and isolated tools."""
 
-    def __init__(self, provider=None, raster=None, grid=None, temporal=None):
+    def __init__(self, provider=None, raster=None, grid=None, temporal=None,
+                 memory=None, *, catalog_enabled=True):
         from .catalog import CatalogExecutor
-        self.catalog = CatalogExecutor()
+        self.catalog = CatalogExecutor() if catalog_enabled else None
         self.provider = provider
         self.raster = raster
         self.grid = grid
         self.temporal = temporal
-        self.tool_ids = [*self.catalog.tool_ids, *([provider.tool_id] if provider else []),
+        self.memory = memory
+        self.tool_ids = [*([*self.catalog.tool_ids] if self.catalog else []),
+                         *([provider.tool_id] if provider else []),
                          *([raster.tool_id] if raster else []), *([grid.tool_id] if grid else []),
-                         *([temporal.tool_id] if temporal else [])]
+                         *([temporal.tool_id] if temporal else []),
+                         *([memory.tool_id] if memory else [])]
 
     def plan(self, action: ToolInvokeAction, manifest: TaskManifest,
              accessible_asset_refs: list[str],
              episode_artifacts: Mapping[str, Artifact] | None = None) -> PreparedTool:
-        if action.tool_id in self.catalog.tool_ids:
+        if self.catalog is not None and action.tool_id in self.catalog.tool_ids:
             return self.catalog.plan(action, manifest, accessible_asset_refs)
         if self.raster is not None and action.tool_id == self.raster.tool_id:
             return self.raster.plan(action, manifest, accessible_asset_refs,
@@ -63,6 +67,9 @@ class ToolRouter:
             return self.grid.plan(action, manifest, accessible_asset_refs)
         if self.temporal is not None and action.tool_id == self.temporal.tool_id:
             return self.temporal.plan(action, manifest, accessible_asset_refs)
+        if self.memory is not None and action.tool_id == self.memory.tool_id:
+            return self.memory.plan(action, manifest, accessible_asset_refs,
+                                    episode_artifacts or {})
         if self.provider is not None and action.tool_id == self.provider.tool_id:
             return prepare_tool(self.provider, action, manifest, accessible_asset_refs)
         raise V2DomainError("policy_rejected", "tool is not available", 403, phase="policy")

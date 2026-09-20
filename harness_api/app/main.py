@@ -143,6 +143,9 @@ def create_app(
     v2_renderer: Optional[RendererAdapter] = None,
     v2_evaluator_registry: Optional[EvaluatorRegistry] = None,
     v2_tool_executor=None,
+    v2_memory_store_path: Optional[str] = None,
+    v2_memory_policy_path: Optional[str] = None,
+    v2_memory_policy_sha256: Optional[str] = None,
     interface_role: Optional[str] = None,
 ) -> FastAPI:
     resolved_interface_role = (
@@ -211,15 +214,54 @@ def create_app(
             from .v2.tools.eo_gym import EOGymExecutor
             tool_executor = EOGymExecutor(provider_url, artifact_store)
         raster_url = os.environ.get("EO_HARNESS_RASTER_URL")
-        if os.environ.get("EO_HARNESS_CATALOG_ENABLED") == "1" or raster_url:
+        memory_values = (
+            v2_memory_store_path or os.environ.get("EO_HARNESS_EVIDENCE_MEMORY_STORE"),
+            v2_memory_policy_path or os.environ.get("EO_HARNESS_EVIDENCE_MEMORY_POLICY"),
+            v2_memory_policy_sha256
+            or os.environ.get("EO_HARNESS_EVIDENCE_MEMORY_POLICY_SHA256"),
+        )
+        if any(memory_values) and not all(memory_values):
+            raise RuntimeError(
+                "evidence memory store, policy and policy SHA-256 must be configured together"
+            )
+        memory_executor = None
+        if all(memory_values):
+            from .v2.evidence_memory import EvidenceMemoryStore, load_evidence_memory_policy
+            from .v2.tools.memory import MemorySearchExecutor
+
+            policy, policy_sha256 = load_evidence_memory_policy(
+                FilePath(memory_values[1]), memory_values[2]
+            )
+            memory_executor = MemorySearchExecutor(
+                EvidenceMemoryStore(FilePath(memory_values[0])),
+                policy,
+                policy_sha256,
+            )
+        catalog_enabled = os.environ.get("EO_HARNESS_CATALOG_ENABLED") == "1"
+        if catalog_enabled or raster_url or memory_executor is not None:
             from .v2.tools.runtime import ToolRouter
             from .v2.tools.raster import RasterExecutor
             from .v2.tools.raster_grid import RasterGridExecutor
             from .v2.tools.temporal import TemporalExecutor
-            tool_executor = ToolRouter(tool_executor,
-                RasterExecutor(raster_url, artifact_store) if raster_url else None,
-                RasterGridExecutor(raster_url, artifact_store) if raster_url else None,
-                TemporalExecutor(raster_url, artifact_store) if raster_url else None)
+            if isinstance(tool_executor, ToolRouter):
+                existing = tool_executor
+                provider = existing.provider
+                raster = existing.raster
+                grid = existing.grid
+                temporal = existing.temporal
+                configured_memory = existing.memory
+                catalog_enabled = catalog_enabled or existing.catalog is not None
+            else:
+                provider = tool_executor
+                raster = grid = temporal = configured_memory = None
+            tool_executor = ToolRouter(
+                provider=provider,
+                raster=RasterExecutor(raster_url, artifact_store) if raster_url else raster,
+                grid=RasterGridExecutor(raster_url, artifact_store) if raster_url else grid,
+                temporal=TemporalExecutor(raster_url, artifact_store) if raster_url else temporal,
+                memory=memory_executor or configured_memory,
+                catalog_enabled=catalog_enabled or bool(raster_url),
+            )
         evaluator_registry = v2_evaluator_registry or EvaluatorRegistry(
             resolved_datasets_path,
             artifact_store,

@@ -22,7 +22,7 @@ from app.main import create_app as create_backend
 from app.agent_credentials import (AgentCredentialRegistry, AgentSessionCredential,
                                    load_agent_registry)
 from app.agent_gateway import (AgentBinding, AgentGuard, build_backend_ssl_context,
-                               build_binding, create_app,
+                               TOOL_ARGUMENTS, build_binding, create_app,
                                public_observation, public_state, validate_agent_binding)
 from app.control_plane import AgentIssuancePolicy, verify_control_audit
 from app.v2.artifacts import ArtifactStore
@@ -142,6 +142,63 @@ class AgentGatewayTests(unittest.TestCase):
         original = self.operator.get(f"/v2/episodes/{self.episode}/observations/{observation['observation_id']}").json()["data"]["observation"]
         original.update(provenance={"path": "SECRET"}, warnings=["SECRET"])
         self.assertNotIn("SECRET", json.dumps(public_observation(original, self.binding)))
+
+    def test_memory_schema_and_results_are_strictly_public(self):
+        self.assertIn("memory.search", TOOL_ARGUMENTS)
+        self.assertNotIn("episode_id", TOOL_ARGUMENTS["memory.search"].model_json_schema()["properties"])
+        task = self.binding.task.model_copy(
+            update={"allowed_tools": [*self.binding.task.allowed_tools, "memory.search"]}
+        )
+        binding = self.binding.model_copy(update={"task": task})
+        observation_id = self.binding.episode_id.replace("ep2-", "obs-")
+        value = {
+            "observation_id": observation_id,
+            "sequence": 1,
+            "primary_type": "tool_result",
+            "items": [
+                {
+                    "type": "tool_result",
+                    "inline": {
+                        "tool_id": "memory.search",
+                        "tool_version": "1.0.0",
+                        "status": "completed",
+                        "records": [
+                            {
+                                "memory_id": "mem-" + "a" * 64,
+                                "object_type": "land-cover-assessment",
+                                "public_summary": "Reviewed built-up evidence.",
+                                "bbox": {"west": 120.5, "south": 30.5, "east": 121.0, "north": 31.0},
+                                "time_range": {"start": "2021-01-01T00:00:00Z", "end": "2021-12-31T23:59:59Z"},
+                                "platform": "ESA WorldCover",
+                                "instrument": "WorldCover-map",
+                                "source_task": {"task_id": "worldcover-grounded-vqa", "task_version": "1.1.0"},
+                                "source_sha256": "b" * 64,
+                                "provenance_sha256": "c" * 64,
+                                "available_at": "2026-08-01T00:00:00Z",
+                                "expires_at": "2026-08-15T00:00:00Z",
+                            }
+                        ],
+                        "matched_count": 1,
+                        "next_offset": None,
+                        "snapshot_sequence": 1,
+                        "snapshot_sha256": "d" * 64,
+                        "cost": {"model": "logical-evidence-memory-v1", "records_scanned": 1, "input_bytes": 1024},
+                        "episode_id": "SECRET-episode",
+                        "source_ref": "/private/SECRET-source.tif",
+                    },
+                }
+            ],
+            "state_hash": "e" * 64,
+            "semantic_state_hash": "f" * 64,
+            "provenance": {"path": "/private/SECRET"},
+            "warnings": ["SECRET"],
+        }
+        public = public_observation(value, binding)
+        encoded = json.dumps(public)
+        self.assertIn("memory.search", encoded)
+        self.assertIn("Reviewed built-up evidence", encoded)
+        self.assertNotIn("SECRET", encoded)
+        self.assertNotIn("source_ref", encoded)
 
     def test_step_idempotency_and_gateway_restart_do_not_reexecute(self):
         body = self.step("eo_gym.crop", {"asset_id": self.binding.task.input_asset_refs[0], "aoi": [0, 0, .5, .5]})

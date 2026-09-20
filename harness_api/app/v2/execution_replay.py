@@ -24,6 +24,7 @@ from .tools.eo_gym import EOGymExecutor
 from .tools.raster import RasterExecutor
 from .tools.raster_grid import RasterGridExecutor
 from .tools.temporal import TemporalExecutor
+from .tools.memory import TOOL_ID as MEMORY_TOOL_ID, TOOL_VERSION as MEMORY_TOOL_VERSION
 from .tools.runtime import ToolRouter
 
 MAX_ACTIONS = 128
@@ -33,6 +34,7 @@ SUPPORTED_VERSIONS = {"eo_gym.crop": {EOGymExecutor.tool_version},
                       RasterExecutor.tool_id: RasterExecutor.tool_versions,
                       RasterGridExecutor.tool_id: {RasterGridExecutor.tool_version},
                       TemporalExecutor.tool_id: {TemporalExecutor.tool_version},
+                      MEMORY_TOOL_ID: {MEMORY_TOOL_VERSION},
                       **{name: {CatalogExecutor.tool_version} for name in CatalogExecutor.tool_ids}}
 
 
