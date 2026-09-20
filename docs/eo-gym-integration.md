@@ -183,12 +183,16 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
   same-scene SCL is aligned to a pinned reference grid with nearest-neighbor only.
   Three dates passed exact independent pixel/mask comparison,14-step Agent
   interaction, five-service recovery and positive/offline execution replay. This
-  is not a cloud mask or general-purpose reprojection facility.
+  is not a cloud mask or general-purpose reprojection facility. The opt-in
+  [`raster.resample@1.1.0`](continuous-grid-acceptance.md) path now aligns one
+  reviewed continuous B11 source to a B08 grid with physical-value bilinear
+  interpolation. Its independent reference, restart, positive replay and
+  raster-offline failure checks pass; it remains one bounded scripted case.
 - Still needed: broader packed-source coverage, external CA/IdP lifecycle,
   OCSP/CRL and automated certificate renewal/revocation, distributed abuse
   control, backup/recovery,
-  general continuous raster reprojection, zonal statistics, other STAC
-  providers/public imagery subsets and the Qwen runner. Independent
+  zonal statistics, selected reviewed formulas, broader licensed imagery and
+  sensor/provider coverage, and the Qwen runner. Independent
   cloud-policy validation is complete
   only for the bounded two-ROI/eight-window pack; broader calibration remains a
   coverage task. Latest GPU preflight reports DRAIN and NVML library/driver

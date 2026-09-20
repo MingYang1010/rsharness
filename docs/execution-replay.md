@@ -22,7 +22,8 @@ These checks are different:
 The current adapter supports terminal headless episodes using
 `catalog.search@1.0.0`, `catalog.inspect_asset@1.0.0`, `eo_gym.crop@1.1.0`, and
 `raster.band_math@1.0.0`/`1.1.0` (reviewed native or SCL-policy-masked NDVI), plus
-`raster.resample@1.0.0`. Scientific replay additionally
+`raster.resample@1.0.0`/`1.1.0` (categorical nearest or reviewed continuous
+bilinear alignment). Scientific replay additionally
 requires `--raster-provider` and an actual `--raster-provider-instance`; see
 [native-raster-tools.md](native-raster-tools.md) for the isolated recipe and
 three-date 14-action grid and 20-action chained positive/offline-negative evidence.
@@ -183,6 +184,17 @@ Stopping only the fresh raster made
 11 executed actions with `action_execution_mismatch`; no old-output fallback
 passed. Cross-episode input, tampered content, insufficient aggregate input
 budget and provider-offline paths also fail closed in regression tests.
+
+The continuous-grid episode `ep2-8a8a8f0eabf04c07adc22cf90e614b75`
+passed 6/6 fresh execution in
+`runtime/execution-continuous-grid-20260920-01/execution.json` with one new
+bilinear raster, exact artifact content, final-state and semantic-trace matches.
+Stopping only the fresh raster provider made action 4 fail with
+`tool_unavailable`; no original artifact bytes were read. The original DB stayed
+byte-identical at
+`73cd67770ec93de0a3b0a811415ad6a3b3c4710a7ed1a9688e71827bd3ef8a2f`.
+See [continuous-grid-acceptance.md](continuous-grid-acceptance.md) for the exact
+inputs, artifact, report hashes and limitations.
 
 Test-fixture note: existing store transaction contexts do not explicitly close
 SQLite writers. Garbage collection can checkpoint their WAL and change physical

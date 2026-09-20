@@ -9,6 +9,13 @@ Sentinel-2 SCL asset to an explicit same-scene reference-asset grid. It accepts
 only `method: nearest`; bilinear/cubic interpolation, arbitrary target grids and
 implicit alignment inside band math remain forbidden.
 
+`raster.resample@1.1.0` adds an opt-in continuous path. It converts reviewed
+source DN to physical values, bilinearly aligns them to an explicit same-scene
+reference grid, and emits a separate `ContinuousGridResult`. Version 1.0.0 and
+its categorical bytes remain unchanged. See
+[continuous-grid-acceptance.md](continuous-grid-acceptance.md) for the complete
+contract and real Sentinel-2 acceptance.
+
 `raster.band_math@1.1.0` is an opt-in extension for episode-local artifact
 chaining. It consumes a prior `raster.resample@1.0.0` SCL artifact plus the
 reviewed red/NIR assets and applies the fixed policy
@@ -53,6 +60,14 @@ must be 1--11 and are serialized unchanged as uint8; invalid output is 255 plus
 an internal mask. The typed result reports a 12-bin histogram and valid coverage.
 It does not classify cloud/non-cloud pixels and `cloud_mask_applied` stays false.
 
+For continuous alignment, the source and reference must be reviewed uint16
+reflectance bands from the same item and acquisition. The source is converted
+with its pinned scale/offset before bilinear interpolation. The reference
+contributes only CRS, transform and shape; its values and mask are ignored.
+Invalid source neighborhoods or pixels outside the source become float32
+`-9999` plus an internal invalid mask. The result records grid, source scaling,
+valid coverage, min/max/mean and the exact two-input lineage.
+
 ## Isolation and integrity
 
 - `EO_HARNESS_RASTER_URL` explicitly enables the provider. Existing EO-Gym and
@@ -95,6 +110,12 @@ python scripts/prepare_raster_smoke.py \
 python scripts/prepare_grid_smoke.py \
   --source runtime/stac-sentinel-nanjing-20260917-01 \
   --output-name <fresh-grid-run>
+
+python scripts/prepare_continuous_grid_smoke.py \
+  --source runtime/stac-sentinel-nanjing-20260917-01 \
+  --output-name <fresh-continuous-run> \
+  --item-id S2A_50SPA_20240405_0_L2A \
+  --reviewed-license
 ```
 
 Combine `compose.eo-gym-smoke.yaml`, `compose.agent-smoke.yaml` and
@@ -115,6 +136,12 @@ For the grid task set `EO_RASTER_VERIFY_SCRIPT=./scripts/verify_grid_smoke.py`.
 `scripts/verify_grid_reference.py --run runtime/<fresh-grid-run>` independently
 maps every target pixel centre back to its source cell without importing the
 production resampler, then compares exact pixels, masks, grid and class counts.
+
+For continuous alignment set
+`EO_RASTER_VERIFY_SCRIPT=./scripts/verify_continuous_grid_smoke.py` and run
+`scripts/verify_continuous_grid_reference.py --run
+runtime/<fresh-continuous-run>`. The independent reference performs manual
+bilinear interpolation without the production reprojection function.
 
 For execution replay, start fresh EO-Gym/raster providers on a separate internal
 project; keep the original Harness stopped. Add `compose.execution-replay.yaml`
@@ -198,7 +225,9 @@ historical environments or model reasoning.
   fixed-policy computation and recovery/replay path, not SCL cloud semantic
   accuracy, cloud ground truth or temporal-change correctness.
 
-Remaining tools include general continuous-band reprojection/resampling, zonal
-statistics, more reviewed band formulas and temporal stacks/change evaluation.
+The accepted continuous-band result is recorded in
+[continuous-grid-acceptance.md](continuous-grid-acceptance.md). Remaining tools
+include zonal statistics, more reviewed band formulas and broader licensed
+imagery/sensor coverage.
 The observed masked-NDVI means are conditional summaries under the fixed SCL
 policy, not a scientifically validated change-detection result.
