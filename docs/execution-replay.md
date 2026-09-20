@@ -23,7 +23,8 @@ The current adapter supports terminal headless episodes using
 `catalog.search@1.0.0`, `catalog.inspect_asset@1.0.0`, `eo_gym.crop@1.1.0`, and
 `raster.band_math@1.0.0`/`1.1.0` (reviewed native or SCL-policy-masked NDVI), plus
 `raster.resample@1.0.0`/`1.1.0` (categorical nearest or reviewed continuous
-bilinear alignment). Scientific replay additionally
+bilinear alignment) and `raster.zonal_stats@1.0.0` over an episode-local
+continuous artifact. Scientific replay additionally
 requires `--raster-provider` and an actual `--raster-provider-instance`; see
 [native-raster-tools.md](native-raster-tools.md) for the isolated recipe and
 three-date 14-action grid and 20-action chained positive/offline-negative evidence.
@@ -195,6 +196,16 @@ byte-identical at
 `73cd67770ec93de0a3b0a811415ad6a3b3c4710a7ed1a9688e71827bd3ef8a2f`.
 See [continuous-grid-acceptance.md](continuous-grid-acceptance.md) for the exact
 inputs, artifact, report hashes and limitations.
+
+The zonal-statistics episode `ep2-f05853775bf54afab426271447e4a831`
+passed 7/7 fresh execution in
+`runtime/execution-zonal-stats-20260920-01/execution.json`: one new continuous
+raster, one bounded zonal call, exact artifact content, final-state and semantic-
+trace matches. A capability-specific negative kept resampling online but removed
+the zonal worker; action 5 then failed with `tool_unavailable` after the fresh
+resample, with no old-output fallback. The original DB remained byte-identical
+at `a3d20825a09e51827057f4ba2e9a8107df7b8844f79f89a355efb9dabd9646dc`.
+See [zonal-statistics-acceptance.md](zonal-statistics-acceptance.md).
 
 Test-fixture note: existing store transaction contexts do not explicitly close
 SQLite writers. Garbage collection can checkpoint their WAL and change physical

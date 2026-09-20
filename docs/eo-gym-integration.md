@@ -187,11 +187,15 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
   [`raster.resample@1.1.0`](continuous-grid-acceptance.md) path now aligns one
   reviewed continuous B11 source to a B08 grid with physical-value bilinear
   interpolation. Its independent reference, restart, positive replay and
-  raster-offline failure checks pass; it remains one bounded scripted case.
+  raster-offline failure checks pass; it remains one bounded scripted case. The
+  chained [`raster.zonal_stats@1.0.0`](zonal-statistics-acceptance.md) tool now
+  consumes only that current-episode artifact and a task-pinned polygon. Its
+  independent membership/statistics reference, five-service restart, fresh
+  replay and zonal-capability-offline checks pass.
 - Still needed: broader packed-source coverage, external CA/IdP lifecycle,
   OCSP/CRL and automated certificate renewal/revocation, distributed abuse
   control, backup/recovery,
-  zonal statistics, selected reviewed formulas, broader licensed imagery and
+  selected task-derived reviewed formulas, broader licensed imagery and
   sensor/provider coverage, and the Qwen runner. Independent
   cloud-policy validation is complete
   only for the bounded two-ROI/eight-window pack; broader calibration remains a

@@ -16,6 +16,13 @@ its categorical bytes remain unchanged. See
 [continuous-grid-acceptance.md](continuous-grid-acceptance.md) for the complete
 contract and real Sentinel-2 acceptance.
 
+`raster.zonal_stats@1.0.0` consumes only a current-episode
+`raster.resample@1.1.0` artifact and a task-pinned polygon ID. The task, not the
+Agent, supplies reviewed UTM coordinates and WGS84 bounds. Pixel-centre
+inclusion is boundary-inclusive, source mask/nodata/nonfinite values are invalid,
+and the bounded JSON result creates no second raster. See
+[zonal-statistics-acceptance.md](zonal-statistics-acceptance.md).
+
 `raster.band_math@1.1.0` is an opt-in extension for episode-local artifact
 chaining. It consumes a prior `raster.resample@1.0.0` SCL artifact plus the
 reviewed red/NIR assets and applies the fixed policy
@@ -68,6 +75,13 @@ Invalid source neighborhoods or pixels outside the source become float32
 `-9999` plus an internal invalid mask. The result records grid, source scaling,
 valid coverage, min/max/mean and the exact two-input lineage.
 
+For zonal statistics, private `zonal_inputs` binds the polygon ID, same-grid UTM
+coordinates, independently checked WGS84 bounds and exact inclusion policy.
+The source artifact must be accessible in the current episode and must match the
+task's continuous-grid profiles and bilinear lineage hash. The provider returns
+zone/valid/invalid counts, valid fraction, minimum, maximum and float64 mean as
+bounded JSON. It does not accept paths, URLs, Agent geometry or expressions.
+
 ## Isolation and integrity
 
 - `EO_HARNESS_RASTER_URL` explicitly enables the provider. Existing EO-Gym and
@@ -116,6 +130,10 @@ python scripts/prepare_continuous_grid_smoke.py \
   --output-name <fresh-continuous-run> \
   --item-id S2A_50SPA_20240405_0_L2A \
   --reviewed-license
+
+python scripts/prepare_zonal_stats_smoke.py \
+  --source runtime/<accepted-continuous-run> \
+  --output-name <fresh-zonal-run>
 ```
 
 Combine `compose.eo-gym-smoke.yaml`, `compose.agent-smoke.yaml` and
@@ -142,6 +160,12 @@ For continuous alignment set
 `scripts/verify_continuous_grid_reference.py --run
 runtime/<fresh-continuous-run>`. The independent reference performs manual
 bilinear interpolation without the production reprojection function.
+
+For zonal statistics set
+`EO_RASTER_VERIFY_SCRIPT=./scripts/verify_zonal_stats_smoke.py` and run
+`scripts/verify_zonal_stats_reference.py --run runtime/<fresh-zonal-run>`.
+The independent reference uses a separate scalar point-in-polygon
+implementation and recomputes membership and float64 statistics for every pixel.
 
 For execution replay, start fresh EO-Gym/raster providers on a separate internal
 project; keep the original Harness stopped. Add `compose.execution-replay.yaml`
@@ -225,9 +249,10 @@ historical environments or model reasoning.
   fixed-policy computation and recovery/replay path, not SCL cloud semantic
   accuracy, cloud ground truth or temporal-change correctness.
 
-The accepted continuous-band result is recorded in
-[continuous-grid-acceptance.md](continuous-grid-acceptance.md). Remaining tools
-include zonal statistics, more reviewed band formulas and broader licensed
-imagery/sensor coverage.
+The accepted continuous-band and zonal-statistics results are recorded in
+[continuous-grid-acceptance.md](continuous-grid-acceptance.md) and
+[zonal-statistics-acceptance.md](zonal-statistics-acceptance.md). Remaining tool
+work is limited to task-derived reviewed formulas and broader licensed
+imagery/sensor coverage; no arbitrary expression interpreter is planned.
 The observed masked-NDVI means are conditional summaries under the fixed SCL
 policy, not a scientifically validated change-detection result.
