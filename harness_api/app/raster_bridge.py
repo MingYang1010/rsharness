@@ -13,8 +13,11 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import Response
 
-from .v2.raster_grid import (GridArguments, GridResult, NativeSCL, VERSION as GRID_VERSION,
-                             checked_grids, validate_grid)
+from .v2.raster_grid import (CONTINUOUS_VERSION as CONTINUOUS_GRID_VERSION,
+                             ContinuousBand, ContinuousGridResult, GridArguments,
+                             GridResult, NativeSCL, VERSION as GRID_VERSION,
+                             checked_continuous_grids, checked_grids,
+                             validate_continuous_grid, validate_grid)
 from .v2.raster_math import (BandMathArguments, MASKED_VERSION, MaskArtifactInput,
                              MaskedNDVIResult, NativeBand, NDVIResult, MAX_INPUT,
                              MAX_OUTPUT, VERSION, checked_pair,
@@ -112,25 +115,37 @@ class RasterBridge:
         finally:
             self.slot.release()
 
-    def execute_grid(self, args: GridArguments) -> tuple[bytes,GridResult]:
+    def execute_grid(self, args: GridArguments) -> tuple[bytes, GridResult | ContinuousGridResult]:
         if self.grid_worker is None:
             raise HTTPException(503,"raster grid worker unavailable")
         if not self.slot.acquire(blocking=False):
             raise HTTPException(429,"raster provider busy")
         try:
-            source_path,source = self.resolve(args.source_asset_id,NativeSCL)
-            reference_path,reference = self.resolve(args.reference_asset_id,NativeBand)
-            checked_grids(source,reference)
+            if args.method == "nearest":
+                source_path,source = self.resolve(args.source_asset_id,NativeSCL)
+                reference_path,reference = self.resolve(args.reference_asset_id,NativeBand)
+                checked_grids(source,reference)
+                result_type = GridResult
+            else:
+                source_path,source = self.resolve(args.source_asset_id,ContinuousBand)
+                reference_path,reference = self.resolve(args.reference_asset_id,ContinuousBand)
+                checked_continuous_grids(source,reference)
+                result_type = ContinuousGridResult
             with tempfile.TemporaryDirectory(prefix="grid-") as directory:
-                output = Path(directory)/"scl-grid.tif"
+                output = Path(directory)/"aligned-grid.tif"
                 run = subprocess.run([sys.executable,str(self.grid_worker),str(source_path),str(reference_path),str(output),
-                    json.dumps([source.model_dump(mode="json"),reference.model_dump(mode="json")])],
+                    json.dumps({"arguments":args.model_dump(mode="json"),
+                                "profiles":[source.model_dump(mode="json"),
+                                            reference.model_dump(mode="json")]})],
                     capture_output=True,timeout=20,check=False)
                 if run.returncode or len(run.stdout)>16384 or not output.is_file() or output.stat().st_size>MAX_OUTPUT:
                     raise ValueError("invalid raster grid worker output")
-                result = GridResult.model_validate_json(run.stdout)
+                result = result_type.model_validate_json(run.stdout)
                 content = output.read_bytes()
-                validate_grid(content,result)
+                if args.method == "nearest":
+                    validate_grid(content,result)
+                else:
+                    validate_continuous_grid(content,result)
                 if result.input_asset_ids != [source.asset_id,reference.asset_id] or result.input_sha256 != [source.sha256,reference.sha256]:
                     raise ValueError("worker grid source mismatch")
                 return content,result
@@ -194,6 +209,7 @@ def create_app(bridge: RasterBridge | None = None):
     @app.get("/healthz")
     def health():
         return {"status":"ok","tool_version":VERSION,"grid_tool_version":GRID_VERSION if bridge.grid_worker else None,
+                "grid_tool_versions":[GRID_VERSION,CONTINUOUS_GRID_VERSION] if bridge.grid_worker else [],
                 "temporal_tool_version":TEMPORAL_VERSION if bridge.temporal_worker else None}
 
     @app.post("/band-math")
@@ -228,8 +244,9 @@ def create_app(bridge: RasterBridge | None = None):
     @app.post("/resample-grid")
     def resample_grid(args: GridArguments):
         content,result = bridge.execute_grid(args)
+        version = GRID_VERSION if args.method == "nearest" else CONTINUOUS_GRID_VERSION
         return Response(content,media_type="image/tiff",headers={
-            "X-Raster-Grid-Metadata":result.model_dump_json(),"X-Raster-Grid-Version":GRID_VERSION,
+            "X-Raster-Grid-Metadata":result.model_dump_json(),"X-Raster-Grid-Version":version,
             "X-Content-SHA256":hashlib.sha256(content).hexdigest()})
 
     @app.post("/temporal-align")

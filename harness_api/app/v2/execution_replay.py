@@ -32,7 +32,7 @@ MAX_EVENTS = 4096
 MAX_SNAPSHOT_BYTES = 32 * 1024 * 1024
 SUPPORTED_VERSIONS = {"eo_gym.crop": {EOGymExecutor.tool_version},
                       RasterExecutor.tool_id: RasterExecutor.tool_versions,
-                      RasterGridExecutor.tool_id: {RasterGridExecutor.tool_version},
+                      RasterGridExecutor.tool_id: RasterGridExecutor.tool_versions,
                       TemporalExecutor.tool_id: {TemporalExecutor.tool_version},
                       MEMORY_TOOL_ID: {MEMORY_TOOL_VERSION},
                       **{name: {CatalogExecutor.tool_version} for name in CatalogExecutor.tool_ids}}

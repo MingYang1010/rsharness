@@ -16,14 +16,17 @@ from .raster_math import MAX_INPUT, MAX_OUTPUT, NativeBand
 from .schemas import Identifier, Sha256, UtcTimestamp, V2RequestModel
 
 VERSION = "1.0.0"
+CONTINUOUS_VERSION = "1.1.0"
 TOOL_ID = "raster.resample"
 NODATA = 255
+CONTINUOUS_NODATA = -9999.0
+VALID_WEIGHT_TOLERANCE = 1e-6
 
 
 class GridArguments(V2RequestModel):
     source_asset_id: Identifier
     reference_asset_id: Identifier
-    method: Literal["nearest"]
+    method: Literal["nearest", "bilinear"]
 
     @model_validator(mode="after")
     def distinct(self):
@@ -38,6 +41,10 @@ class NativeSCL(NativeBand):
     scale: Literal[1.0]
     offset: Literal[0.0]
     nodata: Literal[0.0]
+
+
+class ContinuousBand(NativeBand):
+    band: Literal["red", "nir", "swir16"]
 
 
 class GridResult(V2RequestModel):
@@ -85,10 +92,78 @@ class GridResult(V2RequestModel):
         return self
 
 
+class ContinuousGridResult(V2RequestModel):
+    operation: Literal["continuous-to-reference-grid"]
+    method: Literal["bilinear"]
+    source_band: Literal["red", "nir", "swir16"]
+    input_asset_ids: list[Identifier] = Field(min_length=2, max_length=2)
+    input_sha256: list[Sha256] = Field(min_length=2, max_length=2)
+    acquired: UtcTimestamp
+    crs: str
+    transform: list[float] = Field(min_length=6, max_length=6)
+    bbox_wgs84: list[float] = Field(min_length=4, max_length=4)
+    width: int = Field(gt=0, le=1024)
+    height: int = Field(gt=0, le=1024)
+    dtype: Literal["float32"]
+    nodata: Literal[-9999.0]
+    source_scale: float = Field(gt=0, le=1, allow_inf_nan=False)
+    source_offset: float = Field(ge=-1, le=1, allow_inf_nan=False)
+    valid_pixels: int = Field(ge=0)
+    total_pixels: int = Field(gt=0, le=1024 * 1024)
+    valid_fraction: float = Field(ge=0, le=1, allow_inf_nan=False)
+    minimum: float | None = Field(default=None, allow_inf_nan=False)
+    maximum: float | None = Field(default=None, allow_inf_nan=False)
+    mean: float | None = Field(default=None, allow_inf_nan=False)
+    scaling: Literal["DN*scale+offset-before-bilinear-resampling"]
+    invalid_policy: Literal[
+        "source-mask-or-nodata-or-nonfinite-or-outside-source-or-incomplete-bilinear-neighborhood"
+    ]
+    reference_policy: Literal["geometry-only-ignore-reference-values-and-mask"]
+
+    @model_validator(mode="after")
+    def consistent(self):
+        if len(set(self.input_asset_ids)) != 2:
+            raise ValueError("distinct source and reference required")
+        if (self.total_pixels != self.width * self.height
+                or self.valid_pixels > self.total_pixels
+                or self.valid_fraction != self.valid_pixels / self.total_pixels):
+            raise ValueError("pixel counts or coverage disagree")
+        statistics = (self.minimum, self.maximum, self.mean)
+        if self.valid_pixels:
+            if any(value is None for value in statistics):
+                raise ValueError("non-empty output requires statistics")
+            if not self.minimum <= self.mean <= self.maximum:
+                raise ValueError("invalid continuous statistics")
+        elif any(value is not None for value in statistics):
+            raise ValueError("empty output requires null statistics")
+        if not all(math.isfinite(v) for v in self.transform + self.bbox_wgs84):
+            raise ValueError("finite grid required")
+        a, b, _, d, e, _ = self.transform
+        if a <= 0 or e >= 0 or b != 0 or d != 0:
+            raise ValueError("north-up grid required")
+        if (self.crs[:8] not in {"EPSG:326", "EPSG:327"} or len(self.crs) != 10
+                or not self.crs[-2:].isdigit() or not 1 <= int(self.crs[-2:]) <= 60):
+            raise ValueError("reviewed UTM CRS required")
+        west, south, east, north = self.bbox_wgs84
+        if not (-180 <= west < east <= 180 and -90 <= south < north <= 90):
+            raise ValueError("invalid geographic footprint")
+        return self
+
+
 def checked_grids(source: NativeSCL, reference: NativeBand) -> tuple[NativeSCL, NativeBand]:
     # Revalidate also model_copy/update inputs; callers cannot bypass admission.
     source = NativeSCL.model_validate(source.model_dump(mode="json"))
     reference = NativeBand.model_validate(reference.model_dump(mode="json"))
+    if source.asset_id == reference.asset_id:
+        raise ValueError("distinct assets required")
+    if source.item_id != reference.item_id or source.acquired != reference.acquired:
+        raise ValueError("same scene and acquisition required; no temporal alignment")
+    return source, reference
+
+
+def checked_continuous_grids(source: ContinuousBand, reference: ContinuousBand) -> tuple[ContinuousBand, ContinuousBand]:
+    source = ContinuousBand.model_validate(source.model_dump(mode="json"))
+    reference = ContinuousBand.model_validate(reference.model_dump(mode="json"))
     if source.asset_id == reference.asset_id:
         raise ValueError("distinct assets required")
     if source.item_id != reference.item_id or source.acquired != reference.acquired:
@@ -123,6 +198,19 @@ def class_summary(values, valid) -> dict:
             "class_counts": np.bincount(values[valid], minlength=12).tolist()}
 
 
+def continuous_summary(values, valid) -> dict:
+    import numpy as np
+
+    selected = values[valid].astype(np.float64)
+    count = int(selected.size)
+    total = int(valid.size)
+    return {"valid_pixels": count, "total_pixels": total,
+            "valid_fraction": count / total,
+            "minimum": float(selected.min()) if count else None,
+            "maximum": float(selected.max()) if count else None,
+            "mean": float(selected.mean()) if count else None}
+
+
 def validate_grid(content: bytes, result: GridResult) -> None:
     import numpy as np
     import rasterio
@@ -147,6 +235,46 @@ def validate_grid(content: bytes, result: GridResult) -> None:
                 raise ValueError("categorical class or nodata mismatch")
             if class_summary(values, valid) != {key: getattr(result, key) for key in class_summary(values, valid)}:
                 raise ValueError("class histogram differs from pixels")
+
+
+def validate_continuous_grid(content: bytes, result: ContinuousGridResult) -> None:
+    import numpy as np
+    import rasterio
+    from rasterio.io import MemoryFile
+    from rasterio.warp import transform_bounds
+
+    result = ContinuousGridResult.model_validate(result.model_dump(mode="json"))
+    if len(content) > MAX_OUTPUT or content[:4] not in {b"II*\x00", b"MM\x00*"}:
+        raise ValueError("bounded classic TIFF required")
+    with rasterio.Env(GDAL_PAM_ENABLED="NO", GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR"), MemoryFile(content) as memory:
+        with memory.open(driver="GTiff") as image:
+            if ((image.width, image.height, image.count, image.dtypes) !=
+                    (result.width, result.height, 1, ("float32",))
+                    or image.crs is None or image.crs.to_string() != result.crs
+                    or list(image.transform)[:6] != result.transform
+                    or image.nodata != CONTINUOUS_NODATA
+                    or image.scales != (1.,) or image.offsets != (0.,)):
+                raise ValueError("continuous output profile mismatch")
+            bbox = list(transform_bounds(image.crs, "EPSG:4326", *image.bounds,
+                                         densify_pts=21))
+            if not np.allclose(bbox, result.bbox_wgs84, rtol=0, atol=1e-10):
+                raise ValueError("continuous output footprint mismatch")
+            values, valid = image.read(1), image.read_masks(1) > 0
+            tags = image.tags()
+            if (tags.get("operation") != result.operation
+                    or tags.get("method") != result.method
+                    or tags.get("version") != CONTINUOUS_VERSION
+                    or tags.get("source_band") != result.source_band
+                    or tags.get("scaling") != result.scaling
+                    or tags.get("invalid_policy") != result.invalid_policy
+                    or tags.get("reference_policy") != result.reference_policy):
+                raise ValueError("continuous provenance tags mismatch")
+            if (not np.isfinite(values).all()
+                    or not np.all(values[~valid] == CONTINUOUS_NODATA)):
+                raise ValueError("continuous nodata representation invalid")
+            summary = continuous_summary(values, valid)
+            if summary != {key: getattr(result, key) for key in summary}:
+                raise ValueError("continuous statistics differ from pixels")
 
 
 def compute_grid(source_path: Path, reference_path: Path, source: NativeSCL,
@@ -197,4 +325,81 @@ def compute_grid(source_path: Path, reference_path: Path, source: NativeSCL,
                     attribution=f"Contains modified Copernicus Sentinel data ({source.acquired[:4]})")
             content = memory.read()
     validate_grid(content, result)
+    return content, result
+
+
+def compute_continuous_grid(source_path: Path, reference_path: Path,
+                            source: ContinuousBand,
+                            reference: ContinuousBand) -> tuple[bytes, ContinuousGridResult]:
+    """Scale one reviewed band, then bilinearly align it to a reviewed grid."""
+    import numpy as np
+    import rasterio
+    from affine import Affine
+    from rasterio.enums import Resampling
+    from rasterio.io import MemoryFile
+    from rasterio.transform import array_bounds
+    from rasterio.warp import reproject, transform_bounds
+
+    source, reference = checked_continuous_grids(source, reference)
+    with rasterio.Env(GDAL_PAM_ENABLED="NO", GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR",
+                      GDAL_NUM_THREADS="1", GDAL_TIFF_INTERNAL_MASK=True):
+        source_dn, source_mask = _read_checked(source_path, source, pixels=True)
+        _read_checked(reference_path, reference, pixels=False)
+        physical = source_dn.astype("float64") * source.scale + source.offset
+        valid_source = source_mask & np.isfinite(physical)
+        if source.nodata is not None:
+            valid_source &= source_dn != source.nodata
+        weighted_values = np.where(valid_source, physical, 0.).astype("float64")
+        source_weights = valid_source.astype("float64")
+        target_shape = (reference.height, reference.width)
+        warped_values = np.zeros(target_shape, dtype="float64")
+        warped_weights = np.zeros(target_shape, dtype="float64")
+        target_transform = Affine(*reference.transform)
+        common = dict(src_transform=Affine(*source.transform), src_crs=source.crs,
+                      dst_transform=target_transform, dst_crs=reference.crs,
+                      src_nodata=None, dst_nodata=0., resampling=Resampling.bilinear,
+                      num_threads=1, warp_mem_limit=32, init_dest_nodata=True,
+                      ERROR_THRESHOLD=0.0)
+        reproject(source=weighted_values, destination=warped_values, **common)
+        reproject(source=source_weights, destination=warped_weights, **common)
+        valid = (np.isfinite(warped_values) & np.isfinite(warped_weights)
+                 & (warped_weights >= 1. - VALID_WEIGHT_TOLERANCE))
+        output_values = np.full(target_shape, CONTINUOUS_NODATA, dtype="float32")
+        output_values[valid] = (warped_values[valid] / warped_weights[valid]).astype("float32")
+        bbox = list(transform_bounds(reference.crs, "EPSG:4326",
+                    *array_bounds(reference.height, reference.width, target_transform),
+                    densify_pts=21))
+        invalid_policy = (
+            "source-mask-or-nodata-or-nonfinite-or-outside-source-or-"
+            "incomplete-bilinear-neighborhood"
+        )
+        reference_policy = "geometry-only-ignore-reference-values-and-mask"
+        result = ContinuousGridResult(
+            operation="continuous-to-reference-grid", method="bilinear",
+            source_band=source.band,
+            input_asset_ids=[source.asset_id, reference.asset_id],
+            input_sha256=[source.sha256, reference.sha256], acquired=source.acquired,
+            crs=reference.crs, transform=reference.transform, bbox_wgs84=bbox,
+            width=reference.width, height=reference.height, dtype="float32",
+            nodata=CONTINUOUS_NODATA, source_scale=source.scale,
+            source_offset=source.offset,
+            scaling="DN*scale+offset-before-bilinear-resampling",
+            invalid_policy=invalid_policy, reference_policy=reference_policy,
+            **continuous_summary(output_values, valid))
+        with MemoryFile() as memory:
+            with memory.open(driver="GTiff", width=reference.width,
+                             height=reference.height, count=1, dtype="float32",
+                             crs=reference.crs, transform=target_transform,
+                             nodata=CONTINUOUS_NODATA, compress="deflate") as output:
+                output.write(output_values, 1)
+                output.write_mask(valid.astype("uint8") * 255)
+                output.update_tags(
+                    operation=result.operation, method=result.method,
+                    version=CONTINUOUS_VERSION, source_band=result.source_band,
+                    scaling=result.scaling, invalid_policy=result.invalid_policy,
+                    reference_policy=result.reference_policy,
+                    attribution=("Contains modified Copernicus Sentinel data "
+                                 f"({source.acquired[:4]})"))
+            content = memory.read()
+    validate_continuous_grid(content, result)
     return content, result

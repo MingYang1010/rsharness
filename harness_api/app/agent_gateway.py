@@ -29,8 +29,9 @@ from .v2.raster_math import (BandMathArguments, CLOUD_POLICY,
                              MASKED_VERSION as RASTER_MASKED_VERSION,
                              MaskedNDVIResult, NDVIResult, TOOL_ID as RASTER_TOOL,
                              VERSION as RASTER_VERSION, MAX_OUTPUT as MAX_RASTER)
-from .v2.raster_grid import (GridArguments, GridResult, TOOL_ID as GRID_TOOL,
-                             VERSION as GRID_VERSION)
+from .v2.raster_grid import (CONTINUOUS_VERSION as CONTINUOUS_GRID_VERSION,
+                             ContinuousGridResult, GridArguments, GridResult,
+                             TOOL_ID as GRID_TOOL, VERSION as GRID_VERSION)
 from .v2.temporal import (MAX_OUTPUT as MAX_TEMPORAL,
                           TOOL_ID as TEMPORAL_TOOL,
                           VERSION as TEMPORAL_VERSION,
@@ -330,7 +331,13 @@ def public_observation(value: dict, binding: AgentBinding) -> dict:
                         raise GatewayError("upstream_scope_mismatch")
                     common.update(science.model_dump(mode="json"))
                 elif tool_id == GRID_TOOL:
-                    science = GridResult.model_validate({k: raw[k] for k in GridResult.model_fields})
+                    result_type = (GridResult if common["tool_version"] == GRID_VERSION
+                                   else ContinuousGridResult
+                                   if common["tool_version"] == CONTINUOUS_GRID_VERSION
+                                   else None)
+                    if result_type is None:
+                        raise GatewayError("unsupported_public_observation")
+                    science = result_type.model_validate({k: raw[k] for k in result_type.model_fields})
                     if not set(science.input_asset_ids).issubset(allowed):
                         raise GatewayError("upstream_scope_mismatch")
                     common.update(science.model_dump(mode="json"))
@@ -586,7 +593,8 @@ def create_app(binding: AgentBinding | None = None, base_url: str | None = None,
         binding = current_binding()
         value = await artifact(artifact_id)
         approved_science = {(RASTER_TOOL,RASTER_VERSION),(RASTER_TOOL,RASTER_MASKED_VERSION),
-                            (GRID_TOOL,GRID_VERSION),(TEMPORAL_TOOL,TEMPORAL_VERSION)}
+                            (GRID_TOOL,GRID_VERSION),(GRID_TOOL,CONTINUOUS_GRID_VERSION),
+                            (TEMPORAL_TOOL,TEMPORAL_VERSION)}
         task_inputs=set(binding.task.input_asset_refs)
         old_science=(len(value.lineage.input_refs)==2
                      and set(value.lineage.input_refs).issubset(task_inputs))
