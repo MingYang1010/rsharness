@@ -615,6 +615,7 @@ def create_app(binding: AgentBinding | None = None, base_url: str | None = None,
         binding = current_binding()
         value = await artifact(artifact_id)
         approved_science = {(RASTER_TOOL,RASTER_VERSION),(RASTER_TOOL,RASTER_MASKED_VERSION),
+                            (RASTER_TOOL,RASTER_NDMI_VERSION),
                             (GRID_TOOL,GRID_VERSION),(GRID_TOOL,CONTINUOUS_GRID_VERSION),
                             (TEMPORAL_TOOL,TEMPORAL_VERSION)}
         task_inputs=set(binding.task.input_asset_refs)
@@ -624,6 +625,17 @@ def create_app(binding: AgentBinding | None = None, base_url: str | None = None,
                         and value.lineage.tool_version==RASTER_MASKED_VERSION
                         and len(value.lineage.input_refs)==3
                         and set(value.lineage.input_refs[:2]).issubset(task_inputs))
+        try:
+            ndmi_parent=(TypeAdapter(ArtifactId).validate_python(
+                value.lineage.input_refs[1])
+                if len(value.lineage.input_refs)==2 else None)
+        except ValidationError:
+            ndmi_parent=None
+        ndmi_science=(value.lineage.tool_id==RASTER_TOOL
+                      and value.lineage.tool_version==RASTER_NDMI_VERSION
+                      and len(value.lineage.input_refs)==2
+                      and value.lineage.input_refs[0] in task_inputs
+                      and ndmi_parent==value.lineage.input_refs[1])
         temporal_science=(isinstance(value,TemporalStackArtifactRef)
                           and value.lineage.tool_id==TEMPORAL_TOOL
                           and value.lineage.tool_version==TEMPORAL_VERSION
@@ -634,7 +646,7 @@ def create_app(binding: AgentBinding | None = None, base_url: str | None = None,
                       and value.size_bytes <= max(MAX_RASTER,MAX_TEMPORAL)
                       and (value.lineage.tool_id,value.lineage.tool_version) in approved_science
                       and value.lineage.tool_id in binding.task.allowed_tools
-                      and (old_science or masked_science or temporal_science))
+                      and (old_science or masked_science or ndmi_science or temporal_science))
         if (value.media_type != "image/png" and not scientific) or value.size_bytes > MAX_IMAGE:
             raise GatewayError("unsupported_public_artifact", 422)
         content = await upstream("GET", f"/v2/artifacts/{artifact_id}/content?episode_id={binding.episode_id}", image=True)

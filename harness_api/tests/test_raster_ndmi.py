@@ -379,6 +379,11 @@ class RasterNDMITests(unittest.TestCase):
                                  ["tool_version"], NDMI_ZONAL_VERSION)
                 artifact = client.get(
                     "/agent/artifacts/" + ndmi_ref).json()["artifact"]
+                content = client.get(
+                    "/agent/artifacts/" + ndmi_ref + "/content")
+                self.assertEqual(content.status_code, 200, content.text)
+                self.assertEqual(hashlib.sha256(content.content).hexdigest(),
+                                 artifact["sha256"])
                 evidence = {"type": "memory.save_evidence", "evidence": {
                     "evidence_id": "ev-ndmi", "claim_id": "ndmi",
                     "source_ref": ndmi_ref,
