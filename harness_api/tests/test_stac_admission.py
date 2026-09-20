@@ -15,7 +15,8 @@ from rasterio.transform import from_origin
 from rasterio.warp import transform_bounds
 
 from app.v2.data.http_range import BoundedHTTP, RangeSource, checked_url, BLOCK_SIZE
-from app.v2.data.stac import ASSETS, checked_config, validate_item, discover
+from app.v2.data.stac import (ASSETS, checked_config, discover, validate_item,
+                              validate_swir16_asset)
 from app.v2.data.stac_windows import extract_window
 
 URL = "https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/test/B04.tif"
@@ -143,6 +144,37 @@ class STACAdmissionTests(unittest.TestCase):
         for trial in variants:
             with self.assertRaises(ValueError):
                 validate_item(trial, self.config)
+
+    def test_swir16_requires_validated_snapshot_band_grid_and_radiometry(self):
+        item = item_fixture(self.config)
+        item["assets"]["swir16"] = {
+            "href": ("https://sentinel-cogs.s3.us-west-2.amazonaws.com/"
+                     "sentinel-s2-l2a-cogs/test/" + item["id"] + "/B11.tif"),
+            "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+            "roles": ["data", "reflectance"], "proj:shape": [5490, 5490],
+            "proj:transform": [20, 0, 600000, 0, -20, 3600000],
+            "raster:bands": [{"data_type": "uint16", "nodata": 0,
+                              "scale": .0001, "offset": -.1,
+                              "spatial_resolution": 20}],
+            "eo:bands": [{"name": "swir16", "common_name": "swir16"}]}
+        selected = validate_item(item, self.config)
+        self.assertIs(validate_swir16_asset(item, selected),
+                      item["assets"]["swir16"])
+        changes = [
+            ("roles", ["data"]),
+            ("proj:transform", [10, 0, 600000, 0, -10, 3600000]),
+            ("raster:bands", [{"data_type": "uint16", "nodata": 0,
+                               "scale": .001, "offset": -.1,
+                               "spatial_resolution": 20}]),
+            ("eo:bands", [{"name": "nir", "common_name": "nir"}]),
+        ]
+        for key, value in changes:
+            trial = copy.deepcopy(item)
+            trial["assets"]["swir16"][key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                validate_swir16_asset(trial, validate_item(trial, self.config))
+        with self.assertRaises(ValueError):
+            validate_swir16_asset(item, {**selected, "snapshot_sha256": "f" * 64})
 
     def test_discovery_stays_candidate_and_does_not_follow_pagination(self):
         value = {"type":"FeatureCollection", "features":[item_fixture(self.config)],

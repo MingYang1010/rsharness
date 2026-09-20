@@ -13,6 +13,8 @@ from .http_range import BoundedHTTP, checked_url
 ENDPOINT = "https://earth-search.aws.element84.com/v1"
 COLLECTION = "sentinel-2-l2a"
 ASSETS = {"visual": "TCI.tif", "red": "B04.tif", "nir": "B08.tif", "scl": "SCL.tif"}
+SWIR16_KEY = "swir16"
+SWIR16_FILENAME = "B11.tif"
 
 
 def utc(value: str) -> datetime:
@@ -101,6 +103,47 @@ def validate_item(item: dict, config: dict, expected_id: str | None = None) -> d
     return {"id": item["id"], "acquired": properties["datetime"], "epsg": epsg,
             "scene_cloud_cover_percent": cloud, "assets": selected,
             "snapshot_sha256": hashlib.sha256(json_bytes(item)).hexdigest()}
+
+
+def validate_swir16_asset(item: dict, selected_item: dict) -> dict:
+    """Admit only Sentinel-2 B11 from an already validated pinned item."""
+    if (item.get("id") != selected_item.get("id")
+            or hashlib.sha256(json_bytes(item)).hexdigest()
+            != selected_item.get("snapshot_sha256")):
+        raise ValueError("SWIR asset must belong to the validated item snapshot")
+    asset = item.get("assets", {}).get(SWIR16_KEY)
+    if not isinstance(asset, dict):
+        raise ValueError("pinned item has no SWIR16 asset")
+    url = checked_url(asset.get("href"))
+    suffix = "/" + item["id"] + "/" + SWIR16_FILENAME
+    if (not url.startswith("https://sentinel-cogs.s3.us-west-2.amazonaws.com/")
+            or not url.endswith(suffix)
+            or not asset.get("type", "").startswith("image/tiff")
+            or asset.get("roles") != ["data", "reflectance"]):
+        raise ValueError("unexpected SWIR16 identity, media type or roles")
+    shape = asset.get("proj:shape")
+    transform = asset.get("proj:transform")
+    if (not isinstance(shape, list) or len(shape) != 2
+            or any(type(value) is not int or not 0 < value <= 20000 for value in shape)
+            or not isinstance(transform, list) or len(transform) < 6
+            or transform[0] != 20 or transform[1] != 0
+            or transform[3] != 0 or transform[4] != -20
+            or any(type(value) not in (int, float) or not math.isfinite(value)
+                   for value in transform[:6])):
+        raise ValueError("unexpected SWIR16 grid metadata")
+    raster_bands = asset.get("raster:bands")
+    eo_bands = asset.get("eo:bands")
+    if (not isinstance(raster_bands, list) or len(raster_bands) != 1
+            or raster_bands[0].get("data_type") != "uint16"
+            or raster_bands[0].get("nodata") != 0
+            or raster_bands[0].get("scale") != .0001
+            or raster_bands[0].get("offset") != -.1
+            or raster_bands[0].get("spatial_resolution") != 20
+            or not isinstance(eo_bands, list) or len(eo_bands) != 1
+            or eo_bands[0].get("name") != SWIR16_KEY
+            or eo_bands[0].get("common_name") != SWIR16_KEY):
+        raise ValueError("unexpected SWIR16 radiometry or band identity")
+    return asset
 
 
 def discover(http: BoundedHTTP, config: dict) -> dict:
