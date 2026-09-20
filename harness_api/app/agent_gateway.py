@@ -35,6 +35,7 @@ from .v2.raster_grid import (CONTINUOUS_VERSION as CONTINUOUS_GRID_VERSION,
                              ContinuousGridResult, GridArguments, GridResult,
                              TOOL_ID as GRID_TOOL, VERSION as GRID_VERSION)
 from .v2.raster_zonal import (TOOL_ID as ZONAL_TOOL,
+                              NDMI_VERSION as NDMI_ZONAL_VERSION,
                               VERSION as ZONAL_VERSION, ZonalArguments,
                               ZonalResult)
 from .v2.temporal import (MAX_OUTPUT as MAX_TEMPORAL,
@@ -352,7 +353,8 @@ def public_observation(value: dict, binding: AgentBinding) -> dict:
                         raise GatewayError("upstream_scope_mismatch")
                     common.update(science.model_dump(mode="json"))
                 elif tool_id == ZONAL_TOOL:
-                    if common["tool_version"] != ZONAL_VERSION:
+                    if common["tool_version"] not in {
+                            ZONAL_VERSION, NDMI_ZONAL_VERSION}:
                         raise GatewayError("unsupported_public_observation")
                     science = ZonalResult.model_validate(
                         {key: raw[key] for key in ZonalResult.model_fields})

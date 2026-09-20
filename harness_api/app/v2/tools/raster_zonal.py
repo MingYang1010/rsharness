@@ -9,17 +9,21 @@ from ..domain import V2DomainError
 from ..events import sha256_json
 from ..raster_grid import (CONTINUOUS_VERSION, ContinuousBand, GridArguments,
                            TOOL_ID as GRID_TOOL, checked_continuous_grids)
-from ..raster_zonal import (TOOL_ID, VERSION, ZoneSpec, ZonalArguments,
-                            ZonalRequest, ZonalResult, ZonalSource,
-                            validate_zonal_source, validate_zone_bounds)
-from ..raster_math import MAX_OUTPUT, MEDIA_TYPE
+from ..raster_zonal import (NDMI_VERSION, TOOL_ID, VERSION, ZoneSpec,
+                            ZonalArguments, ZonalRequest, ZonalResult,
+                            ZonalSource, validate_zonal_source,
+                            validate_zone_bounds)
+from ..raster_math import (NDMI_FORMULA, NDMI_VERSION as BAND_MATH_NDMI_VERSION,
+                           AlignedSWIRInput, BandMathArguments, MAX_OUTPUT,
+                           MEDIA_TYPE, TOOL_ID as BAND_MATH_TOOL,
+                           ndmi_lineage_payload)
 from .runtime import PreparedTool, ToolOutput
 
 
 class RasterZonalExecutor:
     tool_id = TOOL_ID
     tool_version = VERSION
-    tool_versions = {VERSION}
+    tool_versions = {VERSION, NDMI_VERSION}
 
     def __init__(self, base_url, artifacts, transport=None):
         self.base_url, self.artifacts, self.transport = base_url, artifacts, transport
@@ -47,35 +51,97 @@ class RasterZonalExecutor:
             if (artifact.kind != "raster" or artifact.media_type != MEDIA_TYPE
                     or artifact.size_bytes > MAX_OUTPUT
                     or artifact.spatial is None or artifact.temporal is None
-                    or artifact.spatial.crs != "EPSG:4326"
-                    or artifact.lineage.tool_id != GRID_TOOL
-                    or artifact.lineage.tool_version != CONTINUOUS_VERSION
-                    or len(artifact.lineage.input_refs) != 2):
-                raise ValueError("continuous raster artifact required")
-            source_id, reference_id = artifact.lineage.input_refs
-            if not {source_id, reference_id}.issubset(
-                    set(manifest.task.inputs).intersection(accessible_asset_refs)):
-                raise ValueError("artifact inputs are outside task scope")
+                    or artifact.spatial.crs != "EPSG:4326"):
+                raise ValueError("reviewed raster artifact required")
+            allowed = set(manifest.task.inputs).intersection(accessible_asset_refs)
             raw = manifest.task.metadata["grid_inputs"]
-            source = ContinuousBand.model_validate(raw[source_id])
-            reference = ContinuousBand.model_validate(raw[reference_id])
-            checked_continuous_grids(source, reference)
-            expected_lineage = sha256_json({
-                "arguments": GridArguments(
-                    source_asset_id=source_id,
-                    reference_asset_id=reference_id,
-                    method="bilinear",
-                ).model_dump(),
-                "grid_inputs": [source.model_dump(mode="json"),
-                                reference.model_dump(mode="json")],
-                "invalid_policy": (
-                    "source-mask-or-nodata-or-nonfinite-or-outside-source-"
-                    "or-incomplete-bilinear-neighborhood"
-                ),
-                "reference_policy": "geometry-only-ignore-reference-values-and-mask",
-            })
-            if artifact.lineage.parameters_hash != expected_lineage:
-                raise ValueError("continuous artifact lineage policy mismatch")
+            if (artifact.lineage.tool_id == GRID_TOOL
+                    and artifact.lineage.tool_version == CONTINUOUS_VERSION
+                    and len(artifact.lineage.input_refs) == 2):
+                source_id, reference_id = artifact.lineage.input_refs
+                if not {source_id, reference_id}.issubset(allowed):
+                    raise ValueError("artifact inputs are outside task scope")
+                source = ContinuousBand.model_validate(raw[source_id])
+                reference = ContinuousBand.model_validate(raw[reference_id])
+                checked_continuous_grids(source, reference)
+                expected_lineage = self.grid_lineage(source, reference)
+                if artifact.lineage.parameters_hash != expected_lineage:
+                    raise ValueError("continuous artifact lineage policy mismatch")
+                zonal_version = VERSION
+                source_operation = "continuous-to-reference-grid"
+            elif (artifact.lineage.tool_id == BAND_MATH_TOOL
+                  and artifact.lineage.tool_version == BAND_MATH_NDMI_VERSION
+                  and len(artifact.lineage.input_refs) == 2
+                  and manifest.task.metadata.get("band_math_formula")
+                  == NDMI_FORMULA):
+                nir_id, swir_artifact_id = artifact.lineage.input_refs
+                swir_artifact = (episode_artifacts or {}).get(swir_artifact_id)
+                if swir_artifact is None:
+                    raise V2DomainError(
+                        "policy_rejected",
+                        "NDMI parent artifact is not accessible in this episode",
+                        403,
+                        phase="policy",
+                    )
+                validate_derivation_metadata(
+                    swir_artifact.model_dump(mode="json"))
+                if (swir_artifact.kind != "raster"
+                        or swir_artifact.media_type != MEDIA_TYPE
+                        or swir_artifact.size_bytes > MAX_OUTPUT
+                        or swir_artifact.spatial is None
+                        or swir_artifact.temporal is None
+                        or swir_artifact.lineage.tool_id != GRID_TOOL
+                        or swir_artifact.lineage.tool_version != CONTINUOUS_VERSION
+                        or len(swir_artifact.lineage.input_refs) != 2):
+                    raise ValueError("reviewed aligned SWIR parent required")
+                source_id, reference_id = swir_artifact.lineage.input_refs
+                if (nir_id != reference_id
+                        or not {source_id, reference_id}.issubset(allowed)):
+                    raise ValueError("NDMI lineage is outside task scope")
+                source = ContinuousBand.model_validate(raw[source_id])
+                reference = ContinuousBand.model_validate(raw[reference_id])
+                checked_continuous_grids(source, reference)
+                if source.band != "swir16" or reference.band != "nir":
+                    raise ValueError("fixed B08/B11 NDMI lineage required")
+                if (swir_artifact.spatial.crs != "EPSG:4326"
+                        or swir_artifact.spatial.shape
+                        != [reference.height, reference.width, 1]
+                        or swir_artifact.spatial.gsd_meters
+                        != reference.transform[0]
+                        or swir_artifact.temporal.start != source.acquired
+                        or swir_artifact.temporal.end != source.acquired):
+                    raise ValueError("aligned SWIR parent metadata mismatch")
+                expected_grid = self.grid_lineage(source, reference)
+                if swir_artifact.lineage.parameters_hash != expected_grid:
+                    raise ValueError("aligned SWIR parent lineage mismatch")
+                swir = AlignedSWIRInput(
+                    artifact_id=swir_artifact.artifact_id,
+                    sha256=swir_artifact.sha256,
+                    size_bytes=swir_artifact.size_bytes,
+                    source_asset_id=source.asset_id,
+                    source_sha256=source.sha256,
+                    reference_asset_id=reference.asset_id,
+                    reference_sha256=reference.sha256,
+                    acquired=reference.acquired,
+                    crs=reference.crs,
+                    transform=reference.transform,
+                    width=reference.width,
+                    height=reference.height,
+                    dtype="float32",
+                    nodata=-9999.,
+                    lineage_parameters_hash=expected_grid,
+                )
+                formula_args = BandMathArguments(
+                    operation="ndmi", nir_asset_id=reference.asset_id,
+                    swir_artifact_id=swir_artifact.artifact_id)
+                expected_lineage = sha256_json(
+                    ndmi_lineage_payload(formula_args, reference, swir))
+                if artifact.lineage.parameters_hash != expected_lineage:
+                    raise ValueError("NDMI artifact lineage policy mismatch")
+                zonal_version = NDMI_VERSION
+                source_operation = "ndmi"
+            else:
+                raise ValueError("unsupported raster artifact lineage")
             west = artifact.spatial.bbox.west
             south = artifact.spatial.bbox.south
             east = artifact.spatial.bbox.east
@@ -99,6 +165,7 @@ class RasterZonalExecutor:
                 dtype="float32",
                 nodata=-9999.,
                 lineage_parameters_hash=expected_lineage,
+                source_operation=source_operation,
             )
             request = ZonalRequest(arguments=args, source=zonal_source, zone=zone)
         except V2DomainError:
@@ -110,14 +177,31 @@ class RasterZonalExecutor:
                 phase="request",
             ) from None
         return PreparedTool(
-            VERSION,
+            zonal_version,
             artifact.size_bytes,
             0,
-            lambda: self.invoke(request, artifact),
+            lambda: self.invoke(request, artifact, zonal_version),
             metadata_only=True,
         )
 
-    def invoke(self, request: ZonalRequest, artifact):
+    @staticmethod
+    def grid_lineage(source, reference):
+        return sha256_json({
+            "arguments": GridArguments(
+                source_asset_id=source.asset_id,
+                reference_asset_id=reference.asset_id,
+                method="bilinear",
+            ).model_dump(),
+            "grid_inputs": [source.model_dump(mode="json"),
+                            reference.model_dump(mode="json")],
+            "invalid_policy": (
+                "source-mask-or-nodata-or-nonfinite-or-outside-source-"
+                "or-incomplete-bilinear-neighborhood"
+            ),
+            "reference_policy": "geometry-only-ignore-reference-values-and-mask",
+        })
+
+    def invoke(self, request: ZonalRequest, artifact, zonal_version=VERSION):
         try:
             try:
                 content = self.artifacts.read_content(artifact).content
@@ -141,7 +225,8 @@ class RasterZonalExecutor:
                 ) as response:
                     response.raise_for_status()
                     if (response.status_code != 200
-                            or response.headers.get("X-Raster-Zonal-Version") != VERSION):
+                            or response.headers.get("X-Raster-Zonal-Version")
+                            != zonal_version):
                         raise ValueError("unsupported zonal provider response")
                     raw = bytearray()
                     for block in response.iter_bytes():

@@ -9,11 +9,13 @@ from typing import Literal
 from pydantic import Field, model_validator
 
 from .raster_grid import CONTINUOUS_NODATA
-from .raster_math import MAX_OUTPUT
+from .raster_math import (NDMI_FORMULA, NDMI_INVALID_POLICY,
+                          NDMI_VERSION as BAND_MATH_NDMI_VERSION, MAX_OUTPUT)
 from .schemas import ArtifactId, Identifier, Sha256, V2RequestModel
 
 TOOL_ID = "raster.zonal_stats"
 VERSION = "1.0.0"
+NDMI_VERSION = "1.1.0"
 INCLUSION_POLICY = "pixel-centre-in-polygon-boundary-inclusive"
 VALIDITY_POLICY = "source-mask-and-finite-and-not-nodata"
 MAX_ZONE_VERTICES = 64
@@ -104,6 +106,9 @@ class ZonalSource(V2RequestModel):
     dtype: Literal["float32"]
     nodata: Literal[-9999.0]
     lineage_parameters_hash: Sha256
+    source_operation: Literal["continuous-to-reference-grid", "ndmi"] = (
+        "continuous-to-reference-grid"
+    )
 
     @model_validator(mode="after")
     def valid_grid(self):
@@ -198,6 +203,13 @@ def validate_zonal_source(content: bytes, source: ZonalSource) -> None:
                 or image.nodata != source.nodata
                 or image.scales != (1.,) or image.offsets != (0.,)):
             raise ValueError("zonal source profile mismatch")
+        if source.source_operation == "ndmi":
+            tags = image.tags()
+            if (tags.get("operation") != "ndmi"
+                    or tags.get("version") != BAND_MATH_NDMI_VERSION
+                    or tags.get("formula_id") != NDMI_FORMULA
+                    or tags.get("invalid_policy") != NDMI_INVALID_POLICY):
+                raise ValueError("zonal NDMI provenance tags mismatch")
 
 
 def validate_zone_bounds(zone: ZoneSpec) -> None:

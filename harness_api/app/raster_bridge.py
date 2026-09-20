@@ -26,6 +26,7 @@ from .v2.raster_math import (NDMI_VERSION, AlignedSWIRInput,
                              validate_aligned_swir, validate_masked_ndvi,
                              validate_ndmi, validate_ndvi)
 from .v2.raster_zonal import (TOOL_ID as ZONAL_TOOL_ID,
+                              NDMI_VERSION as NDMI_ZONAL_VERSION,
                               VERSION as ZONAL_VERSION, ZonalRequest,
                               ZonalResult,
                               validate_zonal_source)
@@ -310,6 +311,7 @@ def create_app(bridge: RasterBridge | None = None):
                 "grid_tool_versions":[GRID_VERSION,CONTINUOUS_GRID_VERSION] if bridge.grid_worker else [],
                 "ndmi_tool_version":NDMI_VERSION if bridge.ndmi_worker else None,
                 "zonal_tool_version":ZONAL_VERSION if bridge.zonal_worker else None,
+                "zonal_tool_versions":[ZONAL_VERSION,NDMI_ZONAL_VERSION] if bridge.zonal_worker else [],
                 "temporal_tool_version":TEMPORAL_VERSION if bridge.temporal_worker else None}
 
     @app.post("/band-math")
@@ -397,7 +399,10 @@ def create_app(bridge: RasterBridge | None = None):
         result = bridge.execute_zonal(parsed, bytes(content))
         return JSONResponse(
             result.model_dump(mode="json"),
-            headers={"X-Raster-Zonal-Version": ZONAL_VERSION,
+            headers={"X-Raster-Zonal-Version": (
+                         NDMI_ZONAL_VERSION
+                         if parsed.source.source_operation == "ndmi"
+                         else ZONAL_VERSION),
                      "X-Raster-Zonal-Tool": ZONAL_TOOL_ID},
         )
 
