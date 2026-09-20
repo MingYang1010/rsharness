@@ -252,7 +252,9 @@ historical environments or model reasoning.
 The accepted continuous-band and zonal-statistics results are recorded in
 [continuous-grid-acceptance.md](continuous-grid-acceptance.md) and
 [zonal-statistics-acceptance.md](zonal-statistics-acceptance.md). Remaining tool
-work is limited to task-derived reviewed formulas and broader licensed
-imagery/sensor coverage; no arbitrary expression interpreter is planned.
+work starts with the fixed NDMI slice selected in
+[task-derived-formulas.md](task-derived-formulas.md), followed by broader
+licensed imagery/sensor coverage. No arbitrary expression interpreter is
+planned.
 The observed masked-NDVI means are conditional summaries under the fixed SCL
 policy, not a scientifically validated change-detection result.
