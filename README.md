@@ -56,6 +56,8 @@ The headless temporal checkpoint adds a checksum-pinned WHU building-change eval
 
 The Sentinel-2 temporal-selection checkpoint adds deterministic date/coverage/cloud filtering, aligned red/SCL stack artifacts, hidden abstention evaluation, scoped Agent acceptance and fresh execution replay. Its frozen cases, operator-oracle boundary and accepted results are documented in [docs/temporal-benchmark-v1.md](docs/temporal-benchmark-v1.md).
 
+The cross-task evidence-memory checkpoint adds policy-bound publication, owner-private hash-chained snapshots, budgeted `memory.search`, matched with/without-memory tasks, dedicated faithfulness scoring, restart idempotency, execution replay and append-only invalidation. The Agent receives only a public projection; source episode IDs, evidence IDs and local paths remain private. Contracts, commands, accepted hashes and limits are documented in [docs/evidence-memory-v1.md](docs/evidence-memory-v1.md).
+
 Set `EO_HARNESS_V2_ENABLED=0` on the API container to disable the V2 runtime. V2 routes remain registered and return typed HTTP `503 v2_disabled`; this does not remove V2 tables or artifacts and leaves V1 available. The default Compose configuration enables V2 and mounts `tasks/`, `config/v2/`, and datasets read-only while mounting the artifact store read-write.
 
 ## Start
@@ -81,7 +83,7 @@ Run the complete V1 and V2 regression suite from the source root:
 PYTHON=python3 /sata/yangm/eo-harness/scripts/test-harness.sh
 ```
 
-The current isolated A800 source gate discovers 290 Python tests; 256 pass and 34 environment-dependent integration tests skip when their opt-in external inputs are absent. It checks frozen contracts, typed errors, idempotency, concurrency, catalogs, raster tools, temporal selection/artifacts/evaluation, execution replay, restart persistence and repository payload controls. The renderer has four Node tests for map-state validation, capture-quality rejection, PNG hashing, and offline request routing.
+The current isolated A800 source gate runs 325 Python tests; 291 pass and 34 environment-dependent integration tests skip when their opt-in external inputs are absent. It checks frozen contracts, typed errors, idempotency, concurrency, catalogs, raster tools, temporal selection/artifacts/evaluation, cross-task evidence memory, execution replay, restart persistence and repository payload controls. The renderer has four Node tests for map-state validation, capture-quality rejection, PNG hashing, and offline request routing.
 
 ## Inspect
 

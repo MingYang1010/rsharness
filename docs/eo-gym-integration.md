@@ -103,7 +103,7 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
 
 ## Verified results and unfinished scope
 
-- A800 isolated source gate: 346 Python tests discovered, 312 passed and 34
+- A800 isolated source gate: 325 Python tests ran, 291 passed and 34
   environment-dependent tests skipped. This includes the 44 original regressions;
   synthetic test fixtures are not counted as dataset coverage.
 - Live HTTP smoke: real FAIR1M2 image, 400x300 crop, one tool call, frozen evidence,
@@ -173,6 +173,12 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
   backend to five route classes. Old/new operator CA overlap and new-only
   cutover pass; cross-role certificates and eight operator-only Agent-backend
   routes fail. The accepted Agent interaction is scripted, not model reasoning.
+- The [cross-task evidence-memory profile](evidence-memory-v1.md) adds
+  policy/certificate-bound publication, owner-private append-only snapshots,
+  budgeted Agent-safe `memory.search`, matched with/without-memory scoring,
+  restart idempotency, execution replay and invalidation. The accepted bounded
+  WorldCover run scored 1.0 with memory and 0.1 for the abstaining control; it
+  was an operator-injected lifecycle acceptance, not model reasoning.
 - A800 also has an explicit `raster.resample@1.0.0` categorical path: reviewed
   same-scene SCL is aligned to a pinned reference grid with nearest-neighbor only.
   Three dates passed exact independent pixel/mask comparison,14-step Agent
@@ -182,8 +188,8 @@ OpenBLAS attempted 64 threads, hit the 64-PID container limit and the API exited
   OCSP/CRL and automated certificate renewal/revocation, distributed abuse
   control, backup/recovery,
   general continuous raster reprojection, zonal statistics, other STAC
-  providers/public imagery subsets, cross-task evidence memory and the Qwen
-  runner. Independent cloud-policy validation is complete
+  providers/public imagery subsets and the Qwen runner. Independent
+  cloud-policy validation is complete
   only for the bounded two-ROI/eight-window pack; broader calibration remains a
   coverage task. Latest GPU preflight reports DRAIN and NVML library/driver
   mismatch; no driver or scheduler changes were made.
