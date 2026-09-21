@@ -171,10 +171,13 @@
     },
     {
       "dataset_id": "CloudSEN12",
-      "kind": "science_label_policy",
-      "status": "pending_agent_task",
-      "samples": [],
-      "reason": "labels validate SCL policy; no Qwen-facing task action is defined yet"
+      "kind": "agent_image_crop",
+      "samples": [
+        {"sample_id": "ROI_0549--20190519T155911_20190519T160743_T18STG", "asset_id": "asset-ee7f6163de0533f28d22f5cdd5118985709d5863daa01b22a172844764f124ad", "content_sha256": "235de5595263af5f6fce9b0e68ccfe24db770764edb2067ca0ab616848ebb005", "task_root": "runtime/cloudsen12-public-qwen-20260921-01/sample-ROI_0549--20190519T155911_20190519T160743_T18STG/tasks/cloudsen12-qwen"},
+        {"sample_id": "ROI_0550--20190504T023559_20190504T024226_T51RTM", "asset_id": "asset-f38e5e379f2c41da7058ccd23daf65536fc0e19801cd99718dd81b1a2680a6f3", "content_sha256": "d2dd552c07bed1748479eaf9ec144e7bd64d86f24a4e7b778abd645cb53f076a", "task_root": "runtime/cloudsen12-public-qwen-20260921-01/sample-ROI_0550--20190504T023559_20190504T024226_T51RTM/tasks/cloudsen12-qwen"}
+      ],
+      "generated_by": "scripts/admit_cloudsen12_public_windows.py",
+      "boundary": "public Sentinel visual windows only; CloudSEN12 manual/SCL labels remain evaluator-only"
     },
     {
       "dataset_id": "Sentinel-2-science-windows",
