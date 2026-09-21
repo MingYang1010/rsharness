@@ -24,7 +24,9 @@ verified artifact_id and sha256; never copy or invent those long identifiers.
 A pixel_window is [x,y,width,height], not
 [x0,y0,x1,y1]; for the full image use [0,0,pixel.width,pixel.height] from the
 verified artifact metadata. Then call answer.submit with valid JSON matching the
-task schema and cite the saved evidence_id."""
+task schema and cite the saved evidence_id. For tasks with multiple input
+assets, inspect every required asset before submitting and save separate
+evidence for each artifact."""
 
 MAX_JSON_BYTES = 2 * 1024 * 1024
 MAX_IMAGE_BYTES = 64 * 1024 * 1024

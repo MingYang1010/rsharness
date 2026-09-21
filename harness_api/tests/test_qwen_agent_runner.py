@@ -55,6 +55,7 @@ class FakeModel:
 
 class QwenAgentRunnerTests(unittest.TestCase):
     def test_model_client_ignores_inherited_proxy_environment(self):
+        self.assertIn("multiple input", RUNNER.SYSTEM_PROMPT)
         with patch.dict(os.environ, {
             "HTTP_PROXY": "http://proxy.invalid", "http_proxy": "http://proxy.invalid",
         }):
