@@ -38,6 +38,18 @@ class CloudSEN12PublicWindowTests(unittest.TestCase):
         self.assertTrue(value["end"].startswith("2019-05-19T23"))
         self.assertEqual(value["items"], [config["samples"][0]["sentinel_item_id"]])
 
+    def test_qwen_documents_validate_and_exclude_hidden_labels(self):
+        task, scenario, evaluator = MODULE.qwen_documents(
+            "cloudsen12-qwen-test", "asset-" + "a" * 64, "2019-05-19T15:59:11Z",
+        )
+        self.assertEqual(task["evaluator"], evaluator["evaluator_id"])
+        self.assertEqual(task["metric_aggregation"], evaluator["aggregate_weights"])
+        self.assertEqual(scenario["data_cutoff"], "2019-05-19T15:59:11Z")
+        content = json.dumps([task, scenario, evaluator])
+        self.assertNotIn("manual_hq", content)
+        self.assertNotIn("sen2cor", content)
+        self.assertIn("CloudSEN12 labels excluded", content)
+
 
 if __name__ == "__main__":
     unittest.main()

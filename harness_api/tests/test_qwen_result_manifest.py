@@ -30,17 +30,23 @@ class QwenResultManifestTests(unittest.TestCase):
                 connection.executescript("""
                 CREATE TABLE v2_episodes(episode_id TEXT,task_id TEXT,task_version TEXT,task_manifest_hash TEXT,state_json TEXT);
                 CREATE TABLE v2_events(episode_id TEXT,sequence INTEGER,event_json TEXT);
-                CREATE TABLE v2_action_results(episode_id TEXT,client_action_id TEXT,request_json TEXT,response_json TEXT);
+                CREATE TABLE v2_action_results(episode_id TEXT,client_action_id TEXT,outcome TEXT,request_json TEXT,response_json TEXT);
                 CREATE TABLE v2_tool_runs(episode_id TEXT,tool_run_id TEXT,run_json TEXT);
                 CREATE TABLE v2_artifacts(artifact_id TEXT,episode_id TEXT,artifact_json TEXT);
                 CREATE TABLE v2_episode_artifacts(episode_id TEXT,artifact_id TEXT);
                 CREATE TABLE v2_evidence(episode_id TEXT,evidence_id TEXT,evidence_json TEXT);
                 """)
-                connection.execute("INSERT INTO v2_episodes VALUES(?,?,?,?,?)", ("ep2-" + "a"*32, "task", "1.0.0", "f"*64, json.dumps({"status":"terminal","state_version":2})))
+                connection.execute("INSERT INTO v2_episodes VALUES(?,?,?,?,?)", ("ep2-" + "a"*32, "task", "1.0.0", "f"*64, json.dumps({"status":"terminated","state_version":2})))
                 connection.execute("INSERT INTO v2_events VALUES(?,?,?)", ("ep2-"+"a"*32,0,"{}"))
-                connection.execute("INSERT INTO v2_action_results VALUES(?,?,?,?)", ("ep2-"+"a"*32,"a","{}","{}"))
-                connection.execute("INSERT INTO v2_tool_runs VALUES(?,?,?)", ("ep2-"+"a"*32,"run","{}"))
-                artifact = json.dumps({"sha256":"b"*64})
+                rendered = dataset == "ESA-WorldCover-2021"
+                request = {"action": {"type": "map.set_view"}} if rendered else {}
+                connection.execute("INSERT INTO v2_action_results VALUES(?,?,?,?,?)",
+                                   ("ep2-"+"a"*32,"a","success",json.dumps(request),"{}"))
+                if not rendered:
+                    connection.execute("INSERT INTO v2_tool_runs VALUES(?,?,?)", ("ep2-"+"a"*32,"run","{}"))
+                artifact = json.dumps({"sha256":"b"*64, **({
+                    "lineage": {"tool_id": "renderer.terriamap.capture"},
+                } if rendered else {})})
                 connection.execute("INSERT INTO v2_artifacts VALUES(?,?,?)", ("art","ep2-"+"a"*32,artifact))
                 connection.execute("INSERT INTO v2_episode_artifacts VALUES(?,?)", ("ep2-"+"a"*32,"art"))
                 connection.execute("INSERT INTO v2_evidence VALUES(?,?,?)", ("ep2-"+"a"*32,"ev","{}"))

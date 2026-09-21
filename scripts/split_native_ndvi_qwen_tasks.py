@@ -51,6 +51,10 @@ def split(source: Path, output: Path) -> list[dict]:
     assets = json.loads((task_dir / "assets.json").read_text())
     scenario = json.loads((task_dir / "scenario.json").read_text())
     evaluator = json.loads((task_dir / "evaluator.json").read_text())
+    provider_path = source / "native-inputs.json"
+    if provider_path.is_symlink() or not provider_path.is_file() or provider_path.stat().st_size > 2 * 1024 * 1024:
+        raise ValueError("native input manifest is unavailable or oversized")
+    provider = json.loads(provider_path.read_text())
     if task.get("metadata", {}).get("artifact_identity") != "derivation-sha256-v1":
         raise ValueError("source task lacks derivation identity")
     pairs = date_pairs(task, assets)
@@ -65,6 +69,7 @@ def split(source: Path, output: Path) -> list[dict]:
         (sample / "native-inputs").mkdir(parents=True, exist_ok=True)
         (sample / "tasks" / "native-ndvi-qwen").mkdir(parents=True, exist_ok=True)
         sample_assets = []
+        sample_provider = {}
         for asset in pair:
             source_path = source / "native-inputs" / Path(asset["uri"]).name
             if source_path.is_symlink() or not source_path.is_file():
@@ -74,7 +79,14 @@ def split(source: Path, output: Path) -> list[dict]:
                 raise ValueError("native input changed")
             shutil.copyfile(source_path, sample / "native-inputs" / source_path.name)
             sample_assets.append(asset)
+            entry = provider.get(asset["asset_id"])
+            if not isinstance(entry, dict) or entry.get("filename") != source_path.name:
+                raise ValueError("native input manifest does not bind the selected file")
+            sample_provider[asset["asset_id"]] = entry
         selected_profiles = {item["asset_id"]: task["metadata"]["raster_inputs"][item["asset_id"]] for item in pair}
+        if any(sample_provider[asset_id].get("native") != profile
+               for asset_id, profile in selected_profiles.items()):
+            raise ValueError("native input manifest metadata changed")
         task_identity = ["native-ndvi-qwen-v1", item_id, selected_profiles]
         task_id = "native-ndvi-qwen-" + hashlib.sha256(json.dumps(task_identity, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:16]
         sample_task = {
@@ -94,6 +106,8 @@ def split(source: Path, output: Path) -> list[dict]:
         write_json(sample / "tasks" / "native-ndvi-qwen" / "assets.json", sample_assets)
         write_json(sample / "tasks" / "native-ndvi-qwen" / "scenario.json", sample_scenario)
         write_json(sample / "tasks" / "native-ndvi-qwen" / "evaluator.json", evaluator)
+        write_json(sample / "inputs.json", {})
+        write_json(sample / "native-inputs.json", sample_provider)
         write_json(sample / "job.json", {"task_ref": {"task_id": task_id, "task_version": "1.0.0"}, "seed": 42,
                                           "item_id": item_id, "asset_ids": list(identities)})
         (sample / "state").mkdir(exist_ok=True)

@@ -19,7 +19,7 @@ class SplitNativeNDVIQwenTests(unittest.TestCase):
         task_dir = source / "tasks" / "native-ndvi"
         (source / "native-inputs").mkdir(parents=True)
         task_dir.mkdir(parents=True)
-        assets, profiles, inputs = [], {}, []
+        assets, profiles, inputs, provider = [], {}, [], {}
         for index in range(count):
             item = {}
             for band in ("nir", "red"):
@@ -35,6 +35,7 @@ class SplitNativeNDVIQwenTests(unittest.TestCase):
                 inputs.append(asset_id)
                 item[band] = {"asset_id": asset_id, "sha256": digest, "item_id": f"item-{index}"}
                 profiles[asset_id] = item[band]
+                provider[asset_id] = {"filename": name, "native": item[band]}
         task = {"task_id": "source", "task_version": "1.0.0", "inputs": inputs,
                 "metadata": {"artifact_identity": "derivation-sha256-v1", "raster_inputs": profiles},
                 "budget": {}}
@@ -42,6 +43,7 @@ class SplitNativeNDVIQwenTests(unittest.TestCase):
         (task_dir / "assets.json").write_text(json.dumps(assets))
         (task_dir / "scenario.json").write_text("{}")
         (task_dir / "evaluator.json").write_text("{}")
+        (source / "native-inputs.json").write_text(json.dumps(provider))
         return source
 
     def test_split_keeps_two_independent_dates_and_tool_profile(self):
@@ -56,6 +58,12 @@ class SplitNativeNDVIQwenTests(unittest.TestCase):
             self.assertEqual(task["metadata"]["raster_inputs"].keys(), set(sample["asset_ids"]))
             scenario = json.loads((Path(sample["task_root"]) / "scenario.json").read_text())
             self.assertIn("raster.band_math", scenario["allowed_tools"])
+            sample_root = Path(sample["task_root"]).parents[1]
+            self.assertEqual(json.loads((sample_root / "inputs.json").read_text()), {})
+            provider = json.loads((sample_root / "native-inputs.json").read_text())
+            self.assertEqual(set(provider), set(sample["asset_ids"]))
+            self.assertEqual({item["filename"] for item in provider.values()},
+                             {path.name for path in (sample_root / "native-inputs").iterdir()})
 
     def test_requires_two_dates(self):
         source = self.make_source(count=1)

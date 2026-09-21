@@ -1,0 +1,12 @@
+services:
+  harness:
+    ports:
+      - "127.0.0.1:${EO_QWEN_HARNESS_PORT:-18080}:8000"
+
+  agent-gateway:
+    ports:
+      - "127.0.0.1:${EO_QWEN_GATEWAY_PORT:-18083}:8083"
+
+networks:
+  agent-front:
+    internal: false

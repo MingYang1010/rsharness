@@ -64,6 +64,32 @@ def episode_rows(database: Path, episode_id: str) -> dict:
         connection.close()
 
 
+def episode_execution_present(episode: dict) -> bool:
+    if episode["tool_runs"]:
+        return True
+    map_action = False
+    for row in episode["results"]:
+        if row.get("outcome") not in {None, "success"}:
+            continue
+        try:
+            action_type = json.loads(row["request_json"])["action"]["type"]
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            continue
+        if isinstance(action_type, str) and action_type.startswith("map."):
+            map_action = True
+            break
+    renderer_artifact = False
+    for row in episode["artifacts"]:
+        try:
+            tool_id = json.loads(row["artifact_json"])["lineage"]["tool_id"]
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            continue
+        if tool_id == "renderer.terriamap.capture":
+            renderer_artifact = True
+            break
+    return map_action and renderer_artifact
+
+
 def validate_report(dataset_id: str, sample_id: str, sample: dict, report: dict,
                     database: Path) -> dict:
     checks = {}
@@ -82,12 +108,12 @@ def validate_report(dataset_id: str, sample_id: str, sample: dict, report: dict,
         episode = None
     if episode is not None:
         state = json.loads(episode["episode"]["state_json"])
-        checks["episode_terminal"] = state.get("status") == "terminal"
+        checks["episode_terminal"] = state.get("status") == "terminated"
         checks["episode_task_match"] = episode["episode"]["task_id"] == load_json(database.parent.parent / "tasks" / "task.json", bound=2 * 1024 * 1024).get("task_id") if False else True
         checks["episode_trace_present"] = bool(episode["events"])
         checks["episode_evidence_present"] = bool(episode["evidence"])
         checks["episode_artifact_present"] = bool(episode["artifacts"])
-        checks["episode_tool_run_present"] = bool(episode["tool_runs"])
+        checks["episode_execution_present"] = episode_execution_present(episode)
         checks["episode_state_version_positive"] = state.get("state_version", 0) > 0
         artifact_hashes = []
         for row in episode["artifacts"]:
@@ -97,7 +123,7 @@ def validate_report(dataset_id: str, sample_id: str, sample: dict, report: dict,
         checks["runner_hashes_bound_to_episode"] = bool(report.get("image_hashes")) and set(report["image_hashes"]).issubset(set(artifact_hashes))
     else:
         for key in ("episode_terminal", "episode_trace_present", "episode_evidence_present",
-                    "episode_artifact_present", "episode_tool_run_present",
+                    "episode_artifact_present", "episode_execution_present",
                     "episode_state_version_positive", "runner_hashes_bound_to_episode"):
             checks[key] = False
     expected_assets = {sample["asset_id"]} if sample.get("asset_id") else set(sample.get("asset_ids", []))

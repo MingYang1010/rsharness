@@ -15,10 +15,17 @@ sys.path.insert(0, str(ROOT / "harness_api"))
 from app.v2.data.http_range import BoundedHTTP
 from app.v2.data.stac import ENDPOINT, COLLECTION, fetch_json, json_bytes, validate_item
 from app.v2.data.stac_windows import extract_window
+from app.v2.schemas import EvaluatorSpec, ScenarioProfile, TaskSpec
 from app.v2.storage.quota import StorageQuota
 
 
 REQUIRED_CONFIG = {"schema_version", "source", "samples", "license_review"}
+EVALUATOR_ID = "worldcover-grounded-v1"
+METRIC_WEIGHTS = {
+    "task.accuracy": 0.6,
+    "evidence.faithfulness": 0.3,
+    "process.efficiency": 0.1,
+}
 
 
 def review_config(config: dict) -> None:
@@ -73,6 +80,42 @@ def item_config(config: dict, sample: dict) -> dict:
     }
 
 
+def qwen_documents(task_id: str, asset_id: str, data_cutoff: str) -> tuple[dict, dict, dict]:
+    task = {
+        "task_id": task_id, "task_version": "1.0.0", "family": "grounded_vqa",
+        "scenario_profile": "general-inspection-v1",
+        "prompt": "Inspect the supplied Sentinel-2 visual window aligned to a CloudSEN12 ROI, crop the central half, save verified evidence, and report frozen pixel dimensions. Do not claim cloud truth.",
+        "inputs": [asset_id], "seed": 42, "evaluator": EVALUATOR_ID,
+        "metric_aggregation": METRIC_WEIGHTS,
+        "answer_schema": {"type": "object", "required": ["label", "confidence", "claims"], "properties": {
+            "label": {"type": "string"}, "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+            "claims": {"type": "array", "items": {"type": "object"}}}},
+        "budget": {"max_steps": 20, "max_tool_calls": 5, "max_wall_time_ms": 300000,
+                   "max_input_bytes": 536870912, "max_artifact_bytes": 134217728},
+        "metadata": {"observation_profile": "headless-tools-v1",
+                     "artifact_identity": "derivation-sha256-v1",
+                     "acceptance": "qwen-real-interaction-public-window-not-cloud-truth"},
+    }
+    scenario = {
+        "profile_id": "general-inspection-v1", "domain": "general_inspection",
+        "data_cutoff": data_cutoff, "freshness_max_age_seconds": None,
+        "allowed_actions": ["tool.invoke", "memory.save_evidence", "answer.*"],
+        "allowed_tools": ["catalog.search", "catalog.inspect_asset", "eo_gym.crop"],
+        "network_policy": "none", "evidence_required": True, "abstention_allowed": True,
+        "human_review_policy": "allowed",
+    }
+    evaluator = {
+        "evaluator_id": EVALUATOR_ID, "evaluator_version": "1.0.0",
+        "metric_names": list(METRIC_WEIGHTS), "aggregate_weights": METRIC_WEIGHTS,
+        "config": {"implementation_status": "interaction-only",
+                   "label_source": "public Sentinel visual crop; CloudSEN12 labels excluded"},
+    }
+    TaskSpec.model_validate(task)
+    ScenarioProfile.model_validate(scenario)
+    EvaluatorSpec.model_validate(evaluator)
+    return task, scenario, evaluator
+
+
 def write_json(path: Path, value: object) -> None:
     content = json_bytes(value)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -114,27 +157,11 @@ def prepare(config: dict, output: Path) -> list[dict]:
                 "quality": {"cloud_cover_percent": selected["scene_cloud_cover_percent"], "nodata_fraction": record["nodata_fraction"]},
             }
             task_id = "cloudsen12-qwen-" + hashlib.sha256(json_bytes([asset_id, record["sha256"], sample["sample_id"]])).hexdigest()[:16]
-            task = {
-                "task_id": task_id, "task_version": "1.0.0", "family": "grounded_vqa",
-                "scenario_profile": "general-inspection-v1", "prompt": "Inspect the supplied Sentinel-2 visual window aligned to a CloudSEN12 ROI, crop the central half, save verified evidence, and report frozen pixel dimensions. Do not claim cloud truth.",
-                "inputs": [asset_id], "seed": 42,
-                "answer_schema": {"type": "object", "required": ["label", "confidence", "claims"], "properties": {
-                    "label": {"type": "string"}, "confidence": {"type": "number", "minimum": 0, "maximum": 1},
-                    "claims": {"type": "array", "items": {"type": "object"}}}},
-                "budget": {"max_steps": 20, "max_tool_calls": 5, "max_wall_time_ms": 300000,
-                           "max_input_bytes": 536870912, "max_artifact_bytes": 134217728},
-                "metadata": {"observation_profile": "headless-tools-v1",
-                             "artifact_identity": "derivation-sha256-v1",
-                             "acceptance": "qwen-real-interaction-public-window-not-cloud-truth"},
-            }
-            scenario = {"profile_id": "general-inspection-v1", "domain": "general_inspection",
-                        "allowed_actions": ["tool.invoke", "memory.save_evidence", "answer.*"],
-                        "allowed_tools": ["catalog.search", "catalog.inspect_asset", "eo_gym.crop"],
-                        "network_policy": "none", "evidence_required": True, "abstention_allowed": True}
+            task, scenario, evaluator = qwen_documents(task_id, asset_id, record["acquired"])
             write_json(sample_dir / "tasks" / "cloudsen12-qwen" / "task.json", task)
             write_json(sample_dir / "tasks" / "cloudsen12-qwen" / "assets.json", [asset])
             write_json(sample_dir / "tasks" / "cloudsen12-qwen" / "scenario.json", scenario)
-            write_json(sample_dir / "tasks" / "cloudsen12-qwen" / "evaluator.json", {})
+            write_json(sample_dir / "tasks" / "cloudsen12-qwen" / "evaluator.json", evaluator)
             write_json(sample_dir / "inputs.json", {asset_id: {"role": "input_image", "filename": filename, "sha256": record["sha256"]}})
             write_json(sample_dir / "job.json", {"task_ref": {"task_id": task_id, "task_version": "1.0.0"}, "seed": 42,
                         "cloudsen12_sample_id": sample["sample_id"], "asset_id": asset_id, "source_sha256": record["sha256"]})

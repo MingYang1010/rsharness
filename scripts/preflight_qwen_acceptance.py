@@ -101,6 +101,34 @@ def slurm_status() -> dict:
     return {"nodes": nodes, "queue_output": queue, "allocation_ready": bool(nodes) and all(node["state"].startswith("idle") for node in nodes)}
 
 
+def execution_status(mode: str, gpu_index: int) -> dict:
+    if mode not in {"slurm", "direct-admin"}:
+        raise SystemExit("execution mode must be slurm or direct-admin")
+    result: dict = {"mode": mode}
+    if mode == "direct-admin":
+        code, state_output = command([
+            "systemctl", "is-active", "slurmd.service",
+            "slurm-ssh-tunnel.service", "slurmstepd.scope",
+        ])
+        states = [line.strip() for line in state_output.splitlines() if line.strip()]
+        result["slurm"] = {"service_states": states, "allocation_ready": False}
+        result["slurm_inactive"] = code != 0 and bool(states) and all(
+            state in {"inactive", "failed"} for state in states
+        )
+        gpu = gpu_status()
+        selected = next((item for item in gpu.get("gpus", []) if item["index"] == gpu_index), None)
+        result["gpu_index"] = gpu_index
+        result["selected_gpu"] = selected
+        result["selected_gpu_idle"] = bool(
+            selected and selected["used_mib"] == 0 and selected["utilization_percent"] == 0
+        )
+        result["ready"] = result["slurm_inactive"] and result["selected_gpu_idle"]
+        return result
+    result["slurm"] = slurm_status()
+    result["ready"] = result["slurm"]["allocation_ready"]
+    return result
+
+
 def runtime_file_status() -> dict:
     return {name: {"exists": (ROOT / name).is_file(), "sha256": sha256(ROOT / name) if (ROOT / name).is_file() else None}
             for name in RUNTIME_FILES}
@@ -110,6 +138,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model-root", type=Path, default=Path("/sata/yangm/models/Qwen3.5-9B"))
     parser.add_argument("--qwen-python", type=Path, default=Path("/sata/yangm/miniconda3/envs/qwen35vllm/bin/python"))
+    parser.add_argument("--execution-mode", choices=["slurm", "direct-admin"], default="slurm")
+    parser.add_argument("--gpu-index", type=int, default=1)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     report = {
@@ -119,7 +149,7 @@ def main() -> int:
         "model": model_status(args.model_root),
         "environment": environment_status(args.qwen_python),
         "gpu": gpu_status(),
-        "slurm": slurm_status(),
+        "execution": execution_status(args.execution_mode, args.gpu_index),
         "runtime_files": runtime_file_status(),
         "proxy": {"configured": bool(os.environ.get("https_proxy") or os.environ.get("HTTPS_PROXY"))},
         "real_model_acceptance_ready": False,
@@ -127,7 +157,7 @@ def main() -> int:
     report["real_model_acceptance_ready"] = (
         not report["matrix"]["pending_datasets"] and report["matrix"]["total_samples"] == 22
         and report["git"]["clean"] and report["model"]["weight_files_complete"]
-        and report["environment"]["available"] and report["slurm"]["allocation_ready"]
+        and report["environment"]["available"] and report["execution"]["ready"]
     )
     content = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
     if args.output:

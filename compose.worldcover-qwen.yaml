@@ -1,0 +1,25 @@
+services:
+  renderer:
+    networks:
+      - harness-internal
+      - isolated
+
+  harness:
+    environment:
+      EO_HARNESS_DATASETS: /datasets
+      EO_HARNESS_V2_ARTIFACTS: /artifacts
+      EO_HARNESS_V2_RENDERER_CONFIG: /config/v2/renderer.json
+      EO_HARNESS_V2_RENDERER_URL: http://renderer:8090
+    volumes:
+      - ./config/v2:/config/v2:ro
+      - ./datasets:/datasets:ro
+      - ${EO_SMOKE_ROOT}/artifacts:/artifacts:rw
+    networks:
+      - isolated
+      - harness-internal
+
+networks:
+  isolated:
+    internal: true
+  harness-internal:
+    internal: true

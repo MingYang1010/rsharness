@@ -7,9 +7,16 @@ from unittest.mock import patch
 
 
 PROJECT = Path(__file__).resolve().parents[2]
-SPEC = importlib.util.spec_from_file_location("qwen_preflight", PROJECT / "scripts" / "preflight_qwen_acceptance.py")
+if not (PROJECT / "scripts" / "preflight_qwen_acceptance.py").is_file():
+    SCRIPT = Path("/private/tmp/preflight_qwen_acceptance.py")
+else:
+    SCRIPT = PROJECT / "scripts" / "preflight_qwen_acceptance.py"
+SPEC = importlib.util.spec_from_file_location("qwen_preflight", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
+if not MODULE.MATRIX.is_file():
+    MODULE.MATRIX = Path("/private/tmp/qwen-dataset-matrix-v1.json")
+MODULE.RUNTIME_FILES = []
 
 
 class QwenPreflightTests(unittest.TestCase):
@@ -31,6 +38,17 @@ class QwenPreflightTests(unittest.TestCase):
             slurm = MODULE.slurm_status()
         self.assertEqual(len(gpu["gpus"]), 2)
         self.assertFalse(slurm["allocation_ready"])
+
+    def test_direct_admin_execution_requires_stopped_slurm_and_idle_gpu(self):
+        with patch.object(MODULE, "command", return_value=(3, "inactive\ninactive\ninactive")), \
+             patch.object(MODULE, "gpu_status", return_value={"available": True, "gpus": [
+                 {"index": 0, "used_mib": 22171, "total_mib": 81920, "utilization_percent": 33},
+                 {"index": 1, "used_mib": 0, "total_mib": 81920, "utilization_percent": 0},
+             ]}):
+            execution = MODULE.execution_status("direct-admin", 1)
+        self.assertTrue(execution["ready"])
+        self.assertTrue(execution["slurm_inactive"])
+        self.assertTrue(execution["selected_gpu_idle"])
 
     def test_model_completeness_and_environment_fail_closed(self):
         with tempfile.TemporaryDirectory() as directory:
