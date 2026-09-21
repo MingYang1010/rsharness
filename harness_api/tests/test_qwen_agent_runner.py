@@ -86,6 +86,8 @@ class QwenAgentRunnerTests(unittest.TestCase):
         evidence_schema = openai_tools(session)[1]["function"]["parameters"]
         self.assertIn("pattern", evidence_schema["properties"]["evidence_id"])
         self.assertEqual(evidence_schema["properties"]["selector"]["properties"]["bbox"]["type"], "object")
+        pixel_window = evidence_schema["properties"]["selector"]["properties"]["pixel_window"]
+        self.assertIn("[x,y,width,height]", pixel_window["description"])
         self.assertEqual(action_from_tool_call(session, "eo_gym.crop", {"x": 1}),
                          {"type": "tool.invoke", "tool_id": "eo_gym.crop", "arguments": {"x": 1}})
         evidence = {"evidence_id": "ev-one", "claim_id": "claim-one"}
@@ -184,6 +186,36 @@ class QwenAgentRunnerTests(unittest.TestCase):
                                       image_hashes=["a" * 64], elapsed_ms=12, transcript=[{"x": 1}])
         self.assertEqual(report["reason"], "gateway_network_error")
         self.assertEqual(report["error"]["type"], "ConnectError")
+
+    def test_step_rejection_preserves_model_call_context(self):
+        model = FakeModel()
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/agent/session":
+                return httpx.Response(200, json={
+                    "task": {"allowed_actions": ["tool.invoke"]},
+                    "state": {"episode_id": "ep2-" + "3" * 32, "state_version": 0},
+                    "observation": {}, "tool_schemas": {"eo_gym.crop": {
+                        "type": "object", "properties": {
+                            "aoi": {"type": "array", "items": {"type": "number"}},
+                        },
+                    }},
+                })
+            if request.url.path == "/agent/step":
+                return httpx.Response(403, json={"error": {"code": "policy_rejected"}})
+            raise AssertionError(request.url.path)
+
+        transport = httpx.MockTransport(handler)
+        original = httpx.Client
+        try:
+            httpx.Client = lambda **kwargs: original(transport=transport, **kwargs)
+            report = run("http://gateway", "token", model)
+        finally:
+            httpx.Client = original
+        self.assertEqual(report["status"], "failed")
+        self.assertEqual(report["episode_id"], "ep2-" + "3" * 32)
+        self.assertEqual(report["model_tool_calls"], 1)
+        self.assertEqual(report["transcript"][0]["assistant"]["tool_calls"][0]["function"]["name"], "eo_gym.crop")
 
     def test_compose_profile_is_agent_front_only_and_minimally_mounted(self):
         path = Path(__file__).resolve().parents[2] / "compose.qwen-runner.yaml"

@@ -20,8 +20,10 @@ first call eo_gym.crop. Its aoi is always normalized [x0,y0,x1,y1], with
 After receiving an image artifact, call
 memory.save_evidence with a complete evidence object: use the exact artifact_id
 as source_ref, the exact sha256 as frozen_sha256, a selector that constrains the
-artifact, and a stable claim_id. Then call answer.submit with valid JSON matching
-the task schema and cite the saved evidence_id."""
+artifact, and a stable claim_id. A pixel_window is [x,y,width,height], not
+[x0,y0,x1,y1]; for the full image use [0,0,pixel.width,pixel.height] from the
+verified artifact metadata. Then call answer.submit with valid JSON matching the
+task schema and cite the saved evidence_id."""
 
 MAX_JSON_BYTES = 2 * 1024 * 1024
 MAX_IMAGE_BYTES = 64 * 1024 * 1024
@@ -76,7 +78,14 @@ def openai_tools(session: dict) -> list[dict]:
                             "additionalProperties": False,
                         },
                         "bands": {"type": "array", "items": {"type": "string"}},
-                        "pixel_window": {"type": "array", "items": {"type": "integer"}, "minItems": 4, "maxItems": 4},
+                        "pixel_window": {
+                            "type": "array", "items": {"type": "integer", "minimum": 0},
+                            "minItems": 4, "maxItems": 4,
+                            "description": (
+                                "[x,y,width,height], not corner coordinates. Use "
+                                "[0,0,pixel.width,pixel.height] for the full verified artifact."
+                            ),
+                        },
                     },
                     "anyOf": [
                         {"required": ["bbox"]}, {"required": ["time_range"]},
@@ -361,7 +370,15 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                 action_id = "qwen-" + state["episode_id"][4:12] + "-" + str(tool_calls)
                 body = {"client_action_id": action_id, "expected_state_version": state["state_version"],
                         "action": action_from_tool_call(session, name, arguments)}
-                result = request("POST", "/agent/step", body)
+                try:
+                    result = request("POST", "/agent/step", body)
+                except httpx.HTTPStatusError as exc:
+                    return error_report(
+                        exc, episode_id=state["episode_id"], turns=turn + 1,
+                        tool_calls=tool_calls + 1, image_hashes=sorted(image_hashes),
+                        elapsed_ms=round((time.time() - started) * 1000, 3),
+                        transcript=transcript, checkpoint=checkpoint_value,
+                    )
                 state = result["state"]
                 terminated = result.get("terminated", False)
                 tool_calls += 1
