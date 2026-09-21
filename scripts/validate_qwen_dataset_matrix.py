@@ -48,13 +48,14 @@ def validate(path: Path) -> dict:
                     raise ValueError(dataset_id + " sample lacks task_root/content_sha256")
                 if not asset_id and not asset_ids:
                     raise ValueError(dataset_id + " sample lacks asset identity")
-                identity = asset_id or tuple(asset_ids)
+                identity = (asset_id or tuple(asset_ids), sample.get("sample_kind", "standard"))
                 identities.append(identity)
             if len(set(identities)) != len(identities):
                 raise ValueError(dataset_id + " samples are not distinct")
             content_hashes = [sample["content_sha256"] for sample in samples]
-            if len(set(content_hashes)) != len(content_hashes):
-                raise ValueError(dataset_id + " content hashes are not distinct")
+            sample_kinds = [sample.get("sample_kind", "standard") for sample in samples]
+            if len(set(zip(content_hashes, sample_kinds))) != len(content_hashes):
+                raise ValueError(dataset_id + " samples are not distinct")
         elif status in {"pending_second_sample", "pending_agent_task", "pending_qwen_task_split"}:
             pending += 1
             if samples:
@@ -80,8 +81,11 @@ def validate_runtime(path: Path, root: Path) -> dict:
             relative_root = sample["task_root"]
             parts = Path(relative_root).parts
             if parts and parts[0] == "runtime":
-                relative_root = Path(*parts[1:])
-            task_root = (root / relative_root).resolve()
+                task_root = (root.parent / Path(*parts)).resolve()
+            elif parts and parts[0] == "tasks":
+                task_root = (root.parent / relative_root).resolve()
+            else:
+                task_root = (root / relative_root).resolve()
             if not (task_root / "task.json").is_file():
                 candidates = sorted(path for path in task_root.rglob("task.json")
                                     if "worldcover-grounded-vqa" not in path.parent.name)

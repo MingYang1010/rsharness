@@ -164,9 +164,10 @@
     {
       "dataset_id": "ESA-WorldCover-2021",
       "kind": "agent_map_vqa",
-      "status": "pending_second_sample",
-      "samples": [],
-      "reason": "only one fixed rendered AOI/task is admitted; prepare a second distinct AOI before Qwen acceptance"
+      "samples": [
+        {"sample_id": "built-up", "asset_id": "asset-worldcover-n30e120", "content_sha256": "9f376abaca38815c5c743126147aeffd1916bb1907ad98929d341d4e6c87381c", "task_root": "tasks/worldcover-grounded-vqa-1.1.0", "sample_kind": "committed_fixed_aoi"},
+        {"sample_id": "water-A", "asset_id": "asset-worldcover-n30e120", "content_sha256": "9f376abaca38815c5c743126147aeffd1916bb1907ad98929d341d4e6c87381c", "task_root": "runtime/worldcover-water-qwen-20260921-01/tasks/worldcover-water-qwen", "sample_kind": "runtime_second_aoi"}
+      ]
     },
     {
       "dataset_id": "CloudSEN12",
