@@ -1,0 +1,96 @@
+{
+  "schema_version": "qwen-dataset-matrix-v1",
+  "sampling_rule": {
+    "distinct_content_samples_per_dataset": 2,
+    "counting_unit": "dataset_id plus reviewed admission contract",
+    "duplicate_runtime_copies_do_not_count": true,
+    "model": "Qwen3.5-9B",
+    "scope": "real interaction acceptance; not semantic benchmark coverage"
+  },
+  "datasets": [
+    {
+      "dataset_id": "XLRS-Bench-lite",
+      "kind": "agent_image_crop",
+      "samples": [
+        {"sample_id": 0, "asset_id": "asset-274229539c39ab3eeed29fe2dd4244e9d24571719a68dfa63f7a34e86b80f1f3", "content_sha256": "274229539c39ab3eeed29fe2dd4244e9d24571719a68dfa63f7a34e86b80f1f3", "task_root": "runtime/packed-smoke-20260917-0-0"},
+        {"sample_id": 1, "asset_id": "asset-d4b7b8c4813977ef72904bd2cd8ed5c26c3039fc653c6af491f1ac63109bd095", "content_sha256": "d4b7b8c4813977ef72904bd2cd8ed5c26c3039fc653c6af491f1ac63109bd095", "task_root": "runtime/packed-smoke-20260917-0-1"}
+      ]
+    },
+    {
+      "dataset_id": "XLRS-Bench_caption_en",
+      "kind": "agent_image_crop",
+      "samples": [
+        {"sample_id": 0, "asset_id": "asset-007bd7de447af5cd37f3aa23e8bc44b948977d09d967b50d148528299904e5b6", "content_sha256": "007bd7de447af5cd37f3aa23e8bc44b948977d09d967b50d148528299904e5b6", "task_root": "runtime/packed-smoke-20260917-1-0"},
+        {"sample_id": 1, "asset_id": "asset-a299ea222c33cac4ee2707bdcf0d5df9e1f4b36f01f71e36c2128d2a657ca963", "content_sha256": "a299ea222c33cac4ee2707bdcf0d5df9e1f4b36f01f71e36c2128d2a657ca963", "task_root": "runtime/packed-smoke-20260917-1-1"}
+      ]
+    },
+    {
+      "dataset_id": "XLRS-Bench_visual_grounding_en",
+      "kind": "agent_image_crop",
+      "samples": [
+        {"sample_id": 0, "asset_id": "asset-3bf57363630a940125f0375c1e211eaddd23dc4fa1374f7ea98bd4c5a8f0c123", "content_sha256": "3bf57363630a940125f0375c1e211eaddd23dc4fa1374f7ea98bd4c5a8f0c123", "task_root": "runtime/packed-smoke-20260917-2-0"},
+        {"sample_id": 1, "asset_id": "asset-d2282e536c3f754baf3cab7d91a6b8371b27875ec1a325c7039c106ff52a324b", "content_sha256": "d2282e536c3f754baf3cab7d91a6b8371b27875ec1a325c7039c106ff52a324b", "task_root": "runtime/packed-smoke-20260917-2-1"}
+      ]
+    },
+    {
+      "dataset_id": "LRS-VQA-path-parquet",
+      "kind": "agent_image_crop",
+      "samples": [
+        {"sample_id": 0, "asset_id": "asset-e27d9a1c7caad6052e5b4e78bec2769858fc9c959aab3e73a02f6818e647de10", "content_sha256": "e27d9a1c7caad6052e5b4e78bec2769858fc9c959aab3e73a02f6818e647de10", "task_root": "runtime/path-parquet-smoke-20260919-lrs-0"},
+        {"sample_id": 1, "asset_id": "asset-3c89be1ff0ae41aa2d48ee01cdf3482a0082039831ad1a031ca307dc704a2aba", "content_sha256": "3c89be1ff0ae41aa2d48ee01cdf3482a0082039831ad1a031ca307dc704a2aba", "task_root": "runtime/path-parquet-smoke-20260919-lrs-1"}
+      ]
+    },
+    {
+      "dataset_id": "DOTA-V2-processed-path-parquet",
+      "kind": "agent_image_crop",
+      "samples": [
+        {"sample_id": 0, "asset_id": "asset-69de66e5de28af7a348c67b3de26c3b71d46fd1b8a4b6904cc08e1a77ed3bde9", "content_sha256": "69de66e5de28af7a348c67b3de26c3b71d46fd1b8a4b6904cc08e1a77ed3bde9", "task_root": "runtime/path-parquet-smoke-20260919-dota-v2-0"},
+        {"sample_id": 1, "asset_id": "asset-4ee037af785f940c1dd91e6bb099c3683806b4af71eb6ef99c17db89e625532b", "content_sha256": "4ee037af785f940c1dd91e6bb099c3683806b4af71eb6ef99c17db89e625532b", "task_root": "runtime/path-parquet-smoke-20260919-dota-v2-1"}
+      ]
+    },
+    {
+      "dataset_id": "DOTA-v1-v15-v2-path-parquet",
+      "kind": "agent_image_crop",
+      "samples": [
+        {"sample_id": 0, "asset_id": "asset-80d4f050f13fadbc352f889501b45cd2374ab32cb38963ec8435a48cee6e9208", "content_sha256": "80d4f050f13fadbc352f889501b45cd2374ab32cb38963ec8435a48cee6e9208", "task_root": "runtime/path-parquet-smoke-20260919-dota-v1v15v2-0"},
+        {"sample_id": 1, "asset_id": "asset-2aff212831477e0df4925cd2fe2c74db02bf40e6ef1bd4111eae17f6bacbb4ce", "content_sha256": "2aff212831477e0df4925cd2fe2c74db02bf40e6ef1bd4111eae17f6bacbb4ce", "task_root": "runtime/path-parquet-smoke-20260919-dota-v1v15v2-1"}
+      ]
+    },
+    {
+      "dataset_id": "Sentinel-2-STAC-Nanjing",
+      "kind": "agent_catalog_crop",
+      "status": "pending_qwen_task_split",
+      "samples": [],
+      "reason": "current immutable task contains all three visual windows; split into two one-image Qwen tasks before acceptance"
+    },
+    {
+      "dataset_id": "WHU-Building-Change",
+      "kind": "agent_temporal_change",
+      "samples": [
+        {"sample_id": "0-137", "asset_ids": ["asset-whu-0-137-before", "asset-whu-0-137-after"], "content_sha256": "6d3f1946766b7895d139083300eef89c647464baaaf8206b73953e9f8c01c0c5", "task_root": "runtime/whu-change-accept-20260920-6/tasks/whu-building-change-0-137", "job_root": "runtime/whu-change-accept-20260920-6"},
+        {"sample_id": "0-224", "asset_ids": ["asset-whu-0-224-before", "asset-whu-0-224-after"], "content_sha256": "3366081a249b8e52b3396ee44db97fad8c8f33caa3c863b2f2d92e73ffc739b0", "task_root": "runtime/whu-change-accept-20260920-6/tasks/whu-building-change-0-224", "job_root": "runtime/whu-change-accept-20260920-6"}
+      ]
+    },
+    {
+      "dataset_id": "ESA-WorldCover-2021",
+      "kind": "agent_map_vqa",
+      "status": "pending_second_sample",
+      "samples": [],
+      "reason": "only one fixed rendered AOI/task is admitted; prepare a second distinct AOI before Qwen acceptance"
+    },
+    {
+      "dataset_id": "CloudSEN12",
+      "kind": "science_label_policy",
+      "status": "pending_agent_task",
+      "samples": [],
+      "reason": "labels validate SCL policy; no Qwen-facing task action is defined yet"
+    },
+    {
+      "dataset_id": "Sentinel-2-science-windows",
+      "kind": "science_raster_chain",
+      "status": "pending_agent_task",
+      "samples": [],
+      "reason": "native NDVI/grid/zonal/NDMI tasks are scripted scientific chains; no generic Qwen-facing two-sample matrix is defined yet"
+    }
+  ]
+}
