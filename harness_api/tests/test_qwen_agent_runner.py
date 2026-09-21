@@ -41,7 +41,7 @@ class FakeModel:
             function = {"name": "eo_gym.crop", "arguments": '{"asset_id":"asset-one","aoi":[0.25,0.25,0.75,0.75]}'}
             message = SimpleNamespace(content=None, tool_calls=[SimpleNamespace(id="call-1", function=function)])
         elif self.calls == 2:
-            function = {"name": "memory.save_evidence", "arguments": '{"evidence_id":"ev-one","claim_id":"claim-one","artifact_index":0,"selector":{"pixel_window":[0,0,1,1]},"description":"crop"}'}
+            function = {"name": "memory.save_evidence", "arguments": '{"evidence_id":"ev-one","claim_id":"claim-one","artifact_index":0,"pixel_window":[0,0,1,1],"description":"crop"}'}
             message = SimpleNamespace(content=None, tool_calls=[SimpleNamespace(id="call-2", function=function)])
         else:
             function = {"name": "answer.submit", "arguments": '{"answer":{"label":"crop","confidence":0.9,"claims":[]},"confidence":0.9,"evidence_ids":["ev-one"]}'}
@@ -82,7 +82,8 @@ class QwenAgentRunnerTests(unittest.TestCase):
                        "aoi": {"type": "array", "items": {"type": "number"}}}}}}
         self.assertEqual([item["function"]["name"] for item in openai_tools(session)],
                          ["eo_gym.crop", "answer.submit"])
-        artifacts = [{"artifact_id": "art-one", "sha256": "a" * 64}]
+        artifacts = [{"artifact_id": "art-one", "sha256": "a" * 64,
+                      "pixel": {"width": 1, "height": 1}}]
         names = [item["function"]["name"] for item in openai_tools(session, artifacts)]
         self.assertEqual(names, ["eo_gym.crop", "memory.save_evidence", "answer.submit"])
         crop_aoi = openai_tools(session)[0]["function"]["parameters"]["properties"]["aoi"]
@@ -93,9 +94,8 @@ class QwenAgentRunnerTests(unittest.TestCase):
         self.assertEqual(evidence_schema["properties"]["artifact_index"]["enum"], [0])
         self.assertNotIn("source_ref", evidence_schema["properties"])
         self.assertNotIn("frozen_sha256", evidence_schema["properties"])
-        selector_properties = evidence_schema["properties"]["selector"]["properties"]
-        self.assertEqual(set(selector_properties), {"pixel_window"})
-        pixel_window = selector_properties["pixel_window"]
+        self.assertNotIn("selector", evidence_schema["properties"])
+        pixel_window = evidence_schema["properties"]["pixel_window"]
         self.assertIn("[x,y,width,height]", pixel_window["description"])
         raster_session = {**session, "tool_schemas": {
             "raster.band_math": {"type": "object", "properties": {}}}}
@@ -103,13 +103,18 @@ class QwenAgentRunnerTests(unittest.TestCase):
         self.assertIn("bbox", raster_evidence["properties"]["selector"]["properties"])
         self.assertEqual(action_from_tool_call(session, "eo_gym.crop", {"x": 1}),
                          {"type": "tool.invoke", "tool_id": "eo_gym.crop", "arguments": {"x": 1}})
-        evidence = {"evidence_id": "ev-one", "claim_id": "claim-one", "artifact_index": 0}
+        evidence = {"evidence_id": "ev-one", "claim_id": "claim-one", "artifact_index": 0,
+                    "pixel_window": [0, 0, 1, 1]}
         bound = {"evidence_id": "ev-one", "claim_id": "claim-one",
+                 "selector": {"pixel_window": [0, 0, 1, 1]},
                  "source_ref": "art-one", "frozen_sha256": "a" * 64}
         self.assertEqual(action_from_tool_call(session, "memory.save_evidence", evidence, artifacts),
                          {"type": "memory.save_evidence", "evidence": bound})
         with self.assertRaises(ValueError):
             action_from_tool_call(session, "memory.save_evidence", {**evidence, "artifact_index": 1}, artifacts)
+        with self.assertRaises(ValueError):
+            action_from_tool_call(session, "memory.save_evidence",
+                                  {**evidence, "pixel_window": [0, 0, 2, 1]}, artifacts)
         self.assertEqual(action_from_tool_call(session, "answer.submit", {"answer": {}, "evidence_ids": []}),
                          {"type": "answer.submit", "answer": {}, "evidence_ids": []})
         with self.assertRaises(ValueError):

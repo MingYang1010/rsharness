@@ -134,10 +134,15 @@ def openai_tools(session: dict, artifacts: list[dict] | None = None) -> list[dic
         },
     }
     if "eo_gym.crop" in session.get("tool_schemas", {}):
-        selector = action_schemas["memory.save_evidence"]["properties"]["selector"]
+        evidence_schema = action_schemas["memory.save_evidence"]
+        selector = evidence_schema["properties"]["selector"]
         pixel_window = selector["properties"]["pixel_window"]
-        selector["properties"] = {"pixel_window": pixel_window}
-        selector["anyOf"] = [{"required": ["pixel_window"]}]
+        del evidence_schema["properties"]["selector"]
+        evidence_schema["properties"]["pixel_window"] = pixel_window
+        evidence_schema["required"] = [
+            "pixel_window" if key == "selector" else key
+            for key in evidence_schema["required"]
+        ]
     for name, schema in action_schemas.items():
         if name == "memory.save_evidence" and not artifacts:
             continue
@@ -167,6 +172,22 @@ def action_from_tool_call(session: dict, name: str, arguments: dict,
         if not isinstance(digest, str) or len(digest) != 64:
             raise ValueError("verified artifact hash is unavailable")
         evidence = {key: value for key, value in arguments.items() if key != "artifact_index"}
+        if "eo_gym.crop" in session.get("tool_schemas", {}):
+            pixel_window = evidence.pop("pixel_window", None)
+            if (not isinstance(pixel_window, list) or len(pixel_window) != 4
+                    or any(isinstance(value, bool) or not isinstance(value, int)
+                           for value in pixel_window)):
+                raise ValueError("evidence pixel_window must be four integers")
+            x, y, width, height = pixel_window
+            pixel = artifact.get("pixel", {})
+            artifact_width = pixel.get("width")
+            artifact_height = pixel.get("height")
+            if (x < 0 or y < 0 or width <= 0 or height <= 0
+                    or not isinstance(artifact_width, int)
+                    or not isinstance(artifact_height, int)
+                    or x + width > artifact_width or y + height > artifact_height):
+                raise ValueError("evidence pixel_window exceeds verified artifact bounds")
+            evidence["selector"] = {"pixel_window": pixel_window}
         evidence["source_ref"] = artifact_id
         evidence["frozen_sha256"] = digest
         return {"type": name, "evidence": evidence}
