@@ -13,8 +13,10 @@ SPEC = importlib.util.spec_from_file_location("qwen_agent_runner", RUNNER_PATH)
 RUNNER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(RUNNER)
 artifact_refs = RUNNER.artifact_refs
+action_from_tool_call = RUNNER.action_from_tool_call
 content_message = RUNNER.content_message
 decode_tool_arguments = RUNNER.decode_tool_arguments
+openai_tools = RUNNER.openai_tools
 run = RUNNER.run
 model_client = RUNNER.model_client
 MAX_IMAGE_BYTES = RUNNER.MAX_IMAGE_BYTES
@@ -35,9 +37,12 @@ class FakeModel:
         if self.calls == 1:
             function = {"name": "eo_gym.crop", "arguments": '{"asset_id":"asset-one","aoi":[0.25,0.25,0.75,0.75]}'}
             message = SimpleNamespace(content=None, tool_calls=[SimpleNamespace(id="call-1", function=function)])
+        elif self.calls == 2:
+            function = {"name": "memory.save_evidence", "arguments": '{"evidence":{"evidence_id":"ev-one","claim_id":"claim-one","source_ref":"art-one","selector":{"pixel_window":[0,0,1,1]},"description":"crop","frozen_sha256":"' + "a" * 64 + '"}}'}
+            message = SimpleNamespace(content=None, tool_calls=[SimpleNamespace(id="call-2", function=function)])
         else:
             function = {"name": "answer.submit", "arguments": '{"answer":{"label":"crop","confidence":0.9,"claims":[]},"confidence":0.9,"evidence_ids":["ev-one"]}'}
-            message = SimpleNamespace(content=None, tool_calls=[SimpleNamespace(id="call-2", function=function)])
+            message = SimpleNamespace(content=None, tool_calls=[SimpleNamespace(id="call-3", function=function)])
         return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
     @property
@@ -65,6 +70,19 @@ class QwenAgentRunnerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             content_message("x", {"size_bytes": MAX_IMAGE_BYTES + 1, "sha256": "f" * 64}, b"x" * (MAX_IMAGE_BYTES + 1))
 
+    def test_native_actions_are_exposed_and_not_wrapped_as_tool_invoke(self):
+        session = {"task": {"allowed_actions": ["tool.invoke", "memory.save_evidence", "answer.submit"],
+                            "answer_schema": {"type": "object", "properties": {"label": {"type": "string"}}}},
+                   "tool_schemas": {"eo_gym.crop": {"type": "object", "properties": {}}}}
+        names = [item["function"]["name"] for item in openai_tools(session)]
+        self.assertEqual(names, ["eo_gym.crop", "memory.save_evidence", "answer.submit"])
+        self.assertEqual(action_from_tool_call(session, "eo_gym.crop", {"x": 1}),
+                         {"type": "tool.invoke", "tool_id": "eo_gym.crop", "arguments": {"x": 1}})
+        self.assertEqual(action_from_tool_call(session, "answer.submit", {"answer": {}, "evidence_ids": []}),
+                         {"type": "answer.submit", "answer": {}, "evidence_ids": []})
+        with self.assertRaises(ValueError):
+            action_from_tool_call(session, "unknown", {})
+
     def test_model_tool_calls_execute_and_verified_image_is_returned(self):
         model = FakeModel()
         image = b"fake-png"
@@ -72,13 +90,20 @@ class QwenAgentRunnerTests(unittest.TestCase):
         def handler(request: httpx.Request) -> httpx.Response:
             self.assertEqual(request.headers["authorization"], "Bearer token")
             if request.url.path == "/agent/session":
-                return httpx.Response(200, json={"task": {"prompt": "crop", "input_asset_refs": ["asset-one"]}, "state": {"episode_id": "ep2-" + "1" * 32, "state_version": 0}, "observation": {}, "tool_schemas": {"eo_gym.crop": {"type": "object", "properties": {}, "additionalProperties": False}}})
-            if request.url.path == "/agent/step" and json.loads(request.content)["action"]["tool_id"] == "eo_gym.crop":
+                return httpx.Response(200, json={"task": {"prompt": "crop", "input_asset_refs": ["asset-one"],
+                    "allowed_actions": ["tool.invoke", "memory.save_evidence", "answer.submit"],
+                    "answer_schema": {"type": "object", "properties": {"label": {"type": "string"}}}},
+                    "state": {"episode_id": "ep2-" + "1" * 32, "state_version": 0}, "observation": {},
+                    "tool_schemas": {"eo_gym.crop": {"type": "object", "properties": {}, "additionalProperties": False}}})
+            action = json.loads(request.content)["action"] if request.url.path == "/agent/step" else None
+            if action and action["type"] == "tool.invoke":
                 return httpx.Response(200, json={"terminated": False, "observation": {"items": [{"artifact_ref": "art-one"}]}, "state": {"episode_id": "ep2-" + "1" * 32, "state_version": 1}})
-            if request.url.path == "/agent/step":
-                return httpx.Response(200, json={"terminated": True, "observation": {}, "state": {"episode_id": "ep2-" + "1" * 32, "state_version": 2, "status": "terminal"}})
+            if action and action["type"] == "memory.save_evidence":
+                return httpx.Response(200, json={"terminated": False, "observation": {}, "state": {"episode_id": "ep2-" + "1" * 32, "state_version": 2, "status": "active"}})
+            if action and action["type"] == "answer.submit":
+                return httpx.Response(200, json={"terminated": True, "observation": {}, "state": {"episode_id": "ep2-" + "1" * 32, "state_version": 3, "status": "terminal"}})
             if request.url.path == "/agent/artifacts/art-one":
-                return httpx.Response(200, json={"artifact": {"artifact_id": "art-one", "size_bytes": len(image), "sha256": "a" * 64, "media_type": "image/png"}})
+                return httpx.Response(200, json={"artifact": {"artifact_id": "art-one", "size_bytes": len(image), "sha256": "a" * 64, "media_type": "image/png", "pixel": {"width": 1, "height": 1}}})
             if request.url.path == "/agent/artifacts/art-one/content":
                 return httpx.Response(200, content=image, headers={"content-type": "image/png"})
             raise AssertionError(request.url.path)
@@ -91,9 +116,10 @@ class QwenAgentRunnerTests(unittest.TestCase):
         finally:
             httpx.Client = original
         self.assertEqual(report["status"], "passed", report)
-        self.assertEqual(report["model_tool_calls"], 2)
+        self.assertEqual(report["model_tool_calls"], 3)
         self.assertEqual(report["image_hashes"], ["a" * 64])
         self.assertTrue(any(item.get("name") == "eo_gym.crop" for item in report["transcript"]))
+        self.assertTrue(any(item.get("name") == "memory.save_evidence" for item in report["transcript"]))
 
     def test_checkpoint_resumes_without_repeating_completed_action(self):
         model = FakeModel()
@@ -104,7 +130,9 @@ class QwenAgentRunnerTests(unittest.TestCase):
         def handler(request: httpx.Request) -> httpx.Response:
             gateway_calls.append((request.method, request.url.path))
             if request.url.path == "/agent/session":
-                return httpx.Response(200, json={"task": {}, "state": {"episode_id": "ep2-" + "2" * 32, "state_version": 0}, "observation": {}, "tool_schemas": {}})
+                return httpx.Response(200, json={"task": {"allowed_actions": ["tool.invoke"]},
+                    "state": {"episode_id": "ep2-" + "2" * 32, "state_version": 0}, "observation": {},
+                    "tool_schemas": {"eo_gym.crop": {"type": "object", "properties": {}}}})
             if request.url.path == "/agent/step":
                 return httpx.Response(200, json={"terminated": True, "observation": {}, "state": {"episode_id": "ep2-" + "2" * 32, "state_version": 1, "status": "terminal"}})
             raise AssertionError(request.url.path)

@@ -16,8 +16,10 @@ from openai import OpenAI
 SYSTEM_PROMPT = """You interact with an EO Harness through tools.
 Use a real tool when it helps; do not fabricate tool output. For crop tasks,
 first call eo_gym.crop. After receiving an image artifact, call
-memory.save_evidence with its exact artifact identity/hash, then call
-answer.submit with valid JSON matching the task schema."""
+memory.save_evidence with a complete evidence object: use the exact artifact_id
+as source_ref, the exact sha256 as frozen_sha256, a selector that constrains the
+artifact, and a stable claim_id. Then call answer.submit with valid JSON matching
+the task schema and cite the saved evidence_id."""
 
 MAX_JSON_BYTES = 2 * 1024 * 1024
 MAX_IMAGE_BYTES = 64 * 1024 * 1024
@@ -30,7 +32,82 @@ def openai_tools(session: dict) -> list[dict]:
         if not isinstance(schema, dict) or schema.get("type") != "object":
             raise ValueError("tool schema is not an object")
         tools.append({"type": "function", "function": {"name": name, "description": "EO Harness tool " + name, "parameters": schema}})
+    task = session.get("task", {})
+    allowed_actions = set(task.get("allowed_actions", []))
+    action_schemas = {
+        "memory.save_evidence": {
+            "type": "object",
+            "properties": {
+                "evidence": {
+                    "type": "object",
+                    "properties": {
+                        "evidence_id": {"type": "string"},
+                        "claim_id": {"type": "string"},
+                        "source_ref": {"type": "string"},
+                        "selector": {
+                            "type": "object",
+                            "properties": {
+                                "geometry": {"type": "object"},
+                                "bbox": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
+                                "time_range": {"type": "object"},
+                                "bands": {"type": "array", "items": {"type": "string"}},
+                                "pixel_window": {"type": "array", "items": {"type": "integer"}, "minItems": 4, "maxItems": 4},
+                            },
+                            "additionalProperties": False,
+                        },
+                        "description": {"type": "string"},
+                        "frozen_sha256": {"type": "string"},
+                    },
+                    "required": ["evidence_id", "claim_id", "source_ref", "selector", "description", "frozen_sha256"],
+                    "additionalProperties": False,
+                }
+            },
+            "required": ["evidence"],
+            "additionalProperties": False,
+        },
+        "answer.submit": {
+            "type": "object",
+            "properties": {
+                "answer": task.get("answer_schema", {"type": "object"}),
+                "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+                "evidence_ids": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["answer", "evidence_ids"],
+            "additionalProperties": False,
+        },
+        "answer.abstain": {
+            "type": "object",
+            "properties": {
+                "rationale": {"type": "string"},
+                "evidence_ids": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["rationale"],
+            "additionalProperties": False,
+        },
+        "answer.request_human_review": {
+            "type": "object",
+            "properties": {
+                "rationale": {"type": "string"},
+                "evidence_ids": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["rationale"],
+            "additionalProperties": False,
+        },
+    }
+    for name, schema in action_schemas.items():
+        if name in allowed_actions:
+            tools.append({"type": "function", "function": {
+                "name": name, "description": "EO Harness action " + name, "parameters": schema,
+            }})
     return tools
+
+
+def action_from_tool_call(session: dict, name: str, arguments: dict) -> dict:
+    if name in session.get("tool_schemas", {}):
+        return {"type": "tool.invoke", "tool_id": name, "arguments": arguments}
+    if name in set(session.get("task", {}).get("allowed_actions", [])):
+        return {"type": name, **arguments}
+    raise ValueError("model requested an unavailable Harness action")
 
 
 def content_message(text: str, artifact=None, content: bytes | None = None, media_type: str | None = None) -> dict:
@@ -46,6 +123,17 @@ def content_message(text: str, artifact=None, content: bytes | None = None, medi
         data_url = "data:" + (media_type or artifact.get("media_type", "application/octet-stream")) + ";base64," + base64.b64encode(content).decode("ascii")
         message["content"].append({"type": "image_url", "image_url": {"url": data_url}})
     return message
+
+
+def artifact_message(artifact: dict, content: bytes, media_type: str | None = None) -> dict:
+    public = {key: artifact[key] for key in (
+        "artifact_id", "sha256", "size_bytes", "media_type", "pixel"
+    ) if key in artifact}
+    return content_message(
+        "Verified artifact metadata: " + json.dumps(public, ensure_ascii=False, sort_keys=True)
+        + ". Use artifact_id as source_ref and sha256 as frozen_sha256.",
+        artifact, content, media_type,
+    )
 
 
 def artifact_refs(value: Any) -> list[str]:
@@ -210,7 +298,8 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                 name = tool_function(call)["name"]
                 arguments = decode_tool_arguments(call)
                 action_id = "qwen-" + state["episode_id"][4:12] + "-" + str(tool_calls)
-                body = {"client_action_id": action_id, "expected_state_version": state["state_version"], "action": {"type": "tool.invoke", "tool_id": name, "arguments": arguments}}
+                body = {"client_action_id": action_id, "expected_state_version": state["state_version"],
+                        "action": action_from_tool_call(session, name, arguments)}
                 result = request("POST", "/agent/step", body)
                 state = result["state"]
                 terminated = result.get("terminated", False)
@@ -233,8 +322,7 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                     if len(content) != metadata["size_bytes"]:
                         raise ValueError("gateway artifact size mismatch")
                     image_hashes.add(metadata["sha256"])
-                    messages.append(content_message(
-                        "The exact verified crop artifact is attached. Use its hash and artifact identity as evidence.",
+                    messages.append(artifact_message(
                         metadata, content, content_response.headers.get("content-type"),
                     ))
                 if terminated:
