@@ -29,17 +29,19 @@ ROOT = Path(__file__).resolve().parents[2]
 class FakeModel:
     def __init__(self):
         self.calls = 0
+        self.tool_history = []
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
 
     def create(self, *, messages, tools, **kwargs):
         self.calls += 1
         self.seen_messages = messages
         self.seen_tools = tools
+        self.tool_history.append(tools)
         if self.calls == 1:
             function = {"name": "eo_gym.crop", "arguments": '{"asset_id":"asset-one","aoi":[0.25,0.25,0.75,0.75]}'}
             message = SimpleNamespace(content=None, tool_calls=[SimpleNamespace(id="call-1", function=function)])
         elif self.calls == 2:
-            function = {"name": "memory.save_evidence", "arguments": '{"evidence_id":"ev-one","claim_id":"claim-one","source_ref":"art-one","selector":{"pixel_window":[0,0,1,1]},"description":"crop","frozen_sha256":"' + "a" * 64 + '"}'}
+            function = {"name": "memory.save_evidence", "arguments": '{"evidence_id":"ev-one","claim_id":"claim-one","artifact_index":0,"selector":{"pixel_window":[0,0,1,1]},"description":"crop"}'}
             message = SimpleNamespace(content=None, tool_calls=[SimpleNamespace(id="call-2", function=function)])
         else:
             function = {"name": "answer.submit", "arguments": '{"answer":{"label":"crop","confidence":0.9,"claims":[]},"confidence":0.9,"evidence_ids":["ev-one"]}'}
@@ -78,21 +80,36 @@ class QwenAgentRunnerTests(unittest.TestCase):
                             "answer_schema": {"type": "object", "properties": {"label": {"type": "string"}}}},
                    "tool_schemas": {"eo_gym.crop": {"type": "object", "properties": {
                        "aoi": {"type": "array", "items": {"type": "number"}}}}}}
-        names = [item["function"]["name"] for item in openai_tools(session)]
+        self.assertEqual([item["function"]["name"] for item in openai_tools(session)],
+                         ["eo_gym.crop", "answer.submit"])
+        artifacts = [{"artifact_id": "art-one", "sha256": "a" * 64}]
+        names = [item["function"]["name"] for item in openai_tools(session, artifacts)]
         self.assertEqual(names, ["eo_gym.crop", "memory.save_evidence", "answer.submit"])
         crop_aoi = openai_tools(session)[0]["function"]["parameters"]["properties"]["aoi"]
         self.assertEqual(crop_aoi["items"]["maximum"], 1.0)
         self.assertIn("not pixel coordinates", crop_aoi["description"])
-        evidence_schema = openai_tools(session)[1]["function"]["parameters"]
+        evidence_schema = openai_tools(session, artifacts)[1]["function"]["parameters"]
         self.assertIn("pattern", evidence_schema["properties"]["evidence_id"])
-        self.assertEqual(evidence_schema["properties"]["selector"]["properties"]["bbox"]["type"], "object")
-        pixel_window = evidence_schema["properties"]["selector"]["properties"]["pixel_window"]
+        self.assertEqual(evidence_schema["properties"]["artifact_index"]["enum"], [0])
+        self.assertNotIn("source_ref", evidence_schema["properties"])
+        self.assertNotIn("frozen_sha256", evidence_schema["properties"])
+        selector_properties = evidence_schema["properties"]["selector"]["properties"]
+        self.assertEqual(set(selector_properties), {"pixel_window"})
+        pixel_window = selector_properties["pixel_window"]
         self.assertIn("[x,y,width,height]", pixel_window["description"])
+        raster_session = {**session, "tool_schemas": {
+            "raster.band_math": {"type": "object", "properties": {}}}}
+        raster_evidence = openai_tools(raster_session, artifacts)[1]["function"]["parameters"]
+        self.assertIn("bbox", raster_evidence["properties"]["selector"]["properties"])
         self.assertEqual(action_from_tool_call(session, "eo_gym.crop", {"x": 1}),
                          {"type": "tool.invoke", "tool_id": "eo_gym.crop", "arguments": {"x": 1}})
-        evidence = {"evidence_id": "ev-one", "claim_id": "claim-one"}
-        self.assertEqual(action_from_tool_call(session, "memory.save_evidence", evidence),
-                         {"type": "memory.save_evidence", "evidence": evidence})
+        evidence = {"evidence_id": "ev-one", "claim_id": "claim-one", "artifact_index": 0}
+        bound = {"evidence_id": "ev-one", "claim_id": "claim-one",
+                 "source_ref": "art-one", "frozen_sha256": "a" * 64}
+        self.assertEqual(action_from_tool_call(session, "memory.save_evidence", evidence, artifacts),
+                         {"type": "memory.save_evidence", "evidence": bound})
+        with self.assertRaises(ValueError):
+            action_from_tool_call(session, "memory.save_evidence", {**evidence, "artifact_index": 1}, artifacts)
         self.assertEqual(action_from_tool_call(session, "answer.submit", {"answer": {}, "evidence_ids": []}),
                          {"type": "answer.submit", "answer": {}, "evidence_ids": []})
         with self.assertRaises(ValueError):
@@ -115,6 +132,9 @@ class QwenAgentRunnerTests(unittest.TestCase):
             if action and action["type"] == "tool.invoke":
                 return httpx.Response(200, json={"terminated": False, "observation": {"items": [{"artifact_ref": "art-one"}]}, "state": {"episode_id": "ep2-" + "1" * 32, "state_version": 1}})
             if action and action["type"] == "memory.save_evidence":
+                self.assertEqual(action["evidence"]["source_ref"], "art-one")
+                self.assertEqual(action["evidence"]["frozen_sha256"], "a" * 64)
+                self.assertNotIn("artifact_index", action["evidence"])
                 return httpx.Response(200, json={"terminated": False, "observation": {}, "state": {"episode_id": "ep2-" + "1" * 32, "state_version": 2, "status": "active"}})
             if action and action["type"] == "answer.submit":
                 return httpx.Response(200, json={"terminated": True, "observation": {}, "state": {"episode_id": "ep2-" + "1" * 32, "state_version": 3, "status": "terminated"}})
@@ -139,6 +159,10 @@ class QwenAgentRunnerTests(unittest.TestCase):
         self.assertEqual(report["status"], "passed", report)
         self.assertEqual(report["model_tool_calls"], 3)
         self.assertEqual(report["image_hashes"], ["a" * 64])
+        first_names = [item["function"]["name"] for item in model.tool_history[0]]
+        second_names = [item["function"]["name"] for item in model.tool_history[1]]
+        self.assertNotIn("memory.save_evidence", first_names)
+        self.assertIn("memory.save_evidence", second_names)
         self.assertTrue(any(item.get("name") == "eo_gym.crop" for item in report["transcript"]))
         self.assertTrue(any(item.get("name") == "memory.save_evidence" for item in report["transcript"]))
 

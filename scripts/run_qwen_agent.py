@@ -18,9 +18,10 @@ Use a real tool when it helps; do not fabricate tool output. For crop tasks,
 first call eo_gym.crop. Its aoi is always normalized [x0,y0,x1,y1], with
 0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1; never send pixel coordinates.
 After receiving an image artifact, call
-memory.save_evidence with a complete evidence object: use the exact artifact_id
-as source_ref, the exact sha256 as frozen_sha256, a selector that constrains the
-artifact, and a stable claim_id. A pixel_window is [x,y,width,height], not
+memory.save_evidence with its artifact_index, a selector that constrains the
+artifact, and a stable claim_id. The Harness binds the index to the exact
+verified artifact_id and sha256; never copy or invent those long identifiers.
+A pixel_window is [x,y,width,height], not
 [x0,y0,x1,y1]; for the full image use [0,0,pixel.width,pixel.height] from the
 verified artifact metadata. Then call answer.submit with valid JSON matching the
 task schema and cite the saved evidence_id."""
@@ -30,7 +31,8 @@ MAX_IMAGE_BYTES = 64 * 1024 * 1024
 REPORT_SCHEMA_VERSION = "qwen-agent-runner-v2"
 
 
-def openai_tools(session: dict) -> list[dict]:
+def openai_tools(session: dict, artifacts: list[dict] | None = None) -> list[dict]:
+    artifacts = artifacts or []
     tools = []
     for name, schema in sorted(session.get("tool_schemas", {}).items()):
         if not isinstance(schema, dict) or schema.get("type") != "object":
@@ -56,7 +58,11 @@ def openai_tools(session: dict) -> list[dict]:
             "properties": {
                 "evidence_id": {"type": "string", "pattern": "^ev-[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$"},
                 "claim_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$", "maxLength": 200},
-                "source_ref": {"type": "string", "pattern": "^art-[a-f0-9]{64}$"},
+                "artifact_index": {
+                    "type": "integer",
+                    "enum": list(range(len(artifacts))),
+                    "description": "Index of a verified artifact shown by the Harness.",
+                },
                 "selector": {
                     "type": "object",
                     "properties": {
@@ -94,9 +100,8 @@ def openai_tools(session: dict) -> list[dict]:
                     "additionalProperties": False,
                 },
                 "description": {"type": "string", "minLength": 1},
-                "frozen_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
             },
-            "required": ["evidence_id", "claim_id", "source_ref", "selector", "description", "frozen_sha256"],
+            "required": ["evidence_id", "claim_id", "artifact_index", "selector", "description"],
             "additionalProperties": False,
         },
         "answer.submit": {
@@ -128,7 +133,14 @@ def openai_tools(session: dict) -> list[dict]:
             "additionalProperties": False,
         },
     }
+    if "eo_gym.crop" in session.get("tool_schemas", {}):
+        selector = action_schemas["memory.save_evidence"]["properties"]["selector"]
+        pixel_window = selector["properties"]["pixel_window"]
+        selector["properties"] = {"pixel_window": pixel_window}
+        selector["anyOf"] = [{"required": ["pixel_window"]}]
     for name, schema in action_schemas.items():
+        if name == "memory.save_evidence" and not artifacts:
+            continue
         if name in allowed_actions:
             tools.append({"type": "function", "function": {
                 "name": name, "description": "EO Harness action " + name, "parameters": schema,
@@ -136,11 +148,28 @@ def openai_tools(session: dict) -> list[dict]:
     return tools
 
 
-def action_from_tool_call(session: dict, name: str, arguments: dict) -> dict:
+def action_from_tool_call(session: dict, name: str, arguments: dict,
+                          artifacts: list[dict] | None = None) -> dict:
     if name in session.get("tool_schemas", {}):
         return {"type": "tool.invoke", "tool_id": name, "arguments": arguments}
     if name == "memory.save_evidence" and name in set(session.get("task", {}).get("allowed_actions", [])):
-        return {"type": name, "evidence": arguments}
+        artifacts = artifacts or []
+        artifact_index = arguments.get("artifact_index")
+        if isinstance(artifact_index, bool) or not isinstance(artifact_index, int):
+            raise ValueError("evidence artifact_index must be an integer")
+        if artifact_index < 0 or artifact_index >= len(artifacts):
+            raise ValueError("evidence artifact_index is unavailable")
+        artifact = artifacts[artifact_index]
+        artifact_id = artifact.get("artifact_id")
+        digest = artifact.get("sha256")
+        if not isinstance(artifact_id, str) or not artifact_id:
+            raise ValueError("verified artifact id is unavailable")
+        if not isinstance(digest, str) or len(digest) != 64:
+            raise ValueError("verified artifact hash is unavailable")
+        evidence = {key: value for key, value in arguments.items() if key != "artifact_index"}
+        evidence["source_ref"] = artifact_id
+        evidence["frozen_sha256"] = digest
+        return {"type": name, "evidence": evidence}
     if name in set(session.get("task", {}).get("allowed_actions", [])):
         return {"type": name, **arguments}
     raise ValueError("model requested an unavailable Harness action")
@@ -161,13 +190,15 @@ def content_message(text: str, artifact=None, content: bytes | None = None, medi
     return message
 
 
-def artifact_message(artifact: dict, content: bytes, media_type: str | None = None) -> dict:
+def artifact_message(artifact: dict, content: bytes, artifact_index: int,
+                     media_type: str | None = None) -> dict:
     public = {key: artifact[key] for key in (
         "artifact_id", "sha256", "size_bytes", "media_type", "pixel", "spatial", "temporal"
     ) if key in artifact}
+    public["artifact_index"] = artifact_index
     return content_message(
         "Verified artifact metadata: " + json.dumps(public, ensure_ascii=False, sort_keys=True)
-        + ". Use artifact_id as source_ref and sha256 as frozen_sha256.",
+        + ". Use artifact_index when saving evidence; the Harness binds exact identifiers.",
         artifact, content, media_type,
     )
 
@@ -325,6 +356,7 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
             ]
             state = session["state"]
             artifact_ids = []
+        artifacts = []
 
         def attach_artifact(artifact_id: str) -> None:
             metadata = request("GET", "/agent/artifacts/" + artifact_id)["artifact"]
@@ -334,11 +366,13 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
             if len(content) != metadata["size_bytes"]:
                 raise ValueError("gateway artifact size mismatch")
             image_hashes.add(metadata["sha256"])
+            artifact_index = len(artifacts)
+            artifacts.append(metadata)
             messages.append(artifact_message(
-                metadata, content, content_response.headers.get("content-type"),
+                metadata, content, artifact_index, content_response.headers.get("content-type"),
             ))
 
-        if checkpoint_value and state.get("status") != "terminal":
+        if checkpoint_value and state.get("status") != "terminated":
             for artifact_id in artifact_ids:
                 attach_artifact(artifact_id)
         terminated = False
@@ -351,7 +385,7 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
             response = model_client.chat.completions.create(
                 model="Qwen3.5-9B",
                 messages=messages,
-                tools=openai_tools(session),
+                tools=openai_tools(session, artifacts),
                 tool_choice="auto",
                 temperature=0.0,
                 max_tokens=4096,
@@ -369,7 +403,7 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                 arguments = decode_tool_arguments(call)
                 action_id = "qwen-" + state["episode_id"][4:12] + "-" + str(tool_calls)
                 body = {"client_action_id": action_id, "expected_state_version": state["state_version"],
-                        "action": action_from_tool_call(session, name, arguments)}
+                        "action": action_from_tool_call(session, name, arguments, artifacts)}
                 try:
                     result = request("POST", "/agent/step", body)
                 except httpx.HTTPStatusError as exc:
@@ -387,7 +421,7 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                 for artifact_id in artifact_refs(result.get("observation", {})):
                     if artifact_id not in artifact_ids:
                         artifact_ids.append(artifact_id)
-                    attach_artifact(artifact_id)
+                        attach_artifact(artifact_id)
                 if checkpoint_path is not None:
                     checkpoint_value = {
                         "schema_version": "qwen-agent-checkpoint-v1",
