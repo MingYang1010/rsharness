@@ -1,8 +1,10 @@
 import json
 import importlib.util
+import os
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import httpx
 
@@ -14,6 +16,7 @@ artifact_refs = RUNNER.artifact_refs
 content_message = RUNNER.content_message
 decode_tool_arguments = RUNNER.decode_tool_arguments
 run = RUNNER.run
+model_client = RUNNER.model_client
 MAX_IMAGE_BYTES = RUNNER.MAX_IMAGE_BYTES
 
 
@@ -43,6 +46,16 @@ class FakeModel:
 
 
 class QwenAgentRunnerTests(unittest.TestCase):
+    def test_model_client_ignores_inherited_proxy_environment(self):
+        with patch.dict(os.environ, {
+            "HTTP_PROXY": "http://proxy.invalid", "http_proxy": "http://proxy.invalid",
+        }):
+            client = model_client("http://172.17.0.1:18000/v1")
+        try:
+            self.assertFalse(client._client.trust_env)
+        finally:
+            client.close()
+
     def test_utility_projection(self):
         refs = artifact_refs({"items": [{"artifact_ref": "art-one"}, {"artifact_ref": "art-one"}]})
         self.assertEqual(refs, ["art-one", "art-one"])

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from openai import OpenAI
 
 
 SYSTEM_PROMPT = """You interact with an EO Harness through tools.
@@ -134,6 +135,16 @@ def save_checkpoint(path: Path, checkpoint: dict) -> None:
     temporary.replace(path)
 
 
+def model_client(base_url: str):
+    """Build a model client that never routes local serving through a proxy."""
+    return OpenAI(
+        base_url=base_url,
+        api_key="local",
+        timeout=300.0,
+        http_client=httpx.Client(trust_env=False, timeout=300.0),
+    )
+
+
 def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
         checkpoint_path: Path | None = None) -> dict:
     started = time.time()
@@ -246,8 +257,7 @@ def main() -> int:
     parser.add_argument("--max-turns", type=int, default=12)
     parser.add_argument("--checkpoint", type=Path)
     args = parser.parse_args()
-    from openai import OpenAI
-    client = OpenAI(base_url=args.openai_base_url, api_key="local", timeout=300.0)
+    client = model_client(args.openai_base_url)
     try:
         report = run(args.gateway, args.token_file.read_text().strip(), client, args.max_turns, args.checkpoint)
     except BaseException as exc:
