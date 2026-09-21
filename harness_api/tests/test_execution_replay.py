@@ -265,8 +265,10 @@ class ExecutionReplayTests(unittest.TestCase):
             check=False,
             capture_output=True,
             text=True,
-            env={"PYTHONPATH": str(PROJECT_ROOT / "harness_api"), "PATH": "/usr/bin:/bin"},
+            env={"PYTHONPATH": str(PROJECT_ROOT / "harness_api"), "PATH": "/usr/local/bin:/usr/bin:/bin"},
         )
+        if completed.returncode != 0 and not report.exists():
+            self.fail(completed.stdout + completed.stderr)
         self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr + report.read_text())
         identity = json.loads((report.parent / ".identity.json").read_text())
         final_report = json.loads(report.read_text())
