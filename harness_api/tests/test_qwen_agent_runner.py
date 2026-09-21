@@ -56,10 +56,20 @@ class FakeModel:
 class QwenAgentRunnerTests(unittest.TestCase):
     def test_model_client_ignores_inherited_proxy_environment(self):
         self.assertIn("multiple input", RUNNER.SYSTEM_PROMPT)
+
+        class FakeOpenAI:
+            def __init__(self, **kwargs):
+                self._client = kwargs["http_client"]
+
+            def close(self):
+                self._client.close()
+
         with patch.dict(os.environ, {
             "HTTP_PROXY": "http://proxy.invalid", "http_proxy": "http://proxy.invalid",
         }):
-            client = model_client("http://172.17.0.1:18000/v1")
+            client = model_client(
+                "http://172.17.0.1:18000/v1", openai_client_class=FakeOpenAI,
+            )
         try:
             self.assertFalse(client._client.trust_env)
         finally:

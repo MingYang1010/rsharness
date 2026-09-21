@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from openai import OpenAI
 
 
 SYSTEM_PROMPT = """You interact with an EO Harness through tools.
@@ -348,9 +347,14 @@ def compact_messages(messages: list[dict]) -> list[dict]:
     return compact
 
 
-def model_client(base_url: str):
+def model_client(base_url: str, openai_client_class=None):
     """Build a model client that never routes local serving through a proxy."""
-    return OpenAI(
+    if openai_client_class is None:
+        from openai import OpenAI
+
+        openai_client_class = OpenAI
+
+    return openai_client_class(
         base_url=base_url,
         api_key="local",
         timeout=300.0,
