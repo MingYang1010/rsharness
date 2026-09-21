@@ -20,6 +20,7 @@ answer.submit with valid JSON matching the task schema."""
 
 MAX_JSON_BYTES = 2 * 1024 * 1024
 MAX_IMAGE_BYTES = 64 * 1024 * 1024
+REPORT_SCHEMA_VERSION = "qwen-agent-runner-v2"
 
 
 def openai_tools(session: dict) -> list[dict]:
@@ -88,11 +89,59 @@ def decode_tool_arguments(call: Any) -> dict:
     return value
 
 
-def run(gateway_url: str, token: str, model_client, max_turns: int = 12) -> dict:
+def response_metadata(response: Any) -> dict:
+    return {
+        "id": getattr(response, "id", None),
+        "created": getattr(response, "created", None),
+        "model": getattr(response, "model", None),
+        "system_fingerprint": getattr(response, "system_fingerprint", None),
+        "usage": getattr(response, "usage", None).model_dump(mode="json")
+            if getattr(response, "usage", None) is not None else None,
+    }
+
+
+def error_report(exc: BaseException, *, episode_id: str | None, turns: int, tool_calls: int,
+                 image_hashes: list[str], elapsed_ms: float, transcript: list[dict],
+                 checkpoint: dict | None = None) -> dict:
+    if isinstance(exc, httpx.HTTPError):
+        reason = "gateway_network_error"
+    elif isinstance(exc, (ValueError, json.JSONDecodeError)):
+        reason = "runner_contract_error"
+    else:
+        reason = type(exc).__name__
+    return {"schema_version": REPORT_SCHEMA_VERSION, "status": "failed", "reason": reason,
+            "error": {"type": type(exc).__name__, "message": str(exc)},
+            "episode_id": episode_id, "turns": turns, "model_tool_calls": tool_calls,
+            "image_hashes": image_hashes, "elapsed_ms": elapsed_ms, "transcript": transcript,
+            "checkpoint": checkpoint}
+
+
+def load_checkpoint(path: Path) -> dict | None:
+    if not path.exists():
+        return None
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_JSON_BYTES:
+        raise ValueError("runner checkpoint is unavailable or oversized")
+    value = json.loads(path.read_text())
+    if value.get("schema_version") != "qwen-agent-checkpoint-v1":
+        raise ValueError("unsupported runner checkpoint schema")
+    return value
+
+
+def save_checkpoint(path: Path, checkpoint: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(checkpoint, ensure_ascii=False, sort_keys=True) + "\n")
+    temporary.replace(path)
+
+
+def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
+        checkpoint_path: Path | None = None) -> dict:
     started = time.time()
     transcript = []
     image_hashes = set()
     tool_calls = 0
+    checkpoint_value = load_checkpoint(checkpoint_path) if checkpoint_path else None
+    resume = bool(checkpoint_value)
     with httpx.Client(base_url=gateway_url, timeout=45, trust_env=False,
                       headers={"Authorization": "Bearer " + token}) as client:
         def request(method: str, path: str, body=None):
@@ -100,21 +149,36 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12) -> dict
             response.raise_for_status()
             return response.json()
 
-        session = request("GET", "/agent/session")
+        if checkpoint_value:
+            session = checkpoint_value["session"]
+        else:
+            session = request("GET", "/agent/session")
         session_json = json.dumps(session, ensure_ascii=False, sort_keys=True)
         if len(session_json.encode()) > MAX_JSON_BYTES:
             raise ValueError("agent session exceeds model input bound")
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": json.dumps({
-                "task": session.get("task", {}),
-                "state": session.get("state", {}),
-                "observation": session.get("observation", {}),
-            }, ensure_ascii=False, sort_keys=True)},
-        ]
-        state = session["state"]
+        if checkpoint_value:
+            messages = checkpoint_value["messages"]
+            state = checkpoint_value["state"]
+            image_hashes.update(checkpoint_value.get("image_hashes", []))
+            transcript.extend(checkpoint_value.get("transcript", []))
+            tool_calls = int(checkpoint_value.get("tool_calls", 0))
+        else:
+            messages = [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": json.dumps({
+                    "task": session.get("task", {}),
+                    "state": session.get("state", {}),
+                    "observation": session.get("observation", {}),
+                }, ensure_ascii=False, sort_keys=True)},
+            ]
+            state = session["state"]
         terminated = False
         for turn in range(max_turns):
+            if resume and state.get("status") == "terminal":
+                return {"status": "passed", "reason": None, "episode_id": state["episode_id"],
+                        "turns": turn, "model_tool_calls": tool_calls,
+                        "image_hashes": sorted(image_hashes), "elapsed_ms": round((time.time() - started) * 1000, 3),
+                        "transcript": transcript, "resumed": True}
             response = model_client.chat.completions.create(
                 model="Qwen3.5-9B",
                 messages=messages,
@@ -125,7 +189,7 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12) -> dict
             )
             assistant, calls = tool_call_message(response)
             messages.append(assistant)
-            transcript.append({"turn": turn, "assistant": assistant})
+            transcript.append({"turn": turn, "assistant": assistant, "model_response": response_metadata(response)})
             if not calls:
                 # A final answer without the required evidence/submit tools is a model failure.
                 return {"status": "failed", "reason": "model_returned_text_without_action", "episode_id": state["episode_id"],
@@ -142,6 +206,14 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12) -> dict
                 tool_calls += 1
                 messages.append({"role": "tool", "tool_call_id": call.id, "content": json.dumps({"observation": result["observation"], "terminated": terminated}, ensure_ascii=False, sort_keys=True)})
                 transcript.append({"turn": turn, "tool_call_id": call.id, "name": name, "arguments": arguments, "state_version": state["state_version"]})
+                if checkpoint_path is not None:
+                    checkpoint_value = {
+                        "schema_version": "qwen-agent-checkpoint-v1",
+                        "session": session, "messages": messages, "state": state,
+                        "terminated": terminated, "tool_calls": tool_calls,
+                        "image_hashes": sorted(image_hashes), "transcript": transcript,
+                    }
+                    save_checkpoint(checkpoint_path, checkpoint_value)
                 for artifact_id in artifact_refs(result.get("observation", {})):
                     metadata = request("GET", "/agent/artifacts/" + artifact_id)["artifact"]
                     content_response = client.get("/agent/artifacts/" + artifact_id + "/content")
@@ -172,10 +244,15 @@ def main() -> int:
     parser.add_argument("--openai-base-url", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--max-turns", type=int, default=12)
+    parser.add_argument("--checkpoint", type=Path)
     args = parser.parse_args()
     from openai import OpenAI
     client = OpenAI(base_url=args.openai_base_url, api_key="local", timeout=300.0)
-    report = run(args.gateway, args.token_file.read_text().strip(), client, args.max_turns)
+    try:
+        report = run(args.gateway, args.token_file.read_text().strip(), client, args.max_turns, args.checkpoint)
+    except BaseException as exc:
+        report = error_report(exc, episode_id=None, turns=0, tool_calls=0, image_hashes=[],
+                              elapsed_ms=0, transcript=[])
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n")
     print(json.dumps({key: report[key] for key in ("status", "reason", "episode_id", "turns", "model_tool_calls", "image_hashes")}, ensure_ascii=False))

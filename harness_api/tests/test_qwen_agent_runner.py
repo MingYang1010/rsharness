@@ -37,6 +37,10 @@ class FakeModel:
             message = SimpleNamespace(content=None, tool_calls=[SimpleNamespace(id="call-2", function=function)])
         return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
+    @property
+    def last_messages(self):
+        return self.seen_messages
+
 
 class QwenAgentRunnerTests(unittest.TestCase):
     def test_utility_projection(self):
@@ -77,6 +81,48 @@ class QwenAgentRunnerTests(unittest.TestCase):
         self.assertEqual(report["model_tool_calls"], 2)
         self.assertEqual(report["image_hashes"], ["a" * 64])
         self.assertTrue(any(item.get("name") == "eo_gym.crop" for item in report["transcript"]))
+
+    def test_checkpoint_resumes_without_repeating_completed_action(self):
+        model = FakeModel()
+        original_run = RUNNER.run
+        gateway_calls = []
+        image = b"fake-png"
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            gateway_calls.append((request.method, request.url.path))
+            if request.url.path == "/agent/session":
+                return httpx.Response(200, json={"task": {}, "state": {"episode_id": "ep2-" + "2" * 32, "state_version": 0}, "observation": {}, "tool_schemas": {}})
+            if request.url.path == "/agent/step":
+                return httpx.Response(200, json={"terminated": True, "observation": {}, "state": {"episode_id": "ep2-" + "2" * 32, "state_version": 1, "status": "terminal"}})
+            raise AssertionError(request.url.path)
+
+        transport = httpx.MockTransport(handler)
+        original_client = httpx.Client
+        with __import__("tempfile").TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "checkpoint.json"
+            try:
+                httpx.Client = lambda **kwargs: original_client(transport=transport, **kwargs)
+                report = RUNNER.run("http://gateway", "token", model, checkpoint_path=checkpoint)
+            finally:
+                httpx.Client = original_client
+            self.assertTrue(checkpoint.is_file())
+            self.assertIn(("GET", "/agent/session"), gateway_calls)
+            gateway_calls.clear()
+            second = FakeModel()
+            try:
+                httpx.Client = lambda **kwargs: original_client(transport=transport, **kwargs)
+                resumed = RUNNER.run("http://gateway", "token", second, checkpoint_path=checkpoint)
+            finally:
+                httpx.Client = original_client
+            self.assertEqual(resumed["status"], "passed")
+            self.assertNotIn(("GET", "/agent/session"), gateway_calls)
+            self.assertNotIn(("POST", "/agent/step"), gateway_calls)
+
+    def test_error_report_is_fail_closed_and_typed(self):
+        report = RUNNER.error_report(httpx.ConnectError("down"), episode_id="ep", turns=2, tool_calls=1,
+                                      image_hashes=["a" * 64], elapsed_ms=12, transcript=[{"x": 1}])
+        self.assertEqual(report["reason"], "gateway_network_error")
+        self.assertEqual(report["error"]["type"], "ConnectError")
 
     def test_compose_profile_is_agent_front_only_and_minimally_mounted(self):
         path = Path(__file__).resolve().parents[2] / "compose.qwen-runner.yaml"
