@@ -219,8 +219,24 @@ def load_checkpoint(path: Path) -> dict | None:
 def save_checkpoint(path: Path, checkpoint: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(checkpoint, ensure_ascii=False, sort_keys=True) + "\n")
+    content = json.dumps(checkpoint, ensure_ascii=False, sort_keys=True) + "\n"
+    if len(content.encode()) > MAX_JSON_BYTES:
+        raise ValueError("runner checkpoint exceeds bound")
+    temporary.write_text(content)
     temporary.replace(path)
+
+
+def compact_messages(messages: list[dict]) -> list[dict]:
+    compact = []
+    for message in messages:
+        content = message.get("content")
+        if isinstance(content, list) and any(
+            isinstance(item, dict) and item.get("type") == "image_url"
+            for item in content
+        ):
+            continue
+        compact.append(message)
+    return compact
 
 
 def model_client(base_url: str):
@@ -259,6 +275,7 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
             messages = checkpoint_value["messages"]
             state = checkpoint_value["state"]
             image_hashes.update(checkpoint_value.get("image_hashes", []))
+            artifact_ids = list(checkpoint_value.get("artifact_ids", []))
             transcript.extend(checkpoint_value.get("transcript", []))
             tool_calls = int(checkpoint_value.get("tool_calls", 0))
         else:
@@ -271,6 +288,23 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                 }, ensure_ascii=False, sort_keys=True)},
             ]
             state = session["state"]
+            artifact_ids = []
+
+        def attach_artifact(artifact_id: str) -> None:
+            metadata = request("GET", "/agent/artifacts/" + artifact_id)["artifact"]
+            content_response = client.get("/agent/artifacts/" + artifact_id + "/content")
+            content_response.raise_for_status()
+            content = content_response.content
+            if len(content) != metadata["size_bytes"]:
+                raise ValueError("gateway artifact size mismatch")
+            image_hashes.add(metadata["sha256"])
+            messages.append(artifact_message(
+                metadata, content, content_response.headers.get("content-type"),
+            ))
+
+        if checkpoint_value and state.get("status") != "terminal":
+            for artifact_id in artifact_ids:
+                attach_artifact(artifact_id)
         terminated = False
         for turn in range(max_turns):
             if resume and state.get("status") == "terminal":
@@ -306,25 +340,19 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                 tool_calls += 1
                 messages.append({"role": "tool", "tool_call_id": call.id, "content": json.dumps({"observation": result["observation"], "terminated": terminated}, ensure_ascii=False, sort_keys=True)})
                 transcript.append({"turn": turn, "tool_call_id": call.id, "name": name, "arguments": arguments, "state_version": state["state_version"]})
+                for artifact_id in artifact_refs(result.get("observation", {})):
+                    if artifact_id not in artifact_ids:
+                        artifact_ids.append(artifact_id)
+                    attach_artifact(artifact_id)
                 if checkpoint_path is not None:
                     checkpoint_value = {
                         "schema_version": "qwen-agent-checkpoint-v1",
-                        "session": session, "messages": messages, "state": state,
+                        "session": session, "messages": compact_messages(messages), "state": state,
                         "terminated": terminated, "tool_calls": tool_calls,
-                        "image_hashes": sorted(image_hashes), "transcript": transcript,
+                        "artifact_ids": artifact_ids, "image_hashes": sorted(image_hashes),
+                        "transcript": transcript,
                     }
                     save_checkpoint(checkpoint_path, checkpoint_value)
-                for artifact_id in artifact_refs(result.get("observation", {})):
-                    metadata = request("GET", "/agent/artifacts/" + artifact_id)["artifact"]
-                    content_response = client.get("/agent/artifacts/" + artifact_id + "/content")
-                    content_response.raise_for_status()
-                    content = content_response.content
-                    if len(content) != metadata["size_bytes"]:
-                        raise ValueError("gateway artifact size mismatch")
-                    image_hashes.add(metadata["sha256"])
-                    messages.append(artifact_message(
-                        metadata, content, content_response.headers.get("content-type"),
-                    ))
                 if terminated:
                     return {"status": "passed" if state.get("status") == "terminal" else "failed",
                             "reason": None if state.get("status") == "terminal" else "nonterminal_after_answer",

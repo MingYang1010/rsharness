@@ -14,6 +14,7 @@ RUNNER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(RUNNER)
 artifact_refs = RUNNER.artifact_refs
 action_from_tool_call = RUNNER.action_from_tool_call
+compact_messages = RUNNER.compact_messages
 content_message = RUNNER.content_message
 decode_tool_arguments = RUNNER.decode_tool_arguments
 openai_tools = RUNNER.openai_tools
@@ -67,6 +68,8 @@ class QwenAgentRunnerTests(unittest.TestCase):
         self.assertEqual(decode_tool_arguments({"function": {"name": "x", "arguments": "{\"x\":1}"}}), {"x": 1})
         message = content_message("text", {"size_bytes": 2, "sha256": "f" * 64, "media_type": "image/png"}, b"ab", "image/png")
         self.assertIn("data:image/png;base64,YWI=", message["content"][1]["image_url"]["url"])
+        self.assertEqual(compact_messages([{"role": "user", "content": "keep"}, message]),
+                         [{"role": "user", "content": "keep"}])
         with self.assertRaises(ValueError):
             content_message("x", {"size_bytes": MAX_IMAGE_BYTES + 1, "sha256": "f" * 64}, b"x" * (MAX_IMAGE_BYTES + 1))
 
@@ -112,7 +115,12 @@ class QwenAgentRunnerTests(unittest.TestCase):
         original = httpx.Client
         try:
             httpx.Client = lambda **kwargs: original(transport=transport, **kwargs)
-            report = run("http://gateway", "token", model)
+            with __import__("tempfile").TemporaryDirectory() as directory:
+                checkpoint = Path(directory) / "checkpoint.json"
+                report = run("http://gateway", "token", model, checkpoint_path=checkpoint)
+                checkpoint_text = checkpoint.read_text()
+                self.assertNotIn("image_url", checkpoint_text)
+                self.assertIn('"artifact_ids": ["art-one"]', checkpoint_text)
         finally:
             httpx.Client = original
         self.assertEqual(report["status"], "passed", report)
