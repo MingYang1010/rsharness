@@ -90,6 +90,19 @@ automatically moved. Do not claim whole-system enforcement or mount the entire
 runtime into an untrusted provider. Unmanaged runtime bytes are nevertheless
 included in every new reservation; unmanaged writes outside runtime are not.
 
+## Physical usage audit
+
+The operator command scripts/audit_physical_usage.py is an independent report,
+not another reservation mechanism. It counts allocated bytes as st_blocks * 512,
+deduplicates hard links by (st_dev, st_ino), counts a symlink entry without
+following its target, and separates SQLite main/WAL/SHM, reports, logs, Docker
+logs, checkpoints, runtime artifacts, and uncategorized bytes. Directory
+scan/stat/count failures and cross-filesystem entries are returned in errors
+with complete=false, and the CLI exits 2. It never deletes or rewrites data.
+Keep this audit separate from StorageQuota: the ledger remains a cooperative
+logical reservation, while this command answers how many physical bytes are
+actually occupied.
+
 ## Verified acceptance (2026-09-17)
 
 Tests cover simultaneous competing processes, actual child-process exit, retained
