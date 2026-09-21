@@ -1,0 +1,44 @@
+{
+  "schema_version": "cloudsen12-public-sentinel-windows-v1",
+  "source": {
+    "dataset_name": "CloudSEN12",
+    "dataset_doi": "10.57760/sciencedb.06669",
+    "label_benchmark_id": "cloud-policy-validation-v1",
+    "label_runtime": "runtime/cloud-policy-cloudsen12-20260920-01",
+    "license": "CC BY-NC 4.0 for CloudSEN12 labels; Copernicus Sentinel legal notice for public imagery",
+    "scope": "local-research",
+    "not_redistribution_authorization": true,
+    "qwen_boundary": "public Sentinel visual windows only; manual_hq and sen2cor labels are never model inputs"
+  },
+  "samples": [
+    {
+      "sample_id": "ROI_0549--20190519T155911_20190519T160743_T18STG",
+      "label_profile": {
+        "crs": "EPSG:32618",
+        "transform": [10.0, 0.0, 257470.0, 0.0, -10.0, 4095840.0],
+        "width": 509,
+        "height": 509
+      },
+      "sentinel_item_id": "S2A_18STG_20190519_0_L2A",
+      "aoi": [-77.7251, 36.9702, -77.7184, 36.9802]
+    },
+    {
+      "sample_id": "ROI_0550--20190504T023559_20190504T024226_T51RTM",
+      "label_profile": {
+        "crs": "EPSG:32651",
+        "transform": [10.0, 0.0, 236880.0, 0.0, -10.0, 3130300.0],
+        "width": 509,
+        "height": 509
+      },
+      "sentinel_item_id": "S2B_51RTM_20190504_0_L2A",
+      "aoi": [120.3168, 28.2699, 120.3234, 28.2797]
+    }
+  ],
+  "license_review": {
+    "collection_license": "proprietary",
+    "terms_url": "https://dataspace.copernicus.eu/terms-and-conditions",
+    "legal_notice_url": "https://sentinels.copernicus.eu/documents/247904/690755/Sentinel_Data_Legal_Notice",
+    "attribution": "Contains modified Copernicus Sentinel data (2019)",
+    "scope": "local-research"
+  }
+}
