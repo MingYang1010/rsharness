@@ -118,6 +118,14 @@ class QwenAgentRunnerTests(unittest.TestCase):
                                   {**evidence, "pixel_window": [0, 0, 2, 1]}, artifacts)
         self.assertEqual(action_from_tool_call(session, "answer.submit", {"answer": {}, "evidence_ids": []}),
                          {"type": "answer.submit", "answer": {}, "evidence_ids": []})
+        map_session = {"task": {"allowed_actions": ["map.set_view"]}, "tool_schemas": {}}
+        map_tools = openai_tools(map_session)
+        self.assertEqual([item["function"]["name"] for item in map_tools], ["map.set_view"])
+        bbox = {"west": 121.45, "south": 31.2, "east": 121.55, "north": 31.3}
+        self.assertEqual(map_tools[0]["function"]["parameters"]["properties"]["bbox"]["required"],
+                         ["west", "south", "east", "north"])
+        self.assertEqual(action_from_tool_call(map_session, "map.set_view", {"bbox": bbox}),
+                         {"type": "map.set_view", "bbox": bbox})
         with self.assertRaises(ValueError):
             action_from_tool_call(session, "unknown", {})
 
@@ -260,6 +268,13 @@ class QwenAgentRunnerTests(unittest.TestCase):
         self.assertNotIn("tasks:", volumes)
         self.assertNotIn("state:", volumes)
         self.assertNotIn("datasets:", volumes)
+
+        worldcover_path = Path(__file__).resolve().parents[2] / "compose.worldcover-qwen.yaml"
+        worldcover = worldcover_path.read_text()
+        self.assertIn("EO_HARNESS_V2_RENDERER_URL: http://renderer:8090", worldcover)
+        self.assertIn("./datasets:/datasets:ro", worldcover)
+        self.assertIn("${EO_SMOKE_ROOT}/artifacts:/artifacts:rw", worldcover)
+        self.assertIn("harness-internal", worldcover)
 
 
 if __name__ == "__main__":

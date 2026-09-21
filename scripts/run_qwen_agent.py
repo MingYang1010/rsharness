@@ -26,7 +26,8 @@ A pixel_window is [x,y,width,height], not
 verified artifact metadata. Then call answer.submit with valid JSON matching the
 task schema and cite the saved evidence_id. For tasks with multiple input
 assets, inspect every required asset before submitting and save separate
-evidence for each artifact."""
+evidence for each artifact. For rendered map tasks, call map.set_view with the
+fixed task AOI, then save evidence from the verified rendered artifact."""
 
 MAX_JSON_BYTES = 2 * 1024 * 1024
 MAX_IMAGE_BYTES = 64 * 1024 * 1024
@@ -132,6 +133,24 @@ def openai_tools(session: dict, artifacts: list[dict] | None = None) -> list[dic
                 "evidence_ids": {"type": "array", "items": {"type": "string"}},
             },
             "required": ["rationale"],
+            "additionalProperties": False,
+        },
+        "map.set_view": {
+            "type": "object",
+            "properties": {
+                "bbox": {
+                    "type": "object",
+                    "properties": {
+                        "west": {"type": "number", "minimum": -180, "maximum": 180},
+                        "south": {"type": "number", "minimum": -90, "maximum": 90},
+                        "east": {"type": "number", "minimum": -180, "maximum": 180},
+                        "north": {"type": "number", "minimum": -90, "maximum": 90},
+                    },
+                    "required": ["west", "south", "east", "north"],
+                    "additionalProperties": False,
+                },
+            },
+            "required": ["bbox"],
             "additionalProperties": False,
         },
     }
