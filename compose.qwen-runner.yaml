@@ -1,0 +1,33 @@
+services:
+  qwen-runner:
+    image: eo-harness/harness-api:0.4.0
+    profiles: [qwen]
+    read_only: true
+    init: true
+    working_dir: /project
+    command:
+      - python
+      - scripts/run_qwen_agent.py
+      - --gateway
+      - http://agent-gateway:8083
+      - --openai-base-url
+      - ${EO_QWEN_OPENAI_BASE_URL:?set EO_QWEN_OPENAI_BASE_URL}
+      - --output
+      - /reports/${EO_QWEN_RUN:?set EO_QWEN_RUN}.json
+      - --max-turns
+      - "12"
+    volumes:
+      - ./scripts/run_qwen_agent.py:/project/scripts/run_qwen_agent.py:ro
+      - ${EO_AGENT_TOKEN_FILE:?set EO_AGENT_TOKEN_FILE}:/run/agent-token:ro
+      - ${EO_QWEN_REPORT_ROOT:?set EO_QWEN_REPORT_ROOT}:/reports:rw
+    tmpfs:
+      - /tmp:size=256m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    cpus: "2.0"
+    mem_limit: 1g
+    pids_limit: 64
+    networks:
+      - agent-front
