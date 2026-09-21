@@ -79,7 +79,7 @@ def validate_runtime(path: Path, root: Path) -> dict:
         for sample in dataset.get("samples", []):
             relative_root = sample["task_root"]
             parts = Path(relative_root).parts
-            if root.name == "runtime" and parts and parts[0] == "runtime":
+            if parts and parts[0] == "runtime":
                 relative_root = Path(*parts[1:])
             task_root = (root / relative_root).resolve()
             if not (task_root / "task.json").is_file():
