@@ -15,7 +15,9 @@ from openai import OpenAI
 
 SYSTEM_PROMPT = """You interact with an EO Harness through tools.
 Use a real tool when it helps; do not fabricate tool output. For crop tasks,
-first call eo_gym.crop. After receiving an image artifact, call
+first call eo_gym.crop. Its aoi is always normalized [x0,y0,x1,y1], with
+0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1; never send pixel coordinates.
+After receiving an image artifact, call
 memory.save_evidence with a complete evidence object: use the exact artifact_id
 as source_ref, the exact sha256 as frozen_sha256, a selector that constrains the
 artifact, and a stable claim_id. Then call answer.submit with valid JSON matching
@@ -31,6 +33,18 @@ def openai_tools(session: dict) -> list[dict]:
     for name, schema in sorted(session.get("tool_schemas", {}).items()):
         if not isinstance(schema, dict) or schema.get("type") != "object":
             raise ValueError("tool schema is not an object")
+        schema = json.loads(json.dumps(schema))
+        if name == "eo_gym.crop":
+            aoi = schema.get("properties", {}).get("aoi")
+            if not isinstance(aoi, dict):
+                raise ValueError("EO-Gym crop schema lacks normalized aoi")
+            aoi["items"] = {"type": "number", "minimum": 0.0, "maximum": 1.0}
+            aoi["minItems"] = 4
+            aoi["maxItems"] = 4
+            aoi["description"] = (
+                "Normalized [x0,y0,x1,y1], requiring 0 <= x0 < x1 <= 1 "
+                "and 0 <= y0 < y1 <= 1; these are not pixel coordinates."
+            )
         tools.append({"type": "function", "function": {"name": name, "description": "EO Harness tool " + name, "parameters": schema}})
     task = session.get("task", {})
     allowed_actions = set(task.get("allowed_actions", []))

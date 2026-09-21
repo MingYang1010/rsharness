@@ -76,9 +76,13 @@ class QwenAgentRunnerTests(unittest.TestCase):
     def test_native_actions_are_exposed_and_not_wrapped_as_tool_invoke(self):
         session = {"task": {"allowed_actions": ["tool.invoke", "memory.save_evidence", "answer.submit"],
                             "answer_schema": {"type": "object", "properties": {"label": {"type": "string"}}}},
-                   "tool_schemas": {"eo_gym.crop": {"type": "object", "properties": {}}}}
+                   "tool_schemas": {"eo_gym.crop": {"type": "object", "properties": {
+                       "aoi": {"type": "array", "items": {"type": "number"}}}}}}
         names = [item["function"]["name"] for item in openai_tools(session)]
         self.assertEqual(names, ["eo_gym.crop", "memory.save_evidence", "answer.submit"])
+        crop_aoi = openai_tools(session)[0]["function"]["parameters"]["properties"]["aoi"]
+        self.assertEqual(crop_aoi["items"]["maximum"], 1.0)
+        self.assertIn("not pixel coordinates", crop_aoi["description"])
         evidence_schema = openai_tools(session)[1]["function"]["parameters"]
         self.assertIn("pattern", evidence_schema["properties"]["evidence_id"])
         self.assertEqual(evidence_schema["properties"]["selector"]["properties"]["bbox"]["type"], "object")
@@ -103,7 +107,8 @@ class QwenAgentRunnerTests(unittest.TestCase):
                     "allowed_actions": ["tool.invoke", "memory.save_evidence", "answer.submit"],
                     "answer_schema": {"type": "object", "properties": {"label": {"type": "string"}}}},
                     "state": {"episode_id": "ep2-" + "1" * 32, "state_version": 0}, "observation": {},
-                    "tool_schemas": {"eo_gym.crop": {"type": "object", "properties": {}, "additionalProperties": False}}})
+                    "tool_schemas": {"eo_gym.crop": {"type": "object", "properties": {
+                        "aoi": {"type": "array", "items": {"type": "number"}}}, "additionalProperties": False}}})
             action = json.loads(request.content)["action"] if request.url.path == "/agent/step" else None
             if action and action["type"] == "tool.invoke":
                 return httpx.Response(200, json={"terminated": False, "observation": {"items": [{"artifact_ref": "art-one"}]}, "state": {"episode_id": "ep2-" + "1" * 32, "state_version": 1}})
@@ -146,7 +151,8 @@ class QwenAgentRunnerTests(unittest.TestCase):
             if request.url.path == "/agent/session":
                 return httpx.Response(200, json={"task": {"allowed_actions": ["tool.invoke"]},
                     "state": {"episode_id": "ep2-" + "2" * 32, "state_version": 0}, "observation": {},
-                    "tool_schemas": {"eo_gym.crop": {"type": "object", "properties": {}}}})
+                    "tool_schemas": {"eo_gym.crop": {"type": "object", "properties": {
+                        "aoi": {"type": "array", "items": {"type": "number"}}}}}})
             if request.url.path == "/agent/step":
                 return httpx.Response(200, json={"terminated": True, "observation": {}, "state": {"episode_id": "ep2-" + "2" * 32, "state_version": 1, "status": "terminated"}})
             raise AssertionError(request.url.path)
