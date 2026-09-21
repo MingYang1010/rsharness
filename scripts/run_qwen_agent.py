@@ -38,31 +38,42 @@ def openai_tools(session: dict) -> list[dict]:
         "memory.save_evidence": {
             "type": "object",
             "properties": {
-                "evidence": {
+                "evidence_id": {"type": "string", "pattern": "^ev-[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$"},
+                "claim_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$", "maxLength": 200},
+                "source_ref": {"type": "string", "pattern": "^art-[a-f0-9]{64}$"},
+                "selector": {
                     "type": "object",
                     "properties": {
-                        "evidence_id": {"type": "string"},
-                        "claim_id": {"type": "string"},
-                        "source_ref": {"type": "string"},
-                        "selector": {
+                        "bbox": {
                             "type": "object",
                             "properties": {
-                                "geometry": {"type": "object"},
-                                "bbox": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
-                                "time_range": {"type": "object"},
-                                "bands": {"type": "array", "items": {"type": "string"}},
-                                "pixel_window": {"type": "array", "items": {"type": "integer"}, "minItems": 4, "maxItems": 4},
+                                "west": {"type": "number", "minimum": -180, "maximum": 180},
+                                "south": {"type": "number", "minimum": -90, "maximum": 90},
+                                "east": {"type": "number", "minimum": -180, "maximum": 180},
+                                "north": {"type": "number", "minimum": -90, "maximum": 90},
                             },
+                            "required": ["west", "south", "east", "north"],
                             "additionalProperties": False,
                         },
-                        "description": {"type": "string"},
-                        "frozen_sha256": {"type": "string"},
+                        "time_range": {
+                            "type": "object",
+                            "properties": {"start": {"type": "string"}, "end": {"type": "string"}},
+                            "required": ["start", "end"],
+                            "additionalProperties": False,
+                        },
+                        "bands": {"type": "array", "items": {"type": "string"}},
+                        "pixel_window": {"type": "array", "items": {"type": "integer"}, "minItems": 4, "maxItems": 4},
                     },
-                    "required": ["evidence_id", "claim_id", "source_ref", "selector", "description", "frozen_sha256"],
+                    "anyOf": [
+                        {"required": ["bbox"]}, {"required": ["time_range"]},
+                        {"required": ["bands"]}, {"required": ["pixel_window"]},
+                    ],
                     "additionalProperties": False,
-                }
+                },
+                "description": {"type": "string", "minLength": 1},
+                "frozen_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
             },
-            "required": ["evidence"],
+            "required": ["evidence_id", "claim_id", "source_ref", "selector", "description", "frozen_sha256"],
             "additionalProperties": False,
         },
         "answer.submit": {
@@ -105,6 +116,8 @@ def openai_tools(session: dict) -> list[dict]:
 def action_from_tool_call(session: dict, name: str, arguments: dict) -> dict:
     if name in session.get("tool_schemas", {}):
         return {"type": "tool.invoke", "tool_id": name, "arguments": arguments}
+    if name == "memory.save_evidence" and name in set(session.get("task", {}).get("allowed_actions", [])):
+        return {"type": name, "evidence": arguments}
     if name in set(session.get("task", {}).get("allowed_actions", [])):
         return {"type": name, **arguments}
     raise ValueError("model requested an unavailable Harness action")
@@ -127,7 +140,7 @@ def content_message(text: str, artifact=None, content: bytes | None = None, medi
 
 def artifact_message(artifact: dict, content: bytes, media_type: str | None = None) -> dict:
     public = {key: artifact[key] for key in (
-        "artifact_id", "sha256", "size_bytes", "media_type", "pixel"
+        "artifact_id", "sha256", "size_bytes", "media_type", "pixel", "spatial", "temporal"
     ) if key in artifact}
     return content_message(
         "Verified artifact metadata: " + json.dumps(public, ensure_ascii=False, sort_keys=True)
@@ -307,7 +320,7 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                 attach_artifact(artifact_id)
         terminated = False
         for turn in range(max_turns):
-            if resume and state.get("status") == "terminal":
+            if resume and state.get("status") == "terminated":
                 return {"status": "passed", "reason": None, "episode_id": state["episode_id"],
                         "turns": turn, "model_tool_calls": tool_calls,
                         "image_hashes": sorted(image_hashes), "elapsed_ms": round((time.time() - started) * 1000, 3),
@@ -354,8 +367,8 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                     }
                     save_checkpoint(checkpoint_path, checkpoint_value)
                 if terminated:
-                    return {"status": "passed" if state.get("status") == "terminal" else "failed",
-                            "reason": None if state.get("status") == "terminal" else "nonterminal_after_answer",
+                    return {"status": "passed" if state.get("status") == "terminated" else "failed",
+                            "reason": None if state.get("status") == "terminated" else "nonterminal_after_answer",
                             "episode_id": state["episode_id"], "turns": turn + 1, "model_tool_calls": tool_calls,
                             "image_hashes": sorted(image_hashes), "elapsed_ms": round((time.time() - started) * 1000, 3),
                             "transcript": transcript}

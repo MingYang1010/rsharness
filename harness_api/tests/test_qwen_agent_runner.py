@@ -39,7 +39,7 @@ class FakeModel:
             function = {"name": "eo_gym.crop", "arguments": '{"asset_id":"asset-one","aoi":[0.25,0.25,0.75,0.75]}'}
             message = SimpleNamespace(content=None, tool_calls=[SimpleNamespace(id="call-1", function=function)])
         elif self.calls == 2:
-            function = {"name": "memory.save_evidence", "arguments": '{"evidence":{"evidence_id":"ev-one","claim_id":"claim-one","source_ref":"art-one","selector":{"pixel_window":[0,0,1,1]},"description":"crop","frozen_sha256":"' + "a" * 64 + '"}}'}
+            function = {"name": "memory.save_evidence", "arguments": '{"evidence_id":"ev-one","claim_id":"claim-one","source_ref":"art-one","selector":{"pixel_window":[0,0,1,1]},"description":"crop","frozen_sha256":"' + "a" * 64 + '"}'}
             message = SimpleNamespace(content=None, tool_calls=[SimpleNamespace(id="call-2", function=function)])
         else:
             function = {"name": "answer.submit", "arguments": '{"answer":{"label":"crop","confidence":0.9,"claims":[]},"confidence":0.9,"evidence_ids":["ev-one"]}'}
@@ -79,8 +79,14 @@ class QwenAgentRunnerTests(unittest.TestCase):
                    "tool_schemas": {"eo_gym.crop": {"type": "object", "properties": {}}}}
         names = [item["function"]["name"] for item in openai_tools(session)]
         self.assertEqual(names, ["eo_gym.crop", "memory.save_evidence", "answer.submit"])
+        evidence_schema = openai_tools(session)[1]["function"]["parameters"]
+        self.assertIn("pattern", evidence_schema["properties"]["evidence_id"])
+        self.assertEqual(evidence_schema["properties"]["selector"]["properties"]["bbox"]["type"], "object")
         self.assertEqual(action_from_tool_call(session, "eo_gym.crop", {"x": 1}),
                          {"type": "tool.invoke", "tool_id": "eo_gym.crop", "arguments": {"x": 1}})
+        evidence = {"evidence_id": "ev-one", "claim_id": "claim-one"}
+        self.assertEqual(action_from_tool_call(session, "memory.save_evidence", evidence),
+                         {"type": "memory.save_evidence", "evidence": evidence})
         self.assertEqual(action_from_tool_call(session, "answer.submit", {"answer": {}, "evidence_ids": []}),
                          {"type": "answer.submit", "answer": {}, "evidence_ids": []})
         with self.assertRaises(ValueError):
@@ -104,7 +110,7 @@ class QwenAgentRunnerTests(unittest.TestCase):
             if action and action["type"] == "memory.save_evidence":
                 return httpx.Response(200, json={"terminated": False, "observation": {}, "state": {"episode_id": "ep2-" + "1" * 32, "state_version": 2, "status": "active"}})
             if action and action["type"] == "answer.submit":
-                return httpx.Response(200, json={"terminated": True, "observation": {}, "state": {"episode_id": "ep2-" + "1" * 32, "state_version": 3, "status": "terminal"}})
+                return httpx.Response(200, json={"terminated": True, "observation": {}, "state": {"episode_id": "ep2-" + "1" * 32, "state_version": 3, "status": "terminated"}})
             if request.url.path == "/agent/artifacts/art-one":
                 return httpx.Response(200, json={"artifact": {"artifact_id": "art-one", "size_bytes": len(image), "sha256": "a" * 64, "media_type": "image/png", "pixel": {"width": 1, "height": 1}}})
             if request.url.path == "/agent/artifacts/art-one/content":
@@ -142,7 +148,7 @@ class QwenAgentRunnerTests(unittest.TestCase):
                     "state": {"episode_id": "ep2-" + "2" * 32, "state_version": 0}, "observation": {},
                     "tool_schemas": {"eo_gym.crop": {"type": "object", "properties": {}}}})
             if request.url.path == "/agent/step":
-                return httpx.Response(200, json={"terminated": True, "observation": {}, "state": {"episode_id": "ep2-" + "2" * 32, "state_version": 1, "status": "terminal"}})
+                return httpx.Response(200, json={"terminated": True, "observation": {}, "state": {"episode_id": "ep2-" + "2" * 32, "state_version": 1, "status": "terminated"}})
             raise AssertionError(request.url.path)
 
         transport = httpx.MockTransport(handler)

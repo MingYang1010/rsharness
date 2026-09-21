@@ -82,7 +82,7 @@ def validate_report(dataset_id: str, sample_id: str, sample: dict, report: dict,
         episode = None
     if episode is not None:
         state = json.loads(episode["episode"]["state_json"])
-        checks["episode_terminal"] = state.get("status") == "terminal"
+        checks["episode_terminal"] = state.get("status") == "terminated"
         checks["episode_task_match"] = episode["episode"]["task_id"] == load_json(database.parent.parent / "tasks" / "task.json", bound=2 * 1024 * 1024).get("task_id") if False else True
         checks["episode_trace_present"] = bool(episode["events"])
         checks["episode_evidence_present"] = bool(episode["evidence"])
