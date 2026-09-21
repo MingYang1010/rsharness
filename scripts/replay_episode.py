@@ -14,7 +14,12 @@ sys.path.insert(0, str(ROOT / "harness_api"))
 from app.eo_gym_bridge import REVISION, SOURCE_FILES_HASH
 from app.v2.capabilities import TaskRegistry
 from app.v2.evaluation import EvaluatorRegistry
-from app.v2.execution_replay import ReplayError, read_snapshot, replay_episode
+from app.v2.execution_replay import (
+    ReplayError,
+    prospective_runtime_identity,
+    read_snapshot,
+    replay_episode,
+)
 from app.v2.renderer.terriamap import TerriaMapRenderer
 from app.v2.schemas import V2EpisodeState
 from app.v2.storage.quota import StorageQuota
@@ -91,6 +96,8 @@ def main():
         report = {"mode": "execution", "status": "incomplete", "original_episode_id": args.episode_id}
         runtime_renderer_config = None
         before_runtime = runtime_fingerprint()
+        prospective_runtime = None
+        identity_path = args.report.parent / ".identity.json"
         try:
             snapshot = read_snapshot(args.database, args.episode_id)
             registry = TaskRegistry(args.tasks)
@@ -129,6 +136,17 @@ def main():
                     raise ReplayError("renderer_config_invalid")
                 runtime_renderer_config = args.renderer_config
                 before_runtime = runtime_fingerprint(runtime_renderer_config)
+            prospective_runtime = prospective_runtime_identity({
+                **before_runtime,
+                "fresh_provider_container_id": args.provider_instance,
+                "fresh_raster_provider_container_id": args.raster_provider_instance,
+                "fresh_renderer_container_id": args.renderer_instance,
+            })
+            identity_content = json.dumps(prospective_runtime, indent=2, ensure_ascii=False).encode()
+            if len(identity_content) > 1024 * 1024:
+                raise ReplayError("runtime_identity_exceeds_bound")
+            with identity_path.open("xb") as identity_file:
+                identity_file.write(identity_content)
 
             def executor_factory(artifacts):
                 return ToolRouter(EOGymExecutor(args.provider, artifacts),
@@ -160,7 +178,11 @@ def main():
                         else None
                     ),
                     renderer_config=renderer_config,
+                    prospective_identity=before_runtime,
                 )
+                if prospective_runtime is not None:
+                    report["prospective_runtime_identity_file"] = str(args.report.parent / ".identity.json")
+                    report["prospective_runtime_identity_sha256"] = prospective_runtime["runtime_sha256"]
             after = read_snapshot(args.database, args.episode_id)
             report["original_snapshot_unchanged"] = snapshot.fingerprint == after.fingerprint
             if not report["original_snapshot_unchanged"]:

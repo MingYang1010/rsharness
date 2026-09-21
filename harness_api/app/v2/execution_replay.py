@@ -39,6 +39,8 @@ SUPPORTED_VERSIONS = {"eo_gym.crop": {EOGymExecutor.tool_version},
                       MEMORY_TOOL_ID: {MEMORY_TOOL_VERSION},
                       **{name: {CatalogExecutor.tool_version} for name in CatalogExecutor.tool_ids}}
 
+PROSPECTIVE_IDENTITY_SCHEMA_VERSION = 1
+
 
 class ReplayError(Exception):
     def __init__(self, code: str):
@@ -253,6 +255,18 @@ def validate_snapshot(
     return ordered
 
 
+def prospective_runtime_identity(runtime: dict) -> dict:
+    """Return an auditable prospective identity, never a historical claim."""
+    if not isinstance(runtime, dict):
+        raise ReplayError("runtime_identity_invalid")
+    return {
+        "schema_version": PROSPECTIVE_IDENTITY_SCHEMA_VERSION,
+        "captured_before_execution": True,
+        "runtime": runtime,
+        "runtime_sha256": sha256_json(runtime),
+    }
+
+
 def replay_episode(
     snapshot: EpisodeSnapshot,
     registry: TaskRegistry,
@@ -262,18 +276,24 @@ def replay_episode(
     renderer_factory: Optional[Callable[[ArtifactStore], object]] = None,
     evaluator_factory: Optional[Callable[[ArtifactStore], object]] = None,
     renderer_config: Optional[dict] = None,
+    prospective_identity: Optional[dict] = None,
 ) -> dict:
     """Run every supported recorded action; do not read original output blobs."""
     recorded_state = V2EpisodeState.model_validate_json(snapshot.episode["state_json"])
     rendered_profile = registry.get(
         snapshot.episode["task_id"], snapshot.episode["task_version"]
     ).task.metadata.get("observation_profile") == "rendered-worldcover-v1"
+    prospective = None
+    if prospective_identity is not None:
+        prospective = prospective_runtime_identity(prospective_identity)
     report = {"mode": "execution", "status": "incomplete", "original_episode_id": snapshot.episode["episode_id"],
               "task_manifest_hash": snapshot.episode["task_manifest_hash"], "snapshot_sha256": snapshot.fingerprint,
               "recorded_actions": len(snapshot.results), "executed_actions": 0, "actions": [],
               "comparison": "canonical semantic fields plus exact artifact metadata/content hashes; dynamic IDs/times excluded",
               "historical_runtime_environment_verified": False, "model_reasoning_replayed": False,
               "renderer_execution_replayed": False, "semantic_evaluator_replayed": False}
+    if prospective is not None:
+        report["prospective_runtime_identity"] = prospective
     try:
         ordered = validate_snapshot(
             snapshot,
@@ -287,6 +307,30 @@ def replay_episode(
     if work.exists() and any(work.iterdir()):
         raise ReplayError("replay_workspace_not_empty")
     work.mkdir(parents=True, exist_ok=True)
+    if prospective is not None:
+        try:
+            connection = sqlite3.connect(work / "replay.sqlite3")
+            try:
+                connection.execute(
+                    """
+                    CREATE TABLE replay_runtime_metadata (
+                        key TEXT PRIMARY KEY,
+                        value_json TEXT NOT NULL
+                    )
+                    """
+                )
+                connection.executemany(
+                    "INSERT INTO replay_runtime_metadata(key, value_json) VALUES (?, ?)",
+                    [
+                        ("prospective_runtime_identity", canonical_json(prospective)),
+                        ("prospective_runtime_sha256", canonical_json(prospective["runtime_sha256"])),
+                    ],
+                )
+                connection.commit()
+            finally:
+                connection.close()
+        except (OSError, sqlite3.Error) as error:
+            raise ReplayError("prospective_runtime_identity_write_failed") from error
     artifacts = ArtifactStore(str(work / "artifacts"))
     executor = executor_factory(artifacts) if executor_factory is not None else None
     renderer = renderer_factory(artifacts) if renderer_factory is not None else None

@@ -3,6 +3,8 @@ import gc
 import hashlib
 import json
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,10 +16,18 @@ from v2.test_tool_execution import FakeExecutor, make_tool_tasks
 from app.v2.artifacts import ArtifactStore
 from app.v2.capabilities import TaskRegistry
 from app.v2.domain import V2DomainError
-from app.v2.execution_replay import ReplayError, read_snapshot, replay_episode, semanticize
+from app.v2.execution_replay import (
+    ReplayError,
+    prospective_runtime_identity,
+    read_snapshot,
+    replay_episode,
+    semanticize,
+)
 from app.v2.schemas import StepRequest
 from app.v2.store import V2EpisodeStore
 from app.v2.tools.runtime import ToolRouter, ToolOutput
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 class ExecutionReplayTests(unittest.TestCase):
@@ -37,6 +47,25 @@ class ExecutionReplayTests(unittest.TestCase):
             artifact_store=self.artifacts, tool_executor=ToolRouter(self.original_executor))
         self.initial = self.store.create_episode("crop-smoke", "1.0.0", 42)
         self.version = 0
+
+    def terminal_episode_without_tools(self):
+        database = self.root / "cli-original.db"
+        artifacts = ArtifactStore(str(self.root / "cli-artifacts"))
+        store = V2EpisodeStore(database, self.registry, artifact_store=artifacts)
+        initial = store.create_episode("crop-smoke", "1.0.0", 42)
+        body = StepRequest.model_validate(
+            {
+                "client_action_id": "abstain",
+                "expected_state_version": 0,
+                "action": {
+                    "type": "answer.abstain",
+                    "rationale": "CLI identity",
+                    "evidence_ids": [],
+                },
+            }
+        )
+        store.step(initial.episode_id, body.expected_state_version, body.client_action_id, body.action)
+        return database, initial.episode_id
 
     def step(self, action, identity):
         body = StepRequest.model_validate({"client_action_id": identity, "expected_state_version": self.version, "action": action})
@@ -179,6 +208,74 @@ class ExecutionReplayTests(unittest.TestCase):
         self.assertTrue(result["artifact_checks"][0]["content_verified"])
         self.assertEqual(snapshot.fingerprint, read_snapshot(self.root / "original.db", self.initial.episode_id).fingerprint)
         self.assertEqual(before, hashlib.sha256((self.root / "original.db").read_bytes()).hexdigest())
+
+    def test_prospective_identity_is_persisted_before_replay_actions(self):
+        snapshot = self.record()
+        runtime = {"python": "3.11", "source": "test-source"}
+        observed = {}
+
+        def factory(artifacts):
+            with sqlite3.connect(self.root / "replay" / "replay.sqlite3") as connection:
+                rows = dict(
+                    connection.execute(
+                        "SELECT key, value_json FROM replay_runtime_metadata"
+                    ).fetchall()
+                )
+            observed["identity"] = json.loads(rows["prospective_runtime_identity"])
+            observed["sha256"] = json.loads(rows["prospective_runtime_sha256"])
+            executor = FakeExecutor(artifacts)
+            return ToolRouter(executor)
+
+        result = replay_episode(
+            snapshot,
+            self.registry,
+            self.root / "replay",
+            factory,
+            prospective_identity=runtime,
+        )
+        identity = prospective_runtime_identity(runtime)
+        self.assertEqual(result["status"], "passed", result)
+        self.assertEqual(observed["identity"], identity)
+        self.assertEqual(observed["sha256"], identity["runtime_sha256"])
+        self.assertEqual(result["prospective_runtime_identity"], identity)
+        self.assertFalse(result["historical_runtime_environment_verified"])
+        with self.assertRaisesRegex(ReplayError, "runtime_identity_invalid"):
+            prospective_runtime_identity([])
+
+    def test_cli_writes_prospective_identity_beside_report(self):
+        database, episode = self.terminal_episode_without_tools()
+        runtime_root = self.root.resolve() / "cli-runtime"
+        runtime_root.mkdir()
+        report = runtime_root / "reports" / "execution.json"
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(PROJECT_ROOT / "scripts" / "replay_episode.py"),
+                "--database",
+                str(database),
+                "--tasks",
+                str(self.tasks),
+                "--episode-id",
+                episode,
+                "--report",
+                str(report),
+                "--runtime-root",
+                str(runtime_root),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            env={"PYTHONPATH": str(PROJECT_ROOT / "harness_api"), "PATH": "/usr/bin:/bin"},
+        )
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr + report.read_text())
+        identity = json.loads((report.parent / ".identity.json").read_text())
+        final_report = json.loads(report.read_text())
+        self.assertTrue(identity["captured_before_execution"])
+        self.assertEqual(
+            final_report["prospective_runtime_identity_sha256"],
+            identity["runtime_sha256"],
+        )
+        self.assertFalse(final_report["historical_runtime_environment_verified"])
 
     def test_deterministic_recorded_non_tool_rejection_is_replayed(self):
         result = self.replay(self.record(invalid_evidence=True))

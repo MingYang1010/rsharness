@@ -71,7 +71,15 @@ remain active; timing-sensitive expiry can therefore fail reproduction.
   reward remain significant. This is field-normalized execution equality, not
   bit-identical whole-database reproduction or repeated model reasoning.
 - Reread original logical state and task pins after replay. Record current source
-  hashes, package versions and the pinned upstream revision before/after.
+ hashes, package versions and the pinned upstream revision before/after.
+
+ Before replay actions begin, the CLI also writes an exclusive-create
+ `.identity.json` beside the final report. It contains the prospective current
+ runtime fingerprint, supplied fresh container IDs, and its canonical runtime
+ SHA-256. The disposable replay SQLite database persists the same prospective
+ identity before the episode store is initialized; the final report references
+ that persisted identity and hash. This proves what runtime was proposed for the
+ current replay, not that a historical runtime was identical.
 
 Historical dependency/container identities were not recorded by earlier runs.
 Reports therefore retain `historical_runtime_environment_verified=false` and
