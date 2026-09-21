@@ -86,6 +86,21 @@ DYNAMIC_ID_VALUES = {
     "event_id": "evt-00000000000000000000000000000000",
     "observation_id": "obs-00000000000000000000000000000000",
 }
+REQUEST_ID_VALUES = {
+    "eo-harness.v2.capabilities.response": "req-v2-capabilities",
+    "eo-harness.v2.task.response": "req-v2-task",
+    "eo-harness.v2.reset.response": "req-v2-reset",
+    "eo-harness.v2.step.response": "req-v2-zoom",
+    "eo-harness.v2.state.response": "req-v2-state",
+    "eo-harness.v2.trace.response": "req-v2-trace",
+    "eo-harness.v2.replay.response": "req-v2-replay",
+    "eo-harness.v2.error.response": "req-v2-error",
+}
+REQUEST_ID_BY_OBSERVATION = {
+    "fixture-zoom-1": "req-v2-zoom",
+    "fixture-evidence-1": "req-v2-evidence",
+    "fixture-answer-1": "req-v2-answer",
+}
 
 
 def normalize_dynamic(value: Any) -> Any:
@@ -95,7 +110,12 @@ def normalize_dynamic(value: Any) -> Any:
         return value
     normalized: Dict[str, Any] = {}
     for key, item in value.items():
-        if key in DYNAMIC_ID_VALUES:
+        if key == "request_id":
+            schema = value.get("meta", {}).get("schema") or value.get("schema") or ""
+            candidates = [item.get("client_action_id") for item in value.get("data", {}).values() if isinstance(item, dict)]
+            action_id = next((item for item in candidates if item in REQUEST_ID_BY_OBSERVATION), "")
+            normalized[key] = REQUEST_ID_BY_OBSERVATION.get(action_id, REQUEST_ID_VALUES.get(schema, "req-v2-normalized"))
+        elif key in DYNAMIC_ID_VALUES:
             normalized[key] = DYNAMIC_ID_VALUES[key]
         elif key in {"created_at", "updated_at"}:
             normalized[key] = "2026-01-01T00:00:00Z"
@@ -119,8 +139,13 @@ def read_fixture(name: str) -> Any:
 
 
 def make_app(database_path: Path):
+    # The frozen golden fixture describes a deployment without canonical
+    # WorldCover evaluator data. Do not let an A800 host environment variable
+    # accidentally make this test depend on large local dataset availability.
+    os.environ.pop("EO_HARNESS_DATASETS", None)
     return create_app(
         database_path=str(database_path),
         v2_tasks_path=str(TASKS_ROOT),
+        v2_datasets_path="/nonexistent-eo-harness-contract-datasets",
         v2_enabled=True,
     )
