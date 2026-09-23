@@ -39,8 +39,8 @@
 |---|---|---|
 | G01 / P0 验收绑定 | 已在 `2f0b92b` 修复：汇总器按权威 Pydantic 形态重建 manifest hash，并绑定 task/version、逐输入资产与内容 hash、episode、执行证据与模型 receipt；原始 22 例只读重审计通过 | 后续新增样本直接继承该严格验收；G01 从活动 TODO 移除 |
 | G02 / P0 验收独立性 | 同文件用非空 `tool_runs` 判断执行存在；非空图像 hash 判断模型图像输入；`resume_evidence_present` 接受声明字段。fixture 允许所有样本使用同一 episode ID，evidence 内容为 `{}` | 校验 action/结果/调用 ID 对应、成功状态、不同 episode 绑定、evidence 与提交引用；空矩阵 fail closed。模型输入需最小可验证请求 receipt，不能只计列表非空；原始模型响应与可信 adapter 的变换分别留存 |
-| G03 / P0 科学评价覆盖 | `harness_api/app/v2/evaluation.py` 已有 WorldCover、WHU、temporal selection、memory evaluator；Qwen 总汇总未纳入这些分数 | 无 evaluator 的样本标记 `semantic_status=unscored`，不记作正确。为 DOTA OBB、grounding、计数和变化任务明确指标；caption 需定义可核实属性，不能把泛化 label schema 当 caption 评价 |
-| G04 / P0 恢复、图像和成本证据 | `scripts/run_qwen_agent.py` 在 attach 时校验长度，gateway `get_content` 已核对完整 SHA-256；终态 resume 返回 `turns=0` 和本次 resume 耗时；runner 仅在成功 step 后保存 checkpoint | runner 再算接收 bytes 的 SHA-256，防同长度替换；汇总分别保存初次运行、resume、失败尝试和累计成本。验证“服务器已提交、客户端未收到响应”后的未决动作恢复；不能仅以终态快速返回证明中途恢复 |
+| G03 / P0 科学评价覆盖 | 已在 `350e603` 汇总 semantic outcome：4 例有 evaluator、18 例明确 `unscored`，仅 1 例 task-correct；同时输出模型调用/token 成本 | 后续为 DOTA OBB、grounding、计数与 caption 定义独立 evaluator；不得把 `unscored` 计入正确 |
+| G04 / P0 恢复、图像和成本证据 | 已在 `350e603` 增加 runner 接收 bytes SHA-256 校验、checkpoint 成本账本、attempt phase 和 resume 累计成本；终态 resume 不再覆盖原 token/调用统计 | 尚需真实/模拟“服务器已提交、客户端未收到响应”的中途恢复测试；本轮已覆盖终态 resume 与 checksum fail-closed |
 | G05 / P1 自主信息获取 | 22 例大多是固定 crop→evidence→submit；任务、prompt 已规定动作与范围 | 构造必须选候选日期、空间窗口或替代输入的分支；错误区域、遮挡、空查询需触发有用的下一动作；与固定流程在相同权限/预算下比较 |
 | G06 / P1 地理质量覆盖 | `raster_grid.py`、`raster_math.py`、`temporal.py` 已校验 reviewed grid、mask、scale/offset | 缺的是跨配置验收，不是重写对齐工具。补缺日期/GSD、云/NoData、格网偏移、类别插值污染和数值容差 cases；超出工具支持范围返回明确不可用 |
 | G07 / P1 记忆收益与污染 | `evidence_memory.py` 与 [memory 文档](evidence-memory-v1.md) 已有 publication、TTL、snapshot、invalidate、search；已有验收由 operator 注入动作且仅一个匹配记录 | 加多记录、过期、冲突、邻区同名、传感器/日期不适用的检索；真实模型自行决定使用或拒绝记忆。对比共同的 task accuracy/cost，不能把只有 treatment 可获得的 memory 分直接算作算法收益 |
