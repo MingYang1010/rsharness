@@ -37,7 +37,7 @@
 
 | ID / 优先级 | 当前实现及证据位置 | 缺口与下一步验收 |
 |---|---|---|
-| G01 / P0 验收绑定 | `scripts/summarize_qwen_results.py::validate_report` 中 `episode_task_match` 使用 `if False else True`；`matrix_asset_binding=bool(expected_assets)` | 比较真实 task ID、task version、manifest hash、预定输入 ID/hash 与实际 lineage。错 task、错样本、同名换内容、漏掉一个时相必须失败；worldcover 和派生栅格需按各自 lineage 规则追溯 |
+| G01 / P0 验收绑定 | 已在 `2f0b92b` 修复：汇总器按权威 Pydantic 形态重建 manifest hash，并绑定 task/version、逐输入资产与内容 hash、episode、执行证据与模型 receipt；原始 22 例只读重审计通过 | 后续新增样本直接继承该严格验收；G01 从活动 TODO 移除 |
 | G02 / P0 验收独立性 | 同文件用非空 `tool_runs` 判断执行存在；非空图像 hash 判断模型图像输入；`resume_evidence_present` 接受声明字段。fixture 允许所有样本使用同一 episode ID，evidence 内容为 `{}` | 校验 action/结果/调用 ID 对应、成功状态、不同 episode 绑定、evidence 与提交引用；空矩阵 fail closed。模型输入需最小可验证请求 receipt，不能只计列表非空；原始模型响应与可信 adapter 的变换分别留存 |
 | G03 / P0 科学评价覆盖 | `harness_api/app/v2/evaluation.py` 已有 WorldCover、WHU、temporal selection、memory evaluator；Qwen 总汇总未纳入这些分数 | 无 evaluator 的样本标记 `semantic_status=unscored`，不记作正确。为 DOTA OBB、grounding、计数和变化任务明确指标；caption 需定义可核实属性，不能把泛化 label schema 当 caption 评价 |
 | G04 / P0 恢复、图像和成本证据 | `scripts/run_qwen_agent.py` 在 attach 时校验长度，gateway `get_content` 已核对完整 SHA-256；终态 resume 返回 `turns=0` 和本次 resume 耗时；runner 仅在成功 step 后保存 checkpoint | runner 再算接收 bytes 的 SHA-256，防同长度替换；汇总分别保存初次运行、resume、失败尝试和累计成本。验证“服务器已提交、客户端未收到响应”后的未决动作恢复；不能仅以终态快速返回证明中途恢复 |
