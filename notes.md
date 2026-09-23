@@ -1,9 +1,12 @@
 # EO Harness Notes Pointer
 
-Detailed historical findings, acceptance evidence, runtime boundaries, and
-incident notes live outside Git in:
+Current research audit and process records live outside Git in:
 
-`/Users/mingyang/Documents/Codex-Work/EO-Harness/2026-09-17-eo-gym-integration/notes.md`
+`/Users/mingyang/Documents/Codex-Work/EO-Harness/2026-09-23-research-gap-audit/`
+
+The 2026-09-21-qwen35-real-interaction directory retains model-run evidence and
+an audit correction. The repository's current improvement plan is
+`docs/remote-sensing-challenges-and-roadmap.md`.
 
 The repository intentionally avoids duplicating that process log. Current
 architecture and boundaries are summarized in

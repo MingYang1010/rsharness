@@ -1,5 +1,15 @@
 # EO Harness API Compatibility Policy
 
+## Implementation policy, 2026-09-23
+
+Release history is maintained in Git; new functionality belongs to one current
+implementation organized by responsibility. Do not create parallel numbered
+source trees for each development round. Existing HTTP paths, serialized schema
+identifiers and persisted records remain compatibility contracts during the
+staged migration described in [development-policy.md](development-policy.md).
+The historical contract rules below document existing readers; they do not
+require copying business logic into another version directory.
+
 ## Frozen Contract
 
 Service release `0.2.0` freezes HTTP API path `/v1` at body schema version `1.0.0`. The earlier `0.1.0` service was exploratory and returned unwrapped dictionaries; clients must update once to the `meta + data` and `meta + error` envelopes before relying on V1 compatibility.
@@ -43,7 +53,7 @@ Allowed without a new API version:
 - adding optional HTTP response headers;
 - adding a new endpoint whose path does not alter existing endpoint behavior.
 
-Requires `/v2`:
+Historically separated from the frozen `/v1` contract into `/v2`:
 
 - removing, renaming, adding, or changing a request or response body field;
 - changing required, nullable, enum, validation, default, or numeric-bound behavior;
@@ -51,4 +61,8 @@ Requires `/v2`:
 - changing termination, truncation, idempotency, ordering, or hash semantics;
 - changing an existing HTTP status code or error-code meaning.
 
-Future perception, retrieval, memory, evaluator, and rendered-observation contracts should therefore be designed under `/v2` or separate versioned endpoints. Existing `/v1` episodes remain readable through the V1 projection layer.
+Current perception, retrieval, memory, evaluator, and rendered-observation
+capabilities use the existing current API contract. Further incompatible body
+changes require an explicit contract and reader migration, not an automatic
+new numbered implementation directory. Existing `/v1` episodes remain readable
+through the compatibility projection layer.

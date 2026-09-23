@@ -1,5 +1,10 @@
 # Cross-task evidence memory v1
 
+Current research plan: [remote-sensing challenges and roadmap](remote-sensing-challenges-and-roadmap.md).
+This filename and the contract identifiers below are historical. Basic Qwen
+interaction was recorded on 2026-09-22; autonomous use of this memory benchmark
+has not been established by that run.
+
 ## Acceptance status and claim boundary
 
 The isolated A800 lifecycle run at
@@ -222,5 +227,5 @@ replace both database and expected state unless the head is anchored elsewhere.
 
 The benchmark measures the causal availability of one governed memory record,
 not whether a model learns when to retrieve, ignore or invalidate memory.
-Qwen3.5-9B interaction remains a separate acceptance and must wait for a healthy,
-authorized GPU allocation.
+Autonomous Qwen memory retrieval, conflict handling and controlled comparisons
+remain a separate experiment from the completed basic interaction run.

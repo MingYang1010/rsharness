@@ -4,6 +4,22 @@ The stack contains TerriaMap, the stateful EO Harness Environment API, and an in
 
 The Rootless Docker systemd service has a user-only proxy drop-in at `~/.config/systemd/user/docker.service.d/proxy.conf`. Proxy values are not stored in this project.
 
+## Current status and research plan
+
+The 2026-09-22 Qwen3.5-9B run produced 22 completed interaction reports across
+11 dataset admission entries. The 2026-09-23 code audit found incomplete
+task/asset binding checks in the result summarizer: this historical result is
+not yet strict provenance acceptance or dataset-wide semantic accuracy.
+The latest fixed-image suite ran 382 tests: 348 passed, 34 skipped, zero failed;
+the renderer passed four tests.
+
+See the [current architecture](docs/current-architecture-framework.md),
+[remote-sensing challenges and prioritized roadmap](docs/remote-sensing-challenges-and-roadmap.md),
+and [Git and single-implementation policy](docs/development-policy.md).
+The project is one EO Harness implementation tracked by Git. Existing numbered
+HTTP/schema identifiers are compatibility contracts, not separate product
+generations; internal version-named packages still require the documented migration.
+
 ## Paths
 
 - Project configuration: `/sata/yangm/eo-harness`
@@ -14,8 +30,8 @@ The Rootless Docker systemd service has a user-only proxy drop-in at `~/.config/
 - Harness API port: `127.0.0.1:8000`
 - Renderer port: internal Compose network only, `8090`
 - Episode state: `/sata/yangm/eo-harness/state/episodes.sqlite3`
-- V2 artifact store: `/sata/yangm/eo-harness/artifacts`
-- V2 immutable task packs: `/sata/yangm/eo-harness/tasks`
+- Artifact store: `/sata/yangm/eo-harness/artifacts`
+- Immutable task packs: `/sata/yangm/eo-harness/tasks`
 - Local WorldCover directory: `/sata/yangm/eo-harness/datasets/worldcover-2021`
 
 ## Local Dataset
@@ -36,7 +52,7 @@ The project mounts a version-pinned stylesheet and a small TerriaJS 8.12.2 bridg
 
 At `390 x 844`, the coordinate readout and secondary footer links are hidden so data attribution and the scale remain on one line. At `1280 x 720`, the language code is visually replaced by the globe icon while retaining the tooltip and accessible name `切换语言 / Change language`.
 
-## Harness API V1
+## Legacy map API compatibility
 
 Environment API `0.2.0` owns episode state, action validation, budgets, observations, and append-only traces. V1 supports `set_view`, `pan`, `zoom`, `set_layer_visibility`, `set_layer_opacity`, and `submit_answer` through `reset`, `step`, `state`, and `trace` endpoints.
 
@@ -44,11 +60,11 @@ All success responses use a typed `meta + data` envelope; validation, domain, ro
 
 OpenAPI documentation is available at `http://127.0.0.1:8000/docs` on the server. The committed contract is [contracts/openapi-v1.json](contracts/openapi-v1.json), with golden examples under [contracts/fixtures](contracts/fixtures). See [docs/harness-api-v1.md](docs/harness-api-v1.md) for usage and [docs/api-compatibility-policy.md](docs/api-compatibility-policy.md) for the V1 change boundary.
 
-## Harness API V2 M2
+## Current Harness runtime
 
 Environment API implementation `0.4.0` exposes independent V2 body schema `2.0.0` without changing the frozen V1 body contract or migrating V1 episodes. SQLite schema `2` adds observation, artifact, and evaluation associations through additive `v2_*` tables in the existing SATA database.
 
-The immutable M1 task `worldcover-grounded-vqa@1.0.0` remains structural. M2 adds `worldcover-grounded-vqa@1.1.0`: map actions are projected into TerriaMap, read back, checked for stable nonblank output, and captured as content-addressed PNG artifacts. The WorldCover evaluator computes `task.accuracy`, `evidence.faithfulness`, and `process.efficiency` from a fixed AOI and a checksum-pinned canonical class raster. `/v2/capabilities` reports the renderer and evaluator as available; executable raster tools remain a later milestone.
+The immutable task `worldcover-grounded-vqa@1.0.0` remains structural. The task `worldcover-grounded-vqa@1.1.0` projects map actions into TerriaMap, checks stable nonblank output, and captures content-addressed PNG artifacts. The WorldCover evaluator computes `task.accuracy`, `evidence.faithfulness`, and `process.efficiency` from a fixed AOI and a checksum-pinned canonical class raster. Reviewed raster alignment, band math, zonal statistics, temporal selection and evidence-memory tools are implemented through task-specific allowlists and deployment profiles; their presence does not imply every profile exposes every tool.
 
 The V2 OpenAPI document is served at `http://127.0.0.1:8000/v2/openapi.json` and committed at [contracts/v2/openapi-v2.json](contracts/v2/openapi-v2.json). Golden V2 requests and responses are under [contracts/v2/fixtures](contracts/v2/fixtures). See [docs/harness-api-v2.md](docs/harness-api-v2.md) for the endpoint and retry contract.
 
@@ -83,7 +99,7 @@ Run the complete V1 and V2 regression suite from the source root:
 PYTHON=python3 /sata/yangm/eo-harness/scripts/test-harness.sh
 ```
 
-The current isolated A800 source gate runs 325 Python tests; 291 pass and 34 environment-dependent integration tests skip when their opt-in external inputs are absent. It checks frozen contracts, typed errors, idempotency, concurrency, catalogs, raster tools, temporal selection/artifacts/evaluation, cross-task evidence memory, execution replay, restart persistence and repository payload controls. The renderer has four Node tests for map-state validation, capture-quality rejection, PNG hashing, and offline request routing.
+The latest isolated A800 source gate ran 382 Python tests: 348 passed and 34 environment-dependent integration tests skipped when their opt-in external inputs were absent. It checks frozen contracts, typed errors, idempotency, concurrency, catalogs, raster tools, temporal selection/artifacts/evaluation, cross-task evidence memory, execution replay, restart persistence and repository payload controls. The renderer has four Node tests for map-state validation, capture-quality rejection, PNG hashing, and offline request routing. Passing the existing tests does not cover the missing acceptance checks identified in the research roadmap.
 
 ## Inspect
 

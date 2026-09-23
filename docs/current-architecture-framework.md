@@ -1,15 +1,15 @@
 # EO Harness 当前结构框架
 
-更新时间：2026-09-21（阶段性收尾版）
+更新时间：2026-09-23（实测后的研究缺口审计）
 
-状态：阶段性收尾，等待后续测试通知
+状态：基本模型交互已完成；严格验收绑定、科学评价与自主决策实验待补。
 
 权威实现：`a800x4_197_via_vps:/sata/yangm/eo-harness`
 
-分支：`codex/eo-gym-integration`
-已验收实现基线（A800 与本地一致）：
-`b0ae38005a949b42d37e3765d97637ef7eda91bd`
-本地收尾文档提交：见该分支最新提交（A800 未同步，等待恢复通知）
+本轮审计基线：`acb5c4f`（A800 实测实现父提交 `0c81784`）。
+版本由 Git commit/tag 管理，当前系统统一称 EO Harness。
+现存路径中的版本标记是待迁移的内部布局或兼容契约；迁移范围见
+[开发规范](development-policy.md)。
 
 本文是当前结构的仓库内权威摘要。更细的 contract、验收命令和逐项证据
 保存在 `docs/` 对应专题文档中；本文不复制那些长文，也不把历史 TODO
@@ -34,7 +34,7 @@ TerriaMap 和 renderer 是人类检查及确定性 rendered observation 的载�
 flowchart LR
     A[Model / Agent runner] -->|mTLS + scoped token| G[Agent ingress / gateway]
     O[Trusted operator] -->|operator mTLS| I[Operator interface]
-    G --> H[EO Harness V2 Environment API]
+    G --> H[EO Harness Environment API]
     I --> H
 
     H --> T[Immutable task registry]
@@ -128,6 +128,7 @@ flowchart LR
 | Raster derivation chain | SCL alignment、masked NDVI、continuous B11 alignment、zonal stats、fixed NDMI | arbitrary formula/GDAL/Python interpreter，或 NDMI 直接代表干旱/墒情 |
 | Cross-task evidence memory | policy、publication、search budget、matched evaluation、restart/replay | 任意长期记忆都可靠或无隐私风险 |
 | Agent/control-plane isolation | scoped token、mTLS、backend/operator separation、rotate/revoke、audit | 公网 production multitenancy 已完成 |
+| Qwen 真实交互 | 11 个接入条目、22 例完成交互；含 crop、NDVI、双时相和 map render | 两例能代表整个数据集，或现有汇总已严格核验 task/asset |
 
 所有“已形成”均指固定版本、固定样本和已记录验收，不自动外推到 dataset-wide、sensor-general 或 autonomous model reasoning。
 
@@ -147,31 +148,32 @@ flowchart LR
 - certificate/private key/token、model weight 和环境包；
 - 任何原始或派生大 raster。
 
-`config/v2/tools.json` 仍保持早期 M2 的 fail-closed baseline；后续工具由 immutable task allowlist、runtime endpoint 和专用 Compose profile共同启用。因此不能只读这一份文件判断当前全部工具能力。
+`config/v2/tools.json` 保留早期 fail-closed baseline；当前工具由 immutable task allowlist、runtime endpoint 和专用 Compose profile共同启用。因此不能只读这一份文件判断当前全部工具能力。
 
 ## 7. 部署与权威关系
 
 - A800 `/sata/yangm/eo-harness` 是实现与验收权威端。
 - 本地 `/Users/mingyang/Documents/research/eo-harness-deployment` 只通过 Git `fetch` + `merge --ff-only` 接收已验收提交。
 - 不用 rsync 同步源码、runtime 或 dataset；不修改 A800 系统代理、GPU driver、Slurm 或其他用户进程。
-- 当前 live 收尾核验：A800 tracked worktree clean，分支 `codex/eo-gym-integration`，HEAD `b0ae380`，系统代理仍为 `http://180.209.5.228:7890`。
-- 本地实现基线与 A800 同为 `b0ae380`；2026-09-21 仅在本地追加收尾文档提交。测试暂停期间未执行远程 Git 同步。本地原有 untracked `.codex-tmp/` 未改动。
+- 2026-09-22 的 GitHub/local merge `acb5c4f` 保留原本地和 A800 两端历史；2026-09-23 已将 A800 快进到该共同基线，后续按同一历史提交。
+- 2026-09-22 收尾记录：验收 Compose 容器已停，Qwen 服务保留，Slurm inactive；这些是当日快照，任何新实验前仍须重新检查。
 
-## 8. 当前缺口与暂停点
+## 8. 当前验收边界和唯一活动计划
 
-当前未继续执行以下工作：
+2026-09-22 全量测试为总数 382、通过 348、跳过 34、失败 0，renderer 4/4。
+旧文档写作“382/382 通过”不准确。
 
-1. external CA/IdP、automated renewal/revocation、OCSP/CRL；
-2. distributed rate limit、backup/recovery、off-host/WORM audit、public multitenant attack acceptance；
-3. 增加新 region、sensor 或 provider 的小规模 licensed benchmark；
-4. Qwen3.5-9B 真实交互验收；
-5. API DB/WAL、reports/logs 的 physical accounting 与 prospective runtime identity。
+代码审计发现 result summarizer 的 task-match 恒为 true，asset binding 只检查非空。
+因此历史 22/22 是已完成的交互记录，严格样本绑定与语义成功率仍待重新审计。
+已有 physical usage audit、prospective runtime identity 和基本 Qwen 交互从未完成清单移除。
 
-下一次恢复时，先重新核验 A800 HEAD、工作树、代理、GPU/port 和已有进程。若继续 benchmark，必须先确定 research question、independent labels/reference、evaluator 和 falsification criteria，再做数据接入或工具扩展。未经新任务需求，不继续添加 NDWI、NBR、EVI 或任意公式执行能力。
+具体缺口、代码证据、优先级、实验和独立提交门槛统一维护在
+[遥感挑战与路线图](remote-sensing-challenges-and-roadmap.md)，本页不复制 TODO。
+下一轮先修严格验收和科学评分，再构造需要补充观测的任务；新增工具须有对应真值和评价目标。
 
 ## 9. 恢复工作的最小检查单
 
-- [ ] 用户明确通知恢复测试/开发；
+- [ ] 明确本轮范围是文档、代码还是模型实验，并沿用已有授权；
 - [ ] A800 repo 为预期 branch/HEAD 且无未知改动；
 - [ ] 现有系统代理 live 状态已记录但未修改；
 - [ ] 新 benchmark 的 source、license、labels/reference 与 bounded sample 已审查；

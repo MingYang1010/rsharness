@@ -3,11 +3,12 @@
 This repository no longer keeps an active phase-by-phase plan at the root.
 The authoritative process records live outside Git in:
 
-`/Users/mingyang/Documents/Codex-Work/EO-Harness/2026-09-17-eo-gym-integration/`
+`/Users/mingyang/Documents/Codex-Work/EO-Harness/2026-09-23-research-gap-audit/`
 
-- `task_plan.md` — remaining work and the pause/resume gate.
-- `notes.md` — accumulated milestone evidence and incident history.
-- `current-architecture-framework.md` — synchronized copy of the architecture closeout.
+- `task_plan.md` — current research/documentation work.
+- `notes.md` — code findings and primary-source evidence.
+- Repository roadmap: `docs/remote-sensing-challenges-and-roadmap.md`.
+- Version/commit rules: `docs/development-policy.md`.
 
 The repository-facing structural summary is
 `docs/current-architecture-framework.md`. Detailed acceptance records remain
