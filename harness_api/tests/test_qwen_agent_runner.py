@@ -24,6 +24,8 @@ MAX_IMAGE_BYTES = RUNNER.MAX_IMAGE_BYTES
 
 
 ROOT = Path(__file__).resolve().parents[2]
+FIXTURE_IMAGE = b"fake-png"
+FIXTURE_IMAGE_SHA256 = __import__("hashlib").sha256(FIXTURE_IMAGE).hexdigest()
 
 
 class FakeModel:
@@ -46,7 +48,10 @@ class FakeModel:
         else:
             function = {"name": "answer.submit", "arguments": '{"answer":{"label":"crop","confidence":0.9,"claims":[]},"confidence":0.9,"evidence_ids":["ev-one"]}'}
             message = SimpleNamespace(content=None, tool_calls=[SimpleNamespace(id="call-3", function=function)])
-        return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+        usage = SimpleNamespace(model_dump=lambda mode="json": {
+            "prompt_tokens": 10, "completion_tokens": 2, "total_tokens": 12,
+        })
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=usage)
 
     @property
     def last_messages(self):
@@ -141,7 +146,7 @@ class QwenAgentRunnerTests(unittest.TestCase):
 
     def test_model_tool_calls_execute_and_verified_image_is_returned(self):
         model = FakeModel()
-        image = b"fake-png"
+        image = FIXTURE_IMAGE
 
         def handler(request: httpx.Request) -> httpx.Response:
             self.assertEqual(request.headers["authorization"], "Bearer token")
@@ -157,13 +162,13 @@ class QwenAgentRunnerTests(unittest.TestCase):
                 return httpx.Response(200, json={"terminated": False, "observation": {"items": [{"artifact_ref": "art-one"}]}, "state": {"episode_id": "ep2-" + "1" * 32, "state_version": 1}})
             if action and action["type"] == "memory.save_evidence":
                 self.assertEqual(action["evidence"]["source_ref"], "art-one")
-                self.assertEqual(action["evidence"]["frozen_sha256"], "a" * 64)
+                self.assertEqual(action["evidence"]["frozen_sha256"], FIXTURE_IMAGE_SHA256)
                 self.assertNotIn("artifact_index", action["evidence"])
                 return httpx.Response(200, json={"terminated": False, "observation": {}, "state": {"episode_id": "ep2-" + "1" * 32, "state_version": 2, "status": "active"}})
             if action and action["type"] == "answer.submit":
                 return httpx.Response(200, json={"terminated": True, "observation": {}, "state": {"episode_id": "ep2-" + "1" * 32, "state_version": 3, "status": "terminated"}})
             if request.url.path == "/agent/artifacts/art-one":
-                return httpx.Response(200, json={"artifact": {"artifact_id": "art-one", "size_bytes": len(image), "sha256": "a" * 64, "media_type": "image/png", "pixel": {"width": 1, "height": 1}}})
+                return httpx.Response(200, json={"artifact": {"artifact_id": "art-one", "size_bytes": len(image), "sha256": FIXTURE_IMAGE_SHA256, "media_type": "image/png", "pixel": {"width": 1, "height": 1}}})
             if request.url.path == "/agent/artifacts/art-one/content":
                 return httpx.Response(200, content=image, headers={"content-type": "image/png"})
             raise AssertionError(request.url.path)
@@ -182,13 +187,53 @@ class QwenAgentRunnerTests(unittest.TestCase):
             httpx.Client = original
         self.assertEqual(report["status"], "passed", report)
         self.assertEqual(report["model_tool_calls"], 3)
-        self.assertEqual(report["image_hashes"], ["a" * 64])
+        self.assertEqual(report["image_hashes"], [FIXTURE_IMAGE_SHA256])
+        self.assertEqual(report["cost"]["model_calls"], 3)
+        self.assertEqual(report["cost"]["prompt_tokens"], 30)
+        self.assertEqual(report["cost"]["completion_tokens"], 6)
+        self.assertEqual(report["cost"]["total_tokens"], 36)
+        self.assertEqual(report["attempt"], {"phase": "completed", "resumed": False,
+                                             "new_model_calls": 3})
         first_names = [item["function"]["name"] for item in model.tool_history[0]]
         second_names = [item["function"]["name"] for item in model.tool_history[1]]
         self.assertNotIn("memory.save_evidence", first_names)
         self.assertIn("memory.save_evidence", second_names)
         self.assertTrue(any(item.get("name") == "eo_gym.crop" for item in report["transcript"]))
         self.assertTrue(any(item.get("name") == "memory.save_evidence" for item in report["transcript"]))
+
+    def test_received_artifact_checksum_mismatch_fails_closed(self):
+        model = FakeModel()
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/agent/session":
+                return httpx.Response(200, json={"task": {"allowed_actions": ["tool.invoke"]},
+                    "state": {"episode_id": "ep2-" + "4" * 32, "state_version": 0},
+                    "observation": {}, "tool_schemas": {"eo_gym.crop": {
+                        "type": "object", "properties": {"aoi": {
+                            "type": "array", "items": {"type": "number"}}}}}})
+            if request.url.path == "/agent/step":
+                return httpx.Response(200, json={"terminated": False,
+                    "observation": {"items": [{"artifact_ref": "art-wrong"}]},
+                    "state": {"episode_id": "ep2-" + "4" * 32, "state_version": 1}})
+            if request.url.path == "/agent/artifacts/art-wrong":
+                return httpx.Response(200, json={"artifact": {"size_bytes": 9,
+                    "sha256": "b" * 64, "media_type": "image/png"}})
+            if request.url.path == "/agent/artifacts/art-wrong/content":
+                return httpx.Response(200, content=b"same-size")
+            raise AssertionError(request.url.path)
+
+        transport = httpx.MockTransport(handler)
+        original = httpx.Client
+        try:
+            httpx.Client = lambda **kwargs: original(transport=transport, **kwargs)
+            with __import__("tempfile").TemporaryDirectory() as directory:
+                report = run("http://gateway", "token", model,
+                             checkpoint_path=Path(directory) / "checkpoint.json")
+        finally:
+            httpx.Client = original
+        self.assertEqual(report["status"], "failed")
+        self.assertEqual(report["reason"], "runner_contract_error")
+        self.assertIn("checksum mismatch", report["error"]["message"])
 
     def test_checkpoint_resumes_without_repeating_completed_action(self):
         model = FakeModel()
@@ -228,12 +273,17 @@ class QwenAgentRunnerTests(unittest.TestCase):
             self.assertEqual(resumed["status"], "passed")
             self.assertNotIn(("GET", "/agent/session"), gateway_calls)
             self.assertNotIn(("POST", "/agent/step"), gateway_calls)
+            self.assertEqual(resumed["attempt"], {"phase": "resume_terminal",
+                                                  "resumed": True, "new_model_calls": 0})
+            self.assertEqual(resumed["cost"]["model_calls"], report["cost"]["model_calls"])
+            self.assertEqual(resumed["cost"]["total_tokens"], report["cost"]["total_tokens"])
 
     def test_error_report_is_fail_closed_and_typed(self):
         report = RUNNER.error_report(httpx.ConnectError("down"), episode_id="ep", turns=2, tool_calls=1,
                                       image_hashes=["a" * 64], elapsed_ms=12, transcript=[{"x": 1}])
         self.assertEqual(report["reason"], "gateway_network_error")
         self.assertEqual(report["error"]["type"], "ConnectError")
+        self.assertEqual(report["cost"]["model_calls"], 0)
 
     def test_step_rejection_preserves_model_call_context(self):
         model = FakeModel()
