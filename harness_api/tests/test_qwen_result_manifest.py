@@ -59,7 +59,8 @@ class QwenResultManifestTests(unittest.TestCase):
                 "image_hashes": ["b" * 64], "resume_checked": True,
                 "transcript": [{"model_response": {
                     "model": module.MODEL_NAME, "id": f"response-{index}",
-                    "usage": {"total_tokens": 1},
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 0,
+                              "total_tokens": 1},
                 }}],
             }
             (reports / f"{dataset}__{sample_id}.json").write_text(json.dumps(report))
@@ -75,7 +76,14 @@ class QwenResultManifestTests(unittest.TestCase):
             CREATE TABLE v2_evidence(episode_id TEXT,evidence_id TEXT,evidence_json TEXT);
             """)
             state = {"status": "terminated", "state_version": 2,
-                     "accessible_asset_refs": asset_ids}
+                     "accessible_asset_refs": asset_ids,
+                     "evaluation": None}
+            if dataset == "ESA-WorldCover-2021":
+                state["evaluation"] = {
+                    "status": "completed", "aggregate_reward": 0.1,
+                    "evaluator_id": "fixture-evaluator", "evaluator_version": "1.0.0",
+                    "metrics": [{"name": "task.accuracy", "value": 0.0, "weight": 1.0}],
+                }
             connection.execute("INSERT INTO v2_episodes VALUES(?,?,?,?,?)",
                                (episode_id, task_id, "1.0.0", manifest_hash, json.dumps(state)))
             connection.execute("INSERT INTO v2_events VALUES(?,?,?)", (episode_id, 0, "{}"))
@@ -110,6 +118,11 @@ class QwenResultManifestTests(unittest.TestCase):
             self.assertTrue(complete["real_model_acceptance"])
             self.assertEqual(complete["passed_samples"], len(module.matrix_samples()))
             self.assertTrue(complete["checks"]["episode_ids_unique"])
+            self.assertEqual(complete["semantic"]["scored"], 2)
+            self.assertEqual(complete["semantic"]["unscored"], len(module.matrix_samples()) - 2)
+            self.assertEqual(complete["semantic"]["task_correct"], 0)
+            self.assertEqual(complete["cost"]["model_calls"], len(module.matrix_samples()))
+            self.assertEqual(complete["cost"]["total_tokens"], len(module.matrix_samples()))
             first = next(iter(sorted(reports.glob("*.json"))))
             first.unlink()
             missing = module.summarize(reports)
@@ -133,6 +146,20 @@ class QwenResultManifestTests(unittest.TestCase):
             self.assertFalse(result["status"] == "passed")
             self.assertIn("episode_task_match", result["failed_checks"])
             self.assertIn("episode_manifest_binding", result["failed_checks"])
+
+    def test_semantic_error_is_not_counted_as_correct(self):
+        evaluation = {
+            "status": "completed", "aggregate_reward": 0.2,
+            "evaluator_id": "fixture", "evaluator_version": "1.0.0",
+            "metrics": [
+                {"name": "task.change_class_accuracy", "value": 1.0, "weight": 1.0},
+                {"name": "task.direction_accuracy", "value": 0.0, "weight": 1.0},
+            ],
+        }
+        outcome = module.semantic_outcome(evaluation)
+        self.assertEqual(outcome["status"], "completed")
+        self.assertFalse(outcome["task_correct"])
+        self.assertEqual(module.semantic_outcome(None)["status"], "unscored")
 
     def test_failed_runner_or_missing_model_metadata_fails(self):
         with tempfile.TemporaryDirectory() as directory:

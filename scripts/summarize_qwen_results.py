@@ -7,6 +7,7 @@ import hashlib
 import json
 import sqlite3
 import sys
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,6 +25,39 @@ except ImportError:
 
 MATRIX = ROOT / "config" / "qwen-dataset-matrix-v1.json"
 MODEL_NAME = "Qwen3.5-9B"
+
+
+def semantic_outcome(evaluation: dict | None) -> dict:
+    if not isinstance(evaluation, dict):
+        return {"status": "unscored", "task_correct": False, "aggregate_reward": None}
+    task_metrics = [item for item in evaluation.get("metrics", [])
+                    if isinstance(item, dict) and str(item.get("name", "")).startswith("task.")]
+    completed = evaluation.get("status") == "completed"
+    if not completed or not task_metrics:
+        return {"status": "unscored", "task_correct": False,
+                "aggregate_reward": evaluation.get("aggregate_reward")}
+    return {
+        "status": "completed" if completed else "unscored",
+        "task_correct": all(float(item.get("value", 0.0)) >= 1.0 for item in task_metrics),
+        "aggregate_reward": evaluation.get("aggregate_reward"),
+        "evaluator_id": evaluation.get("evaluator_id"),
+        "evaluator_version": evaluation.get("evaluator_version"),
+        "task_metrics": task_metrics,
+    }
+
+
+def transcript_cost(transcript: list[dict]) -> dict:
+    prompt = completion = calls = 0
+    for item in transcript:
+        usage = item.get("model_response", {}).get("usage")
+        if not isinstance(usage, dict):
+            continue
+        calls += 1
+        prompt += int(usage.get("prompt_tokens", 0) or 0)
+        completion += int(usage.get("completion_tokens", 0) or 0)
+    return {"model_calls": calls, "prompt_tokens": prompt,
+            "completion_tokens": completion,
+            "total_tokens": prompt + completion}
 
 
 def load_json(path: Path, *, bound: int = 16 * 1024 * 1024) -> dict:
@@ -228,6 +262,8 @@ def validate_report(dataset_id: str, sample_id: str, sample: dict, report: dict,
         episode = None
     state = None
     manifest = None
+    outcome = semantic_outcome(None)
+    cost = transcript_cost(report.get("transcript", []))
     try:
         enriched = dict(sample)
         enriched.update({"dataset_id": dataset_id, "sample_id": sample_id})
@@ -240,6 +276,8 @@ def validate_report(dataset_id: str, sample_id: str, sample: dict, report: dict,
         manifest = None
     if episode is not None and manifest is not None:
         state = json.loads(episode["episode"]["state_json"])
+        outcome = semantic_outcome(state.get("evaluation"))
+        cost = transcript_cost(report.get("transcript", []))
         checks["episode_terminal"] = state.get("status") == "terminated"
         checks["episode_task_match"] = (
             episode["episode"]["task_id"] == manifest["task"].get("task_id")
@@ -287,6 +325,10 @@ def validate_report(dataset_id: str, sample_id: str, sample: dict, report: dict,
         "resolved_task_root": manifest.get("resolved_task_root") if manifest else None,
         "episode_id": episode_id,
         "status": "passed" if all(checks.values()) else "failed",
+        "semantic": outcome,
+        "cost": {**cost, "runner_elapsed_ms": report.get("elapsed_ms"),
+                 "turns": report.get("turns"), "model_tool_calls": report.get("model_tool_calls"),
+                 "resumed": report.get("resumed", False)},
         "checks": checks, "runner_report_sha256": None,
         "episode": {key: value for key, value in (episode or {}).items() if key != "episode"} if episode else None,
         "episode_snapshot_sha256": episode.get("episode_sha256") if episode else None,
@@ -318,6 +360,18 @@ def summarize(reports: Path) -> dict:
         "episode_ids_unique": bool(results)
         and len({item["episode_id"] for item in results}) == len(results)
     }
+    semantic_counts = {"scored": 0, "unscored": 0, "task_correct": 0}
+    for item in results:
+        if item["semantic"]["status"] == "unscored":
+            semantic_counts["unscored"] += 1
+        else:
+            semantic_counts["scored"] += 1
+        if item["semantic"]["task_correct"]:
+            semantic_counts["task_correct"] += 1
+    total_cost = {
+        name: sum(int(item["cost"].get(name, 0) or 0) for item in results)
+        for name in ("model_calls", "prompt_tokens", "completion_tokens", "total_tokens")
+    }
     return {
         "schema_version": "qwen-real-interaction-result-manifest-v1",
         "status": "passed" if (
@@ -327,6 +381,8 @@ def summarize(reports: Path) -> dict:
         "expected_samples": len(matrix), "passed_samples": passed,
         "missing_reports": missing, "unexpected_reports": unexpected,
         "real_model_acceptance": not missing and not unexpected and passed == len(matrix),
+        "semantic": semantic_counts,
+        "cost": total_cost,
         "checks": global_checks,
         "results": results,
         "failed_checks": sorted({

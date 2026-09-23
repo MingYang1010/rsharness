@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import time
 from pathlib import Path
 from typing import Any
+from types import SimpleNamespace
 
 import httpx
 
@@ -297,9 +299,38 @@ def response_metadata(response: Any) -> dict:
     }
 
 
+def usage_cost(usage: Any) -> dict:
+    value = usage.model_dump(mode="json") if usage is not None else None
+    if not isinstance(value, dict):
+        value = {}
+    return {
+        "model_calls": 1,
+        "prompt_tokens": int(value.get("prompt_tokens", 0) or 0),
+        "completion_tokens": int(value.get("completion_tokens", 0) or 0),
+        "total_tokens": int(value.get("total_tokens", 0) or 0),
+    }
+
+
+def add_cost(total: dict, addition: dict) -> dict:
+    return {
+        key: int(total.get(key, 0) or 0) + int(addition.get(key, 0) or 0)
+        for key in ("model_calls", "prompt_tokens", "completion_tokens", "total_tokens")
+    }
+
+
+def transcript_cost(transcript: list[dict]) -> dict:
+    total = {"model_calls": 0, "prompt_tokens": 0,
+             "completion_tokens": 0, "total_tokens": 0}
+    for item in transcript:
+        usage = item.get("model_response", {}).get("usage")
+        if isinstance(usage, dict):
+            total = add_cost(total, usage_cost(SimpleNamespace(model_dump=lambda mode="json": usage)))
+    return total
+
+
 def error_report(exc: BaseException, *, episode_id: str | None, turns: int, tool_calls: int,
                  image_hashes: list[str], elapsed_ms: float, transcript: list[dict],
-                 checkpoint: dict | None = None) -> dict:
+                 checkpoint: dict | None = None, cumulative_cost: dict | None = None) -> dict:
     if isinstance(exc, httpx.HTTPError):
         reason = "gateway_network_error"
     elif isinstance(exc, (ValueError, json.JSONDecodeError)):
@@ -310,7 +341,9 @@ def error_report(exc: BaseException, *, episode_id: str | None, turns: int, tool
             "error": {"type": type(exc).__name__, "message": str(exc)},
             "episode_id": episode_id, "turns": turns, "model_tool_calls": tool_calls,
             "image_hashes": image_hashes, "elapsed_ms": elapsed_ms, "transcript": transcript,
-            "checkpoint": checkpoint}
+            "checkpoint": checkpoint,
+            "cost": cumulative_cost or transcript_cost(transcript),
+            "attempt": {"phase": "failed", "resumed": bool(checkpoint)}}
 
 
 def load_checkpoint(path: Path) -> dict | None:
@@ -368,6 +401,8 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
     transcript = []
     image_hashes = set()
     tool_calls = 0
+    cumulative_cost = {"model_calls": 0, "prompt_tokens": 0,
+                       "completion_tokens": 0, "total_tokens": 0}
     checkpoint_value = load_checkpoint(checkpoint_path) if checkpoint_path else None
     resume = bool(checkpoint_value)
     with httpx.Client(base_url=gateway_url, timeout=45, trust_env=False,
@@ -391,6 +426,7 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
             artifact_ids = list(checkpoint_value.get("artifact_ids", []))
             transcript.extend(checkpoint_value.get("transcript", []))
             tool_calls = int(checkpoint_value.get("tool_calls", 0))
+            cumulative_cost.update(checkpoint_value.get("cost", cumulative_cost))
         else:
             messages = [
                 {"role": "system", "content": SYSTEM_PROMPT},
@@ -409,8 +445,11 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
             content_response = client.get("/agent/artifacts/" + artifact_id + "/content")
             content_response.raise_for_status()
             content = content_response.content
+            received_hash = hashlib.sha256(content).hexdigest()
             if len(content) != metadata["size_bytes"]:
                 raise ValueError("gateway artifact size mismatch")
+            if received_hash != metadata["sha256"]:
+                raise ValueError("gateway artifact checksum mismatch")
             image_hashes.add(metadata["sha256"])
             artifact_index = len(artifacts)
             artifacts.append(metadata)
@@ -427,7 +466,10 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                 return {"status": "passed", "reason": None, "episode_id": state["episode_id"],
                         "turns": turn, "model_tool_calls": tool_calls,
                         "image_hashes": sorted(image_hashes), "elapsed_ms": round((time.time() - started) * 1000, 3),
-                        "transcript": transcript, "resumed": True}
+                        "transcript": transcript, "resumed": True,
+                        "cost": cumulative_cost,
+                        "attempt": {"phase": "resume_terminal", "resumed": True,
+                                    "new_model_calls": 0}}
             response = model_client.chat.completions.create(
                 model="Qwen3.5-9B",
                 messages=messages,
@@ -437,13 +479,16 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                 max_tokens=4096,
             )
             assistant, calls = tool_call_message(response)
+            cumulative_cost = add_cost(cumulative_cost, usage_cost(getattr(response, "usage", None)))
             messages.append(assistant)
             transcript.append({"turn": turn, "assistant": assistant, "model_response": response_metadata(response)})
             if not calls:
                 # A final answer without the required evidence/submit tools is a model failure.
                 return {"status": "failed", "reason": "model_returned_text_without_action", "episode_id": state["episode_id"],
                         "turns": turn + 1, "model_tool_calls": tool_calls, "image_hashes": sorted(image_hashes),
-                        "elapsed_ms": round((time.time() - started) * 1000, 3), "transcript": transcript}
+                        "elapsed_ms": round((time.time() - started) * 1000, 3), "transcript": transcript,
+                        "cost": cumulative_cost,
+                        "attempt": {"phase": "failed", "resumed": resume, "new_model_calls": 1}}
             for call in calls:
                 name = tool_function(call)["name"]
                 arguments = decode_tool_arguments(call)
@@ -458,6 +503,7 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                         tool_calls=tool_calls + 1, image_hashes=sorted(image_hashes),
                         elapsed_ms=round((time.time() - started) * 1000, 3),
                         transcript=transcript, checkpoint=checkpoint_value,
+                        cumulative_cost=cumulative_cost,
                     )
                 state = result["state"]
                 terminated = result.get("terminated", False)
@@ -467,7 +513,17 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                 for artifact_id in artifact_refs(result.get("observation", {})):
                     if artifact_id not in artifact_ids:
                         artifact_ids.append(artifact_id)
-                        attach_artifact(artifact_id)
+                        try:
+                            attach_artifact(artifact_id)
+                        except ValueError as error:
+                            return error_report(
+                                error, episode_id=state["episode_id"],
+                                turns=turn + 1, tool_calls=tool_calls,
+                                image_hashes=sorted(image_hashes),
+                                elapsed_ms=round((time.time() - started) * 1000, 3),
+                                transcript=transcript, checkpoint=checkpoint_value,
+                                cumulative_cost=cumulative_cost,
+                            )
                 if checkpoint_path is not None:
                     checkpoint_value = {
                         "schema_version": "qwen-agent-checkpoint-v1",
@@ -475,6 +531,7 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                         "terminated": terminated, "tool_calls": tool_calls,
                         "artifact_ids": artifact_ids, "image_hashes": sorted(image_hashes),
                         "transcript": transcript,
+                        "cost": cumulative_cost,
                     }
                     save_checkpoint(checkpoint_path, checkpoint_value)
                 if terminated:
@@ -482,10 +539,15 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                             "reason": None if state.get("status") == "terminated" else "nonterminal_after_answer",
                             "episode_id": state["episode_id"], "turns": turn + 1, "model_tool_calls": tool_calls,
                             "image_hashes": sorted(image_hashes), "elapsed_ms": round((time.time() - started) * 1000, 3),
-                            "transcript": transcript}
+                            "transcript": transcript, "cost": cumulative_cost,
+                            "attempt": {"phase": "completed", "resumed": resume,
+                                        "new_model_calls": cumulative_cost["model_calls"]}}
         return {"status": "failed", "reason": "max_turns_reached", "episode_id": state["episode_id"],
                 "turns": max_turns, "model_tool_calls": tool_calls, "image_hashes": sorted(image_hashes),
-                "elapsed_ms": round((time.time() - started) * 1000, 3), "transcript": transcript}
+                "elapsed_ms": round((time.time() - started) * 1000, 3), "transcript": transcript,
+                "cost": cumulative_cost,
+                "attempt": {"phase": "failed", "resumed": resume,
+                            "new_model_calls": cumulative_cost["model_calls"]}}
 
 
 def main() -> int:
@@ -499,7 +561,8 @@ def main() -> int:
     args = parser.parse_args()
     client = model_client(args.openai_base_url)
     try:
-        report = run(args.gateway, args.token_file.read_text().strip(), client, args.max_turns, args.checkpoint)
+        report = run(args.gateway, args.token_file.read_text().strip(), client,
+                     args.max_turns, args.checkpoint)
     except BaseException as exc:
         report = error_report(exc, episode_id=None, turns=0, tool_calls=0, image_hashes=[],
                               elapsed_ms=0, transcript=[])
