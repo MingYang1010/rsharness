@@ -145,6 +145,10 @@
             "asset-whu-0-137-before",
             "asset-whu-0-137-after"
           ],
+          "content_sha256s": [
+            "6d3f1946766b7895d139083300eef89c647464baaaf8206b73953e9f8c01c0c5",
+            "d61bd74a43ca5dbe401bc8e6335e8dbb1d85f825ad45b5521dc65cb2cec6328f"
+          ],
           "content_sha256": "6d3f1946766b7895d139083300eef89c647464baaaf8206b73953e9f8c01c0c5",
           "task_root": "runtime/whu-change-accept-20260920-6/tasks/whu-building-change-0-137",
           "job_root": "runtime/whu-change-accept-20260920-6"
@@ -154,6 +158,10 @@
           "asset_ids": [
             "asset-whu-0-224-before",
             "asset-whu-0-224-after"
+          ],
+          "content_sha256s": [
+            "3366081a249b8e52b3396ee44db97fad8c8f33caa3c863b2f2d92e73ffc739b0",
+            "bcd2b68aa0e6cf29d97fb45313ddbafb4539fdd26bd674a87ed566ef8e402caa"
           ],
           "content_sha256": "3366081a249b8e52b3396ee44db97fad8c8f33caa3c863b2f2d92e73ffc739b0",
           "task_root": "runtime/whu-change-accept-20260920-6/tasks/whu-building-change-0-224",
@@ -183,8 +191,8 @@
       "dataset_id": "Sentinel-2-science-windows",
       "kind": "science_raster_chain",
       "samples": [
-        {"sample_id": 0, "asset_ids": ["asset-66b787db7015dc0ae9ef02b034834e67902838c841638c89e1023a0a4653a054", "asset-740b8d1a9dbab21b15e81f5158652080a47b096a59df7fd8e0e56d1718767145"], "content_sha256": "30ea0903a799d02e4bbad0b03e3404b198567ac220e992ea49ce0506c4f12bc8", "task_root": "runtime/native-ndvi-qwen-split-20260921-01/sample-0/tasks/native-ndvi-qwen"},
-        {"sample_id": 1, "asset_ids": ["asset-60ef077a8b9e83c10cc46d96ebd3419ddd072743b8f2dcb47cfd9595fd8568f4", "asset-ea62dc3ed32b9d768ccab8bbf9ba1bec8d2a56bb48d551b62e0ab88d139c5902"], "content_sha256": "a8ea5fbac7d3d67283fdc4d730fb7a3190e133bd14748ec37a76791fbacc28ea", "task_root": "runtime/native-ndvi-qwen-split-20260921-01/sample-1/tasks/native-ndvi-qwen"}
+        {"sample_id": 0, "asset_ids": ["asset-66b787db7015dc0ae9ef02b034834e67902838c841638c89e1023a0a4653a054", "asset-740b8d1a9dbab21b15e81f5158652080a47b096a59df7fd8e0e56d1718767145"], "content_sha256s": ["30ea0903a799d02e4bbad0b03e3404b198567ac220e992ea49ce0506c4f12bc8", "62e4eb929fc10736d01d2b2f0eb39403d4765be12f24c323ecf86f0ef6f387d1"], "content_sha256": "30ea0903a799d02e4bbad0b03e3404b198567ac220e992ea49ce0506c4f12bc8", "task_root": "runtime/native-ndvi-qwen-split-20260921-01/sample-0/tasks/native-ndvi-qwen"},
+        {"sample_id": 1, "asset_ids": ["asset-60ef077a8b9e83c10cc46d96ebd3419ddd072743b8f2dcb47cfd9595fd8568f4", "asset-ea62dc3ed32b9d768ccab8bbf9ba1bec8d2a56bb48d551b62e0ab88d139c5902"], "content_sha256s": ["a8ea5fbac7d3d67283fdc4d730fb7a3190e133bd14748ec37a76791fbacc28ea", "21c1f55b13be8f0f6032f72691e816b3261b42550f3bf6f70c588dd1f3234b6a"], "content_sha256": "a8ea5fbac7d3d67283fdc4d730fb7a3190e133bd14748ec37a76791fbacc28ea", "task_root": "runtime/native-ndvi-qwen-split-20260921-01/sample-1/tasks/native-ndvi-qwen"}
       ],
       "generated_by": "scripts/split_native_ndvi_qwen_tasks.py"
     }
