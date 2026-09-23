@@ -1,5 +1,6 @@
 import json
 import importlib.util
+import hashlib
 import sqlite3
 import tempfile
 import unittest
@@ -11,54 +12,127 @@ SPEC.loader.exec_module(module)
 
 
 class QwenResultManifestTests(unittest.TestCase):
+    def _write_fixture(self, root: Path, *, task_id_suffix: str = "correct") -> None:
+        reports = root / "reports"
+        reports.mkdir()
+        for index, ((dataset, sample_id), sample) in enumerate(sorted(module.matrix_samples().items())):
+            episode_id = "ep2-" + hashlib.sha256(f"{dataset}/{sample_id}".encode()).hexdigest()
+            asset_ids = [sample["asset_id"]] if sample.get("asset_id") else list(sample["asset_ids"])
+            hashes = (list(sample["content_sha256s"]) if sample.get("content_sha256s")
+                      else [sample["content_sha256"]])
+            task_id = f"task-{index}-{task_id_suffix}"
+            task = {
+                "task_id": task_id, "task_version": "1.0.0", "family": "fixture",
+                "prompt": "fixture task", "inputs": asset_ids,
+                "scenario_profile": "fixture", "answer_schema": {"type": "object"},
+                "evaluator": "fixture", "seed": 0, "metadata": {},
+                "metric_aggregation": {},
+                "budget": {"max_steps": 20, "max_tool_calls": 5,
+                           "max_wall_time_ms": 300000, "max_input_bytes": 1048576,
+                           "max_artifact_bytes": 1048576},
+            }
+            scenario = {
+                "profile_id": "fixture", "domain": "remote-sensing",
+                "data_cutoff": "2020-01-01T00:00:00Z",
+                "allowed_actions": ["tool.invoke", "map.set_view"],
+                "allowed_tools": [],
+                "network_policy": "none", "evidence_required": True,
+                "abstention_allowed": True, "human_review_policy": "never",
+            }
+            assets = [{"asset_id": asset_id, "uri": "asset://" + asset_id,
+                       "media_type": "application/octet-stream", "roles": ["input_image"],
+                       "sha256": digest, "size_bytes": 1, "spatial": None,
+                       "pixel": {"coordinate_system": "pixel", "width": 1,
+                                 "height": 1, "channels": 1},
+                       "license": "fixture", "source": "fixture"}
+                      for asset_id, digest in zip(asset_ids, hashes)]
+            evaluator = {"evaluator_id": "fixture", "evaluator_version": "1.0.0",
+                         "metric_names": []}
+            manifest_dir = root / sample["task_root"]
+            manifest_dir.mkdir(parents=True)
+            for name, value in (("task.json", task), ("scenario.json", scenario),
+                                ("assets.json", assets), ("evaluator.json", evaluator)):
+                (manifest_dir / name).write_text(json.dumps(value))
+            task, assets, manifest_hash = module.load_manifest(manifest_dir)
+            report = {
+                "status": "passed", "episode_id": episode_id, "model_tool_calls": 1,
+                "image_hashes": ["b" * 64], "resume_checked": True,
+                "transcript": [{"model_response": {
+                    "model": module.MODEL_NAME, "id": f"response-{index}",
+                    "usage": {"total_tokens": 1},
+                }}],
+            }
+            (reports / f"{dataset}__{sample_id}.json").write_text(json.dumps(report))
+            database = reports / f"{dataset}__{sample_id}.sqlite3"
+            connection = sqlite3.connect(database)
+            connection.executescript("""
+            CREATE TABLE v2_episodes(episode_id TEXT,task_id TEXT,task_version TEXT,task_manifest_hash TEXT,state_json TEXT);
+            CREATE TABLE v2_events(episode_id TEXT,sequence INTEGER,event_json TEXT);
+            CREATE TABLE v2_action_results(episode_id TEXT,client_action_id TEXT,outcome TEXT,request_json TEXT,response_json TEXT);
+            CREATE TABLE v2_tool_runs(episode_id TEXT,tool_run_id TEXT,status TEXT,run_json TEXT);
+            CREATE TABLE v2_artifacts(artifact_id TEXT,episode_id TEXT,artifact_json TEXT);
+            CREATE TABLE v2_episode_artifacts(episode_id TEXT,artifact_id TEXT);
+            CREATE TABLE v2_evidence(episode_id TEXT,evidence_id TEXT,evidence_json TEXT);
+            """)
+            state = {"status": "terminated", "state_version": 2,
+                     "accessible_asset_refs": asset_ids}
+            connection.execute("INSERT INTO v2_episodes VALUES(?,?,?,?,?)",
+                               (episode_id, task_id, "1.0.0", manifest_hash, json.dumps(state)))
+            connection.execute("INSERT INTO v2_events VALUES(?,?,?)", (episode_id, 0, "{}"))
+            rendered = dataset == "ESA-WorldCover-2021"
+            request = ({"action": {"type": "map.set_view"}} if rendered
+                       else {"action": {"arguments": {"asset_id": asset_ids[0]}, "type": "tool.invoke"}})
+            connection.execute("INSERT INTO v2_action_results VALUES(?,?,?,?,?)",
+                               (episode_id, "a", "success", json.dumps(request), "{}"))
+            if not rendered:
+                run = {"request_json": json.dumps(request)}
+                connection.execute("INSERT INTO v2_tool_runs VALUES(?,?,?,?)",
+                                   (episode_id, "run", "completed", json.dumps(run)))
+            artifact = {"sha256": "b" * 64, "lineage": {"input_refs": asset_ids}}
+            if not rendered:
+                artifact["lineage"]["tool_id"] = "fixture.crop"
+            if rendered:
+                artifact["lineage"]["tool_id"] = "renderer.terriamap.capture"
+            connection.execute("INSERT INTO v2_artifacts VALUES(?,?,?)",
+                               (f"art-{index}", episode_id, json.dumps(artifact)))
+            connection.execute("INSERT INTO v2_episode_artifacts VALUES(?,?)",
+                               (episode_id, f"art-{index}"))
+            connection.execute("INSERT INTO v2_evidence VALUES(?,?,?)",
+                               (episode_id, "ev", json.dumps({"source_ref": f"art-{index}"})))
+            connection.commit(); connection.close()
+
     def test_complete_fixture_passes_and_missing_report_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            self._write_fixture(root)
             reports = root / "reports"
-            reports.mkdir()
-            samples = module.matrix_samples()
-            for (dataset, sample_id), sample in samples.items():
-                report_root = root / sample["task_root"]
-                state = report_root / "state"
-                state.mkdir(parents=True, exist_ok=True)
-                report = {"status": "passed", "episode_id": "ep2-" + "a" * 32,
-                          "model_tool_calls": 1, "image_hashes": ["b" * 64],
-                          "transcript": [{"model_response": {"id": "x"}}], "resume_checked": True}
-                (reports / f"{dataset}__{sample_id}.json").write_text(json.dumps(report))
-                database = reports / f"{dataset}__{sample_id}.sqlite3"
-                connection = sqlite3.connect(database)
-                connection.executescript("""
-                CREATE TABLE v2_episodes(episode_id TEXT,task_id TEXT,task_version TEXT,task_manifest_hash TEXT,state_json TEXT);
-                CREATE TABLE v2_events(episode_id TEXT,sequence INTEGER,event_json TEXT);
-                CREATE TABLE v2_action_results(episode_id TEXT,client_action_id TEXT,outcome TEXT,request_json TEXT,response_json TEXT);
-                CREATE TABLE v2_tool_runs(episode_id TEXT,tool_run_id TEXT,run_json TEXT);
-                CREATE TABLE v2_artifacts(artifact_id TEXT,episode_id TEXT,artifact_json TEXT);
-                CREATE TABLE v2_episode_artifacts(episode_id TEXT,artifact_id TEXT);
-                CREATE TABLE v2_evidence(episode_id TEXT,evidence_id TEXT,evidence_json TEXT);
-                """)
-                connection.execute("INSERT INTO v2_episodes VALUES(?,?,?,?,?)", ("ep2-" + "a"*32, "task", "1.0.0", "f"*64, json.dumps({"status":"terminated","state_version":2})))
-                connection.execute("INSERT INTO v2_events VALUES(?,?,?)", ("ep2-"+"a"*32,0,"{}"))
-                rendered = dataset == "ESA-WorldCover-2021"
-                request = {"action": {"type": "map.set_view"}} if rendered else {}
-                connection.execute("INSERT INTO v2_action_results VALUES(?,?,?,?,?)",
-                                   ("ep2-"+"a"*32,"a","success",json.dumps(request),"{}"))
-                if not rendered:
-                    connection.execute("INSERT INTO v2_tool_runs VALUES(?,?,?)", ("ep2-"+"a"*32,"run","{}"))
-                artifact = json.dumps({"sha256":"b"*64, **({
-                    "lineage": {"tool_id": "renderer.terriamap.capture"},
-                } if rendered else {})})
-                connection.execute("INSERT INTO v2_artifacts VALUES(?,?,?)", ("art","ep2-"+"a"*32,artifact))
-                connection.execute("INSERT INTO v2_episode_artifacts VALUES(?,?)", ("ep2-"+"a"*32,"art"))
-                connection.execute("INSERT INTO v2_evidence VALUES(?,?,?)", ("ep2-"+"a"*32,"ev","{}"))
-                connection.commit(); connection.close()
             complete = module.summarize(reports)
             self.assertTrue(complete["real_model_acceptance"])
-            self.assertEqual(complete["passed_samples"], len(samples))
+            self.assertEqual(complete["passed_samples"], len(module.matrix_samples()))
+            self.assertTrue(complete["checks"]["episode_ids_unique"])
             first = next(iter(sorted(reports.glob("*.json"))))
             first.unlink()
             missing = module.summarize(reports)
             self.assertFalse(missing["real_model_acceptance"])
             self.assertEqual(len(missing["missing_reports"]), 1)
+
+    def test_wrong_task_identity_or_content_hash_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_fixture(root, task_id_suffix="wrong")
+            reports = root / "reports"
+            first_report_path = next(iter(sorted(reports.glob("*.json"))))
+            first = json.loads(first_report_path.read_text())
+            key = first_report_path.stem.split("__", 1)
+            sample = module.matrix_samples()[tuple(key)]
+            task_path = root / sample["task_root"] / "task.json"
+            task = json.loads(task_path.read_text())
+            task["task_id"] += "-unexpected"
+            task_path.write_text(json.dumps(task))
+            result = module.summarize(reports)
+            self.assertFalse(result["status"] == "passed")
+            self.assertIn("episode_task_match", result["failed_checks"])
+            self.assertIn("episode_manifest_binding", result["failed_checks"])
 
     def test_failed_runner_or_missing_model_metadata_fails(self):
         with tempfile.TemporaryDirectory() as directory:
