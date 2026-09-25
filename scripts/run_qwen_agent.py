@@ -542,7 +542,6 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                             "transcript": transcript, "cost": cumulative_cost,
                             "attempt": {"phase": "completed", "resumed": resume,
                                         "new_model_calls": cumulative_cost["model_calls"]}}
-                break
         return {"status": "failed", "reason": "max_turns_reached", "episode_id": state["episode_id"],
                 "turns": max_turns, "model_tool_calls": tool_calls, "image_hashes": sorted(image_hashes),
                 "elapsed_ms": round((time.time() - started) * 1000, 3), "transcript": transcript,

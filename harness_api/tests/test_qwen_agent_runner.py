@@ -201,6 +201,53 @@ class QwenAgentRunnerTests(unittest.TestCase):
         self.assertTrue(any(item.get("name") == "eo_gym.crop" for item in report["transcript"]))
         self.assertTrue(any(item.get("name") == "memory.save_evidence" for item in report["transcript"]))
 
+    def test_multiple_tool_calls_execute_sequentially_with_updated_state(self):
+        class TwoCallModel:
+            def __init__(self):
+                self.calls = 0
+                self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
+
+            def create(self, **kwargs):
+                self.calls += 1
+                if self.calls == 1:
+                    calls = [
+                        SimpleNamespace(id="multi-inspect-one", function={"name": "catalog.inspect_asset", "arguments": '{"asset_id":"asset-one"}'}),
+                        SimpleNamespace(id="multi-inspect-two", function={"name": "catalog.inspect_asset", "arguments": '{"asset_id":"asset-two"}'}),
+                    ]
+                else:
+                    calls = [SimpleNamespace(id="multi-submit", function={"name": "answer.submit", "arguments": '{"answer":{"label":"ok"},"confidence":0.9,"evidence_ids":[]}'})]
+                message = SimpleNamespace(content=None, tool_calls=calls)
+                usage = SimpleNamespace(model_dump=lambda mode="json": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2})
+                return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=usage)
+
+        model = TwoCallModel()
+        state_versions = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/agent/session":
+                return httpx.Response(200, json={"task": {"allowed_actions": ["tool.invoke", "answer.submit"]}, "state": {"episode_id": "ep2-" + "5" * 32, "state_version": 0}, "observation": {}, "tool_schemas": {"catalog.inspect_asset": {"type": "object", "properties": {"asset_id": {"type": "string"}}}}})
+            if request.url.path == "/agent/step":
+                body = json.loads(request.content)
+                state_versions.append((body["expected_state_version"], body["action"]["type"], body["client_action_id"]))
+                version = len(state_versions)
+                return httpx.Response(200, json={"terminated": version == 3, "observation": {}, "state": {"episode_id": "ep2-" + "5" * 32, "state_version": version, "status": "terminated" if version == 3 else "active"}})
+            raise AssertionError(request.url.path)
+
+        transport = httpx.MockTransport(handler)
+        original = httpx.Client
+        try:
+            httpx.Client = lambda **kwargs: original(transport=transport, **kwargs)
+            report = run("http://gateway", "token", model)
+        finally:
+            httpx.Client = original
+        self.assertEqual(report["status"], "passed", report)
+        self.assertEqual(model.calls, 2)
+        self.assertEqual(state_versions, [
+            (0, "tool.invoke", "qwen-" + "5" * 8 + "-0"),
+            (1, "tool.invoke", "qwen-" + "5" * 8 + "-1"),
+            (2, "answer.submit", "qwen-" + "5" * 8 + "-2"),
+        ])
+
     def test_received_artifact_checksum_mismatch_fails_closed(self):
         model = FakeModel()
 
