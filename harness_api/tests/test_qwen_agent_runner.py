@@ -79,8 +79,8 @@ class QwenAgentRunnerTests(unittest.TestCase):
                 "status": "passed",
                 "cost": {"total_tokens": 12},
                 "elapsed_ms": 100,
-                "evaluation": {"diagnostics": {"unnecessary_abstention": False,
-                                                "false_confidence": True}},
+                "terminal_state": {"evaluation": {"diagnostics": {
+                    "unnecessary_abstention": False, "false_confidence": True}}},
                 "transcript": [{"name": "answer.abstain"}],
             }
             (runtime / "reports").mkdir()
@@ -209,7 +209,9 @@ class QwenAgentRunnerTests(unittest.TestCase):
                 self.assertNotIn("artifact_index", action["evidence"])
                 return httpx.Response(200, json={"terminated": False, "observation": {}, "state": {"episode_id": "ep2-" + "1" * 32, "state_version": 2, "status": "active"}})
             if action and action["type"] == "answer.submit":
-                return httpx.Response(200, json={"terminated": True, "observation": {}, "state": {"episode_id": "ep2-" + "1" * 32, "state_version": 3, "status": "terminated"}})
+                evaluation = {"status": "completed", "diagnostics": {"false_confidence": True,
+                                                                    "unnecessary_abstention": False}}
+                return httpx.Response(200, json={"terminated": True, "observation": {}, "state": {"episode_id": "ep2-" + "1" * 32, "state_version": 3, "status": "terminated", "final_answer": {"outcome": "submitted"}, "evaluation": evaluation}})
             if request.url.path == "/agent/artifacts/art-one":
                 return httpx.Response(200, json={"artifact": {"artifact_id": "art-one", "size_bytes": len(image), "sha256": FIXTURE_IMAGE_SHA256, "media_type": "image/png", "pixel": {"width": 1, "height": 1}}})
             if request.url.path == "/agent/artifacts/art-one/content":
@@ -237,6 +239,14 @@ class QwenAgentRunnerTests(unittest.TestCase):
         self.assertEqual(report["cost"]["total_tokens"], 36)
         self.assertEqual(report["attempt"], {"phase": "completed", "resumed": False,
                                              "new_model_calls": 3})
+        self.assertEqual(report["terminal_state"], {
+            "episode_id": "ep2-" + "1" * 32,
+            "status": "terminated",
+            "final_answer": {"outcome": "submitted"},
+            "evaluation": {"status": "completed", "diagnostics": {
+                "false_confidence": True, "unnecessary_abstention": False,
+            }},
+        })
         first_names = [item["function"]["name"] for item in model.tool_history[0]]
         second_names = [item["function"]["name"] for item in model.tool_history[1]]
         self.assertNotIn("memory.save_evidence", first_names)

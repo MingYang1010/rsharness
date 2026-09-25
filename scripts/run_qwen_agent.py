@@ -535,11 +535,18 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                     }
                     save_checkpoint(checkpoint_path, checkpoint_value)
                 if terminated:
+                    terminal_state = {
+                        "episode_id": state["episode_id"],
+                        "status": state.get("status"),
+                        "final_answer": state.get("final_answer"),
+                        **({"evaluation": state["evaluation"]} if state.get("evaluation") is not None else {}),
+                    }
                     return {"status": "passed" if state.get("status") == "terminated" else "failed",
                             "reason": None if state.get("status") == "terminated" else "nonterminal_after_answer",
                             "episode_id": state["episode_id"], "turns": turn + 1, "model_tool_calls": tool_calls,
                             "image_hashes": sorted(image_hashes), "elapsed_ms": round((time.time() - started) * 1000, 3),
                             "transcript": transcript, "cost": cumulative_cost,
+                            "terminal_state": terminal_state,
                             "attempt": {"phase": "completed", "resumed": resume,
                                         "new_model_calls": cumulative_cost["model_calls"]}}
         return {"status": "failed", "reason": "max_turns_reached", "episode_id": state["episode_id"],

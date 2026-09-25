@@ -100,7 +100,7 @@ def _summarize(jobs: list[dict], reports: dict[str, dict]) -> dict:
             transcript_names = [item.get("name") for item in report.get("transcript", []) if item.get("name")]
             if "answer.abstain" in transcript_names:
                 expected_abstained += 1
-            diagnostics = report.get("evaluation", {}).get("diagnostics", {})
+            diagnostics = report.get("terminal_state", {}).get("evaluation", {}).get("diagnostics", {})
             unnecessary += bool(diagnostics.get("unnecessary_abstention"))
             false_confident += bool(diagnostics.get("false_confidence"))
         group_rows.append({
