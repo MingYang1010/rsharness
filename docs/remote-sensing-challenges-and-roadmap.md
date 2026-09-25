@@ -68,7 +68,7 @@ G01–G04 是本次静态审计发现或待证明边界，不等于已经出现�
 |---|---|---|---|
 | A / P0 严格验收 | 修正 result summarizer、receipt 与 fixture；read-only 审计原 22 份 report/SQLite/task/source manifest | 错 task/hash/样本/时相、失败 tool、空矩阵、损坏 snapshot 全部被拒绝；输出逐项原因；新报告单独存放 | `fix(acceptance): verify task and asset provenance` |
 | B / P0 科学结果 | 汇总已有 evaluator 分数与 unscored；记录每次尝试、首轮成功、失败类型、累计 token/耗时；补中途故障恢复测试 | 交互成功且语义错误的反例不能进“任务成功”；终态 resume 不覆盖原运行统计；恢复不重复收费 | `feat(evaluation): report semantic outcomes and run costs` |
-| C / P1 单实现布局 | 按 [版本管理规范](development-policy.md) 将内部实现迁往职责目录，分离协议兼容边界 | frozen HTTP fixtures 不变；旧数据库只读 replay 可用；新旧入口导向同一实现；每步记录实际 pass/skip 数 | `refactor(core): organize runtime by responsibility` |
+| C / P1 单实现布局 | 已在 `3e5bd2e` 完成：活跃实现迁至 `harness_api/app/core/`，`v2` 只保留转发 shim，协议路径/表/序列化名不变 | frozen HTTP fixtures 通过（V1 5/5，V2 4/4）；全量容器测试与迁移前基线同为 385 total / 5 fail / 3 error / 34 skip；payload guard 通过 | 已提交：`refactor(core): organize runtime by responsibility` |
 | D / P1 决策任务包 | 先冻结变化判断，再加时序选择；问题、独立 reference、输入可用性、预算、split、评价器一并固定 | 开发集排障后锁定 held-out cases；基于观测的后续动作可改变结论；标签不进入 Agent/runtime context | `feat(benchmarks): add observation-dependent tasks` |
 | E / P1 记忆实验 | 接入已有 memory，加入冲突与过期条件，统一 direct/fixed-pipeline/agent 的资源计量 | 报告共同准确率、错误率、成本及按 AOI/event 的配对置信区间；保留不提升或退化结果 | `feat(benchmarks): evaluate governed evidence memory` |
 
