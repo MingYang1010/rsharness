@@ -1,4 +1,5 @@
 import json
+import sqlite3
 import importlib.util
 import os
 import tempfile
@@ -12,6 +13,7 @@ import httpx
 RUNNER_PATH = Path(__file__).resolve().parents[2] / "scripts" / "run_qwen_agent.py"
 BATCH_PATH = Path(__file__).resolve().parents[2] / "scripts" / "run_qwen_whu_batch.py"
 MEMORY_PAIR_PATH = Path(__file__).resolve().parents[2] / "scripts" / "run_qwen_memory_pair.py"
+MEMORY_MATRIX_PATH = Path(__file__).resolve().parents[2] / "scripts" / "run_qwen_memory_matrix.py"
 SPEC = importlib.util.spec_from_file_location("qwen_agent_runner", RUNNER_PATH)
 RUNNER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(RUNNER)
@@ -21,6 +23,9 @@ BATCH_SPEC.loader.exec_module(BATCH)
 MEMORY_PAIR_SPEC = importlib.util.spec_from_file_location("qwen_memory_pair", MEMORY_PAIR_PATH)
 MEMORY_PAIR = importlib.util.module_from_spec(MEMORY_PAIR_SPEC)
 MEMORY_PAIR_SPEC.loader.exec_module(MEMORY_PAIR)
+MEMORY_MATRIX_SPEC = importlib.util.spec_from_file_location("qwen_memory_matrix", MEMORY_MATRIX_PATH)
+MEMORY_MATRIX = importlib.util.module_from_spec(MEMORY_MATRIX_SPEC)
+MEMORY_MATRIX_SPEC.loader.exec_module(MEMORY_MATRIX)
 artifact_refs = RUNNER.artifact_refs
 action_from_tool_call = RUNNER.action_from_tool_call
 compact_messages = RUNNER.compact_messages
@@ -130,6 +135,91 @@ class QwenAgentRunnerTests(unittest.TestCase):
         self.assertEqual(summary["episodes"][0]["condition"], "with_memory")
         self.assertEqual(summary["episodes"][0]["metrics"]["task.accuracy"], 1.0)
         self.assertEqual(summary["episodes"][1]["total_tokens"], 5)
+
+    def test_memory_matrix_summarizes_actions_retrieval_and_cost(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runtime = root / "runtime" / "matrix"
+            (runtime / "benchmark-agent").mkdir(parents=True)
+            (runtime / "matrix-run" / "state").mkdir(parents=True)
+            (runtime / "matrix-manifest.json").write_text(json.dumps({
+                "schema_version": "evidence-memory-matrix-v1", "task_count": 8,
+            }))
+            episode = "ep2-" + "6" * 32
+            report = {
+                "status": "passed",
+                "reason": None,
+                "episode_id": episode,
+                "cost": {"model_calls": 2, "prompt_tokens": 20,
+                         "completion_tokens": 4, "total_tokens": 24},
+                "elapsed_ms": 123.5,
+                "terminal_state": {
+                    "status": "terminated",
+                    "final_answer": {
+                        "outcome": "submitted",
+                        "answer": {"label": "built-up", "memory_ids": ["mem-correct"]},
+                    },
+                    "evaluation": {"aggregate_reward": 1.0, "metrics": [
+                        {"name": "task.accuracy", "value": 1.0},
+                        {"name": "evidence.memory_faithfulness", "value": 1.0},
+                        {"name": "process.efficiency", "value": 1.0},
+                    ]},
+                },
+                "transcript": [
+                    {"assistant": {}},
+                    {"name": "memory.search", "arguments": {"limit": 5}},
+                    {"name": "answer.submit", "arguments": {}},
+                ],
+            }
+            with sqlite3.connect(
+                runtime / "matrix-run" / "state" / "episodes.sqlite3"
+            ) as connection:
+                connection.execute(
+                    "CREATE TABLE v2_episodes (episode_id TEXT PRIMARY KEY, state_json TEXT)"
+                )
+                connection.execute(
+                    "CREATE TABLE v2_action_results "
+                    "(episode_id TEXT, client_action_id TEXT, response_json TEXT, created_at TEXT)"
+                )
+                connection.execute(
+                    "CREATE TABLE v2_tool_runs "
+                    "(episode_id TEXT, client_action_id TEXT, tool_id TEXT)"
+                )
+                connection.execute(
+                    "INSERT INTO v2_episodes VALUES (?, ?)",
+                    (episode, json.dumps(report["terminal_state"])),
+                )
+                response = {
+                    "observation": {"items": [{"inline": {
+                        "matched_count": 1,
+                        "records": [{"memory_id": "mem-correct"}],
+                    }}]},
+                }
+                connection.execute(
+                    "INSERT INTO v2_action_results VALUES (?, ?, ?, ?)",
+                    (episode, "action-memory", json.dumps(response), "2026-01-01"),
+                )
+                connection.execute(
+                    "INSERT INTO v2_tool_runs VALUES (?, ?, ?)",
+                    (episode, "action-memory", "memory.search"),
+                )
+            summary = MEMORY_MATRIX._summary(
+                {("correct-only", "with-memory"): report}, runtime
+            )
+            row = summary["episodes"][0]
+            self.assertEqual(row["case"], "correct-only")
+            self.assertEqual(row["treatment"], "with-memory")
+            self.assertEqual(row["submitted_label"], "built-up")
+            self.assertEqual(row["cited_memory_ids"], ["mem-correct"])
+            self.assertEqual(row["retrieval"], {"count": 1, "memory_ids": ["mem-correct"]})
+            self.assertEqual(row["aggregate_reward"], 1.0)
+            self.assertEqual(row["task_accuracy"], 1.0)
+            self.assertEqual(row["memory_faithfulness"], 1.0)
+            self.assertEqual(row["process_efficiency"], 1.0)
+            self.assertEqual(row["prompt_tokens"], 20)
+            self.assertEqual(row["completion_tokens"], 4)
+            self.assertEqual(row["total_tokens"], 24)
+            self.assertEqual(row["actions"], ["memory.search", "answer.submit"])
 
     def test_whu_batch_enriches_report_from_readonly_terminal_state(self):
         with tempfile.TemporaryDirectory() as temporary:
