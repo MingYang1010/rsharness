@@ -24,6 +24,8 @@ services:
     read_only: true
     init: true
     command: ["uvicorn", "app.agent_gateway:create_app", "--factory", "--host", "0.0.0.0", "--port", "8083", "--no-access-log"]
+    ports:
+      - "${EO_AGENT_GATEWAY_HOST_PORT:-127.0.0.1:18083}:8083"
     environment:
       PYTHONPATH: /harness
       EO_AGENT_BACKEND_URL: http://harness:8000

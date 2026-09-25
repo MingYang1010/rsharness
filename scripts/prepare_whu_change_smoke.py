@@ -281,7 +281,7 @@ def _task_files(sample: dict, config: dict, out: Path) -> tuple[dict, dict]:
             "max_steps": 12,
             "max_tool_calls": 4,
             "max_wall_time_ms": 300000,
-            "max_input_bytes": 8 * 1024 * 1024,
+            "max_input_bytes": 16 * 1024 * 1024,
             "max_artifact_bytes": 128 * 1024 * 1024,
         },
         "seed": 42,
