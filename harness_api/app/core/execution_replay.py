@@ -144,10 +144,10 @@ def read_snapshot(database: Path, episode_id: str) -> EpisodeSnapshot:
             if count > maximum or total > MAX_SNAPSHOT_BYTES:
                 raise ReplayError("snapshot_limit_exceeded")
             values[key] = [dict(row) for row in connection.execute(f"SELECT * FROM {table} WHERE episode_id=? ORDER BY {order}", (episode_id,))]
-        count, size = connection.execute("SELECT COUNT(*), COALESCE(SUM(length(CAST(a.artifact_json AS BLOB))),0) FROM v2_artifacts a JOIN v2_episode_artifacts e USING(artifact_id) WHERE e.episode_id=?", (episode_id,)).fetchone()
+        count, size = connection.execute("SELECT COUNT(*), COALESCE(SUM(length(CAST(a.artifact_json AS BLOB))),0) FROM v2_artifacts a JOIN v2_episode_artifacts e ON e.episode_id=a.episode_id AND e.artifact_id=a.artifact_id WHERE e.episode_id=?", (episode_id,)).fetchone()
         if count > MAX_ACTIONS or total + size > MAX_SNAPSHOT_BYTES:
             raise ReplayError("snapshot_limit_exceeded")
-        values["artifacts"] = [dict(row) for row in connection.execute("SELECT a.* FROM v2_artifacts a JOIN v2_episode_artifacts e USING(artifact_id) WHERE e.episode_id=? ORDER BY a.artifact_id", (episode_id,))]
+        values["artifacts"] = [dict(row) for row in connection.execute("SELECT a.* FROM v2_artifacts a JOIN v2_episode_artifacts e ON e.episode_id=a.episode_id AND e.artifact_id=a.artifact_id WHERE e.episode_id=? ORDER BY a.artifact_id", (episode_id,))]
         return EpisodeSnapshot(episode=dict(episode), **values)
     finally:
         connection.close()

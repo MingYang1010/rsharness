@@ -102,7 +102,7 @@ def episode_rows(database: Path, episode_id: str) -> dict:
             "events": [dict(row) for row in connection.execute("SELECT * FROM v2_events WHERE episode_id=? ORDER BY sequence", (episode_id,))],
             "results": [dict(row) for row in connection.execute("SELECT * FROM v2_action_results WHERE episode_id=? ORDER BY client_action_id", (episode_id,))],
             "tool_runs": [dict(row) for row in connection.execute("SELECT * FROM v2_tool_runs WHERE episode_id=? ORDER BY tool_run_id", (episode_id,))],
-            "artifacts": [dict(row) for row in connection.execute("SELECT a.* FROM v2_artifacts a JOIN v2_episode_artifacts e USING(artifact_id) WHERE e.episode_id=? ORDER BY a.artifact_id", (episode_id,))],
+            "artifacts": [dict(row) for row in connection.execute("SELECT a.* FROM v2_artifacts a JOIN v2_episode_artifacts e ON e.episode_id=a.episode_id AND e.artifact_id=a.artifact_id WHERE e.episode_id=? ORDER BY a.artifact_id", (episode_id,))],
             "evidence": [dict(row) for row in connection.execute("SELECT * FROM v2_evidence WHERE episode_id=? ORDER BY evidence_id", (episode_id,))],
         }
         values["episode_sha256"] = hashlib.sha256(json.dumps(values, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()

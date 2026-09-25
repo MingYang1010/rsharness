@@ -138,7 +138,10 @@ class ToolExecutionMixin:
                         output = None
                         failure = V2DomainError("invalid_tool_output", "artifact derivation failed validation", phase="artifact")
             if output is not None and output.artifact is not None:
-                existing = connection.execute("SELECT artifact_json FROM v2_artifacts WHERE artifact_id=?", (output.artifact.artifact_id,)).fetchone()
+                existing = connection.execute(
+                    "SELECT artifact_json FROM v2_artifacts WHERE episode_id=? AND artifact_id=?",
+                    (episode_id, output.artifact.artifact_id),
+                ).fetchone()
                 if existing and existing["artifact_json"] != canonical_json(output.artifact.model_dump(mode="json")):
                     output = None
                     failure = V2DomainError("artifact_metadata_conflict", "identical content already has different provenance; refusing to overwrite it", 409, phase="artifact")

@@ -212,10 +212,110 @@ MIGRATION_3 = [
     """,
 ]
 
+MIGRATION_4 = [
+    """
+    CREATE TABLE v2_artifacts_episode_scope (
+        artifact_id TEXT NOT NULL,
+        episode_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        sha256 TEXT,
+        size_bytes INTEGER,
+        artifact_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (episode_id, artifact_id),
+        FOREIGN KEY (episode_id) REFERENCES v2_episodes(episode_id)
+    )
+    """,
+    """
+    INSERT INTO v2_artifacts_episode_scope (
+        artifact_id, episode_id, status, sha256,
+        size_bytes, artifact_json, created_at
+    )
+    SELECT artifact_id, episode_id, status, sha256,
+           size_bytes, artifact_json, created_at
+    FROM v2_artifacts
+    """,
+    """
+    INSERT INTO v2_artifacts_episode_scope (
+        artifact_id, episode_id, status, sha256,
+        size_bytes, artifact_json, created_at
+    )
+    SELECT artifact.artifact_id, association.episode_id,
+           artifact.status, artifact.sha256, artifact.size_bytes,
+           artifact.artifact_json, association.created_at
+    FROM v2_episode_artifacts AS association
+    INNER JOIN v2_artifacts AS artifact
+        ON artifact.artifact_id = association.artifact_id
+    LEFT JOIN v2_artifacts_episode_scope AS existing
+        ON existing.episode_id = association.episode_id
+       AND existing.artifact_id = association.artifact_id
+    WHERE existing.episode_id IS NULL
+    """,
+    """
+    CREATE TABLE old_v2_observation_artifacts AS
+    SELECT observation_id, artifact_id, created_at
+    FROM v2_observation_artifacts
+    """,
+    "DROP TABLE v2_observation_artifacts",
+    "DROP TABLE v2_episode_artifacts",
+    "DROP TABLE v2_artifacts",
+    "ALTER TABLE v2_artifacts_episode_scope RENAME TO v2_artifacts",
+    """
+    CREATE TABLE v2_episode_artifacts (
+        episode_id TEXT NOT NULL,
+        artifact_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (episode_id, artifact_id),
+        FOREIGN KEY (episode_id) REFERENCES v2_episodes(episode_id),
+        FOREIGN KEY (episode_id, artifact_id)
+            REFERENCES v2_artifacts(episode_id, artifact_id)
+    )
+    """,
+    """
+    CREATE TABLE v2_observation_artifacts (
+        observation_id TEXT NOT NULL,
+        episode_id TEXT NOT NULL,
+        artifact_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (observation_id, artifact_id),
+        FOREIGN KEY (observation_id) REFERENCES v2_observations(observation_id),
+        FOREIGN KEY (episode_id, artifact_id)
+            REFERENCES v2_artifacts(episode_id, artifact_id)
+    )
+    """,
+    """
+    INSERT INTO v2_episode_artifacts (
+        episode_id, artifact_id, created_at
+    )
+    SELECT episode_id, artifact_id, created_at
+    FROM v2_artifacts
+    WHERE status = 'created'
+    """,
+    """
+    INSERT INTO v2_observation_artifacts (
+        observation_id, episode_id, artifact_id, created_at
+    )
+    SELECT old.observation_id, artifact.episode_id,
+           old.artifact_id, old.created_at
+    FROM old_v2_observation_artifacts AS old
+    INNER JOIN v2_artifacts AS artifact
+        ON artifact.episode_id = (
+            SELECT observation.episode_id FROM v2_observations AS observation
+            WHERE observation.observation_id = old.observation_id
+        ) AND artifact.artifact_id = old.artifact_id
+    """,
+    "DROP TABLE old_v2_observation_artifacts",
+    """
+    CREATE INDEX IF NOT EXISTS idx_v2_artifacts_episode_artifact
+    ON v2_artifacts(episode_id, artifact_id)
+    """,
+]
+
 MIGRATIONS = {
     1: MIGRATION_1,
     2: MIGRATION_2,
     3: MIGRATION_3,
+    4: MIGRATION_4,
 }
 
 
@@ -387,8 +487,11 @@ class V2EpisodeStore(ToolExecutionMixin):
         created_at: str,
     ) -> None:
         existing = connection.execute(
-            "SELECT artifact_json FROM v2_artifacts WHERE artifact_id = ?",
-            (artifact.artifact_id,),
+            """
+            SELECT artifact_json FROM v2_artifacts
+            WHERE episode_id = ? AND artifact_id = ?
+            """,
+            (episode_id, artifact.artifact_id),
         ).fetchone()
         artifact_json = canonical_json(artifact.model_dump(mode="json"))
         if existing is None:
@@ -427,10 +530,10 @@ class V2EpisodeStore(ToolExecutionMixin):
         connection.execute(
             """
             INSERT OR IGNORE INTO v2_observation_artifacts (
-                observation_id, artifact_id, created_at
-            ) VALUES (?, ?, ?)
+                observation_id, episode_id, artifact_id, created_at
+            ) VALUES (?, ?, ?, ?)
             """,
-            (observation_id, artifact.artifact_id, created_at),
+            (observation_id, episode_id, artifact.artifact_id, created_at),
         )
 
     @staticmethod
@@ -466,7 +569,8 @@ class V2EpisodeStore(ToolExecutionMixin):
             SELECT artifact.artifact_json
             FROM v2_artifacts AS artifact
             INNER JOIN v2_episode_artifacts AS association
-                ON association.artifact_id = artifact.artifact_id
+                ON association.episode_id = artifact.episode_id
+                AND association.artifact_id = artifact.artifact_id
             WHERE association.episode_id = ? AND artifact.status = 'created'
             ORDER BY artifact.artifact_id
             """,
@@ -628,9 +732,9 @@ class V2EpisodeStore(ToolExecutionMixin):
             row = connection.execute(
                 """
                 SELECT artifact_json FROM v2_artifacts
-                WHERE artifact_id = ? AND status = 'created'
+                WHERE episode_id = ? AND artifact_id = ? AND status = 'created'
                 """,
-                (artifact_id,),
+                (episode_id, artifact_id),
             ).fetchone()
         if row is None:
             raise V2DomainError(

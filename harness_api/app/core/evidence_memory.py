@@ -468,8 +468,11 @@ def load_source_evidence(
                 (episode_id, evidence.source_ref),
             ).fetchone()
             row = connection.execute(
-                "SELECT artifact_json FROM v2_artifacts WHERE artifact_id=? AND status='created'",
-                (evidence.source_ref,),
+                """
+                SELECT artifact_json FROM v2_artifacts
+                WHERE episode_id=? AND artifact_id=? AND status='created'
+                """,
+                (episode_id, evidence.source_ref),
             ).fetchone()
             if association is None or row is None:
                 raise ValueError(

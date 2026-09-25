@@ -52,7 +52,7 @@
       "status": "unavailable",
       "version": null
     },
-    "store_schema_version": 3,
+    "store_schema_version": 4,
     "structural_replay": {
       "details": {},
       "status": "available",

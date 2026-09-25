@@ -5,8 +5,10 @@ import unittest
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from pydantic import TypeAdapter
 
 from app.core import STORE_SCHEMA_VERSION
+from app.core.schemas import Artifact
 from app.store import EpisodeStore
 from app.core.capabilities import TaskRegistry
 from app.core.store import V2EpisodeStore
@@ -42,7 +44,7 @@ class V2StoreMigrationTests(unittest.TestCase):
 
     def test_empty_database_migrates_idempotently(self):
         first = V2EpisodeStore(str(self.database), self.registry)
-        self.assertEqual(first.schema_version(), 3)
+        self.assertEqual(first.schema_version(), 4)
         expected_tables = {
             "v2_episodes",
             "v2_events",
@@ -57,12 +59,12 @@ class V2StoreMigrationTests(unittest.TestCase):
         }
         self.assertTrue(expected_tables.issubset(self.table_names()))
         second = V2EpisodeStore(str(self.database), self.registry)
-        self.assertEqual(second.schema_version(), 3)
+        self.assertEqual(second.schema_version(), 4)
         with sqlite3.connect(self.database) as connection:
             count = connection.execute(
                 "SELECT COUNT(*) FROM v2_schema_migrations"
             ).fetchone()[0]
-        self.assertEqual(count, 3)
+        self.assertEqual(count, 4)
 
     def test_existing_v1_rows_are_not_read_or_modified(self):
         v1_store = EpisodeStore(str(self.database))
@@ -98,25 +100,23 @@ class V2StoreMigrationTests(unittest.TestCase):
             ).fetchone()[0]
             connection.execute("DROP TABLE v2_observation_artifacts")
             connection.execute("DROP TABLE v2_episode_artifacts")
-            connection.execute(
-                """
-                INSERT INTO v2_artifacts (
-                    artifact_id, episode_id, status, sha256,
-                    size_bytes, artifact_json, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    "art-" + "1" * 64,
-                    episode.episode_id,
-                    "created",
-                    "1" * 64,
-                    1,
-                    "{}",
-                    "2026-08-30T00:00:00Z",
-                ),
-            )
+            connection.execute("DROP TABLE v2_artifacts")
+            connection.execute("""
+                CREATE TABLE v2_artifacts (
+                    artifact_id TEXT PRIMARY KEY,
+                    episode_id TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    sha256 TEXT,
+                    size_bytes INTEGER,
+                    artifact_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (episode_id) REFERENCES v2_episodes(episode_id)
+                )
+            """)
+            connection.execute("DROP TABLE IF EXISTS old_v2_observation_artifacts")
             connection.execute("DELETE FROM v2_schema_migrations WHERE version = 2")
             connection.execute("DELETE FROM v2_schema_migrations WHERE version = 3")
+            connection.execute("DELETE FROM v2_schema_migrations WHERE version = 4")
 
         migrated = V2EpisodeStore(str(self.database), self.registry)
         with sqlite3.connect(self.database) as connection:
@@ -128,15 +128,6 @@ class V2StoreMigrationTests(unittest.TestCase):
         self.assertEqual(before, after)
         self.assertIn("v2_episode_artifacts", self.table_names())
         self.assertIn("v2_observation_artifacts", self.table_names())
-        with sqlite3.connect(self.database) as connection:
-            association = connection.execute(
-                """
-                SELECT episode_id FROM v2_episode_artifacts
-                WHERE artifact_id = ?
-                """,
-                ("art-" + "1" * 64,),
-            ).fetchone()
-        self.assertEqual(association[0], episode.episode_id)
 
     def test_schema_two_evidence_rows_are_preserved_when_scoping_to_episode(self):
         store = V2EpisodeStore(str(self.database), self.registry)
@@ -178,6 +169,7 @@ class V2StoreMigrationTests(unittest.TestCase):
             connection.execute("DROP TABLE v2_evidence")
             connection.execute("ALTER TABLE v2_evidence_schema_two RENAME TO v2_evidence")
             connection.execute("DELETE FROM v2_schema_migrations WHERE version = 3")
+            connection.execute("DELETE FROM v2_schema_migrations WHERE version = 4")
             connection.commit()
             connection.execute("PRAGMA foreign_keys = ON")
 
@@ -196,7 +188,7 @@ class V2StoreMigrationTests(unittest.TestCase):
                 (episode.episode_id, "ev-preserve-scope"),
             ).fetchone()
 
-        self.assertEqual(migrated.schema_version(), 3)
+        self.assertEqual(migrated.schema_version(), STORE_SCHEMA_VERSION)
         self.assertEqual(primary_key, ["evidence_id", "episode_id"])
         self.assertEqual(json.loads(preserved[0])["evidence_id"], "ev-preserve-scope")
 
@@ -239,6 +231,216 @@ class V2StoreMigrationTests(unittest.TestCase):
                 (EVIDENCE_REQUEST["action"]["evidence"]["evidence_id"],),
             ).fetchall()
         self.assertEqual(len(rows), 2)
+
+    def test_schema_three_artifact_rows_are_preserved_when_scoping_to_episode(self):
+        store = V2EpisodeStore(str(self.database), self.registry)
+        episode = store.create_episode("worldcover-grounded-vqa", "1.0.0", 42)
+        artifact_id = "art-" + "4" * 64
+        artifact_json = json.dumps({"artifact_id": artifact_id})
+        with sqlite3.connect(self.database) as connection:
+            connection.execute(
+                """
+                INSERT INTO v2_artifacts (
+                    artifact_id, episode_id, status, sha256,
+                    size_bytes, artifact_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (artifact_id, episode.episode_id, "created", "4" * 64, 1,
+                 artifact_json, "2026-09-25T00:00:00Z"),
+            )
+            connection.execute(
+                """
+                INSERT INTO v2_episode_artifacts (
+                    episode_id, artifact_id, created_at
+                ) VALUES (?, ?, ?)
+                """,
+                (episode.episode_id, artifact_id, "2026-09-25T00:00:00Z"),
+            )
+            connection.commit()
+            connection.execute("PRAGMA foreign_keys = OFF")
+            connection.execute("BEGIN")
+            connection.execute(
+                """
+                CREATE TABLE v2_artifacts_schema_three (
+                    artifact_id TEXT PRIMARY KEY,
+                    episode_id TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    sha256 TEXT,
+                    size_bytes INTEGER,
+                    artifact_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (episode_id) REFERENCES v2_episodes(episode_id)
+                )
+                """
+            )
+            connection.execute(
+                """
+                INSERT INTO v2_artifacts_schema_three (
+                    artifact_id, episode_id, status, sha256,
+                    size_bytes, artifact_json, created_at
+                )
+                SELECT artifact_id, episode_id, status, sha256,
+                       size_bytes, artifact_json, created_at
+                FROM v2_artifacts
+                """
+            )
+            connection.execute("DROP TABLE v2_artifacts")
+            connection.execute(
+                "ALTER TABLE v2_artifacts_schema_three RENAME TO v2_artifacts"
+            )
+            connection.execute("DELETE FROM v2_schema_migrations WHERE version = 4")
+            connection.commit()
+            connection.execute("PRAGMA foreign_keys = ON")
+
+        migrated = V2EpisodeStore(str(self.database), self.registry)
+        with sqlite3.connect(self.database) as connection:
+            primary_key = [
+                row[1] for row in connection.execute("PRAGMA table_info(v2_artifacts)")
+                if row[5]
+            ]
+            preserved = connection.execute(
+                """
+                SELECT artifact_json FROM v2_artifacts
+                WHERE episode_id = ? AND artifact_id = ?
+                """,
+                (episode.episode_id, artifact_id),
+            ).fetchone()
+
+        self.assertEqual(migrated.schema_version(), 4)
+        self.assertEqual(primary_key, ["artifact_id", "episode_id"])
+        self.assertEqual(json.loads(preserved[0])["artifact_id"], artifact_id)
+
+    def test_deterministic_artifact_ids_are_local_to_each_episode(self):
+        store = V2EpisodeStore(str(self.database), self.registry)
+        artifact_json = json.dumps({
+            "artifact_id": "art-" + "5" * 64,
+            "kind": "image",
+            "media_type": "image/png",
+            "sha256": "5" * 64,
+            "size_bytes": 1,
+            "uri": "artifact://sha256/55/" + "5" * 64,
+            "lineage": {
+                "tool_id": "tool", "tool_version": "1.0.0",
+                "input_refs": [], "parameters_hash": "0" * 64,
+            },
+        }, sort_keys=True, separators=(",", ":"))
+        episodes = []
+        for index in range(2):
+            episode = store.create_episode(
+                "worldcover-grounded-vqa", "1.0.0", 42
+            )
+            episodes.append(episode.episode_id)
+        with sqlite3.connect(self.database) as connection:
+            connection.row_factory = sqlite3.Row
+            for index in range(2):
+                V2EpisodeStore._register_artifact(
+                    connection, episodes[index], "obs-" + str(index),
+                    TypeAdapter(Artifact).validate_python(json.loads(artifact_json)),
+                    "2026-09-25T00:00:00Z",
+                )
+            connection.commit()
+        with sqlite3.connect(self.database) as connection:
+            rows = connection.execute(
+                """
+                SELECT episode_id, artifact_id FROM v2_artifacts
+                WHERE artifact_id = ? ORDER BY episode_id
+                """,
+                ("art-" + "5" * 64,),
+            ).fetchall()
+        self.assertEqual(len(rows), 2)
+
+    def test_schema_three_duplicate_association_materializes_episode_row(self):
+        store = V2EpisodeStore(str(self.database), self.registry)
+        first = store.create_episode("worldcover-grounded-vqa", "1.0.0", 42)
+        second = store.create_episode("worldcover-grounded-vqa", "1.0.0", 42)
+        artifact_id = "art-" + "6" * 64
+        artifact_json = json.dumps({"artifact_id": artifact_id})
+        with sqlite3.connect(self.database) as connection:
+            connection.execute(
+                """
+                INSERT INTO v2_artifacts (
+                    artifact_id, episode_id, status, sha256,
+                    size_bytes, artifact_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (artifact_id, first.episode_id, "created", "6" * 64, 1,
+                 artifact_json, "2026-09-25T00:00:00Z"),
+            )
+            for episode_id in (first.episode_id, second.episode_id):
+                observation_id = "obs-" + episode_id[4:12]
+                connection.execute(
+                    """
+                    INSERT INTO v2_observations (
+                        observation_id, episode_id, sequence,
+                        created_at, observation_json
+                    ) VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (observation_id, episode_id, 1,
+                     "2026-09-25T00:00:00Z", "{}"),
+                )
+                connection.execute(
+                    """
+                    INSERT INTO v2_episode_artifacts (
+                        episode_id, artifact_id, created_at
+                    ) VALUES (?, ?, ?)
+                    """,
+                    (episode_id, artifact_id, "2026-09-25T00:00:00Z"),
+                )
+            connection.execute("DELETE FROM v2_schema_migrations WHERE version = 4")
+            connection.execute(
+                """
+                CREATE TABLE v2_observation_artifacts_schema_three (
+                    observation_id TEXT NOT NULL,
+                    artifact_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY (observation_id, artifact_id),
+                    FOREIGN KEY (observation_id)
+                        REFERENCES v2_observations(observation_id)
+                )
+                """
+            )
+            for observation_id in (
+                "obs-" + first.episode_id[4:12],
+                "obs-" + second.episode_id[4:12],
+            ):
+                connection.execute(
+                    """
+                    INSERT INTO v2_observation_artifacts_schema_three (
+                        observation_id, artifact_id, created_at
+                    ) VALUES (?, ?, ?)
+                    """,
+                    (observation_id, artifact_id, "2026-09-25T00:00:00Z"),
+                )
+            connection.execute(
+                """
+                INSERT INTO v2_observation_artifacts_schema_three (
+                    observation_id, artifact_id, created_at
+                )
+                SELECT observation_id, artifact_id, created_at
+                FROM v2_observation_artifacts
+                """
+            )
+            connection.execute("DROP TABLE v2_observation_artifacts")
+            connection.execute(
+                """
+                ALTER TABLE v2_observation_artifacts_schema_three
+                RENAME TO v2_observation_artifacts
+                """
+            )
+
+        migrated = V2EpisodeStore(str(self.database), self.registry)
+        with sqlite3.connect(self.database) as connection:
+            rows = connection.execute(
+                """
+                SELECT episode_id FROM v2_artifacts
+                WHERE artifact_id = ? ORDER BY episode_id
+                """,
+                (artifact_id,),
+            ).fetchall()
+        self.assertEqual(migrated.schema_version(), 4)
+        self.assertEqual(rows, sorted([
+            (first.episode_id,), (second.episode_id,),
+        ]))
 
     def test_failed_migration_does_not_advance_version_or_leave_partial_table(self):
         with self.assertRaises(sqlite3.OperationalError):

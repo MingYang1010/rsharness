@@ -187,9 +187,8 @@ def batch_run(args: argparse.Namespace) -> dict:
         if report_path.is_file():
             report = _bounded_json(report_path)
             enriched = _enrich_terminal_state(runtime, report)
-            if enriched is not report or enriched != report:
-                report = enriched
-                _write_json(report_path, report)
+            report = enriched
+            _write_json(report_path, report)
         else:
             token = _ensure_credential(
                 job_path=runtime / "jobs" / (sample + ".json"),
