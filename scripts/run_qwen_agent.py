@@ -61,6 +61,11 @@ def openai_tools(session: dict, artifacts: list[dict] | None = None) -> list[dic
                 "Normalized [x0,y0,x1,y1], requiring 0 <= x0 < x1 <= 1 "
                 "and 0 <= y0 < y1 <= 1; these are not pixel coordinates."
             )
+        if name == "memory.search":
+            for field_name in ("bbox", "time_range"):
+                schema["properties"][field_name]["description"] = (
+                    "Pass this as a JSON object, not a JSON-encoded string."
+                )
         tools.append({"type": "function", "function": {"name": name, "description": "EO Harness tool " + name, "parameters": schema}})
     task = session.get("task", {})
     allowed_actions = set(task.get("allowed_actions", []))
@@ -300,6 +305,13 @@ def decode_tool_arguments(call: Any) -> dict:
     value = json.loads(raw) if isinstance(raw, str) else raw
     if not isinstance(value, dict):
         raise ValueError("tool arguments must be an object")
+    for key in ("bbox", "time_range"):
+        nested = value.get(key)
+        if isinstance(nested, str):
+            try:
+                value[key] = json.loads(nested)
+            except json.JSONDecodeError:
+                pass
     return value
 
 

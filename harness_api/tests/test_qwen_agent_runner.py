@@ -166,6 +166,12 @@ class QwenAgentRunnerTests(unittest.TestCase):
         refs = artifact_refs({"items": [{"artifact_ref": "art-one"}, {"artifact_ref": "art-one"}]})
         self.assertEqual(refs, ["art-one", "art-one"])
         self.assertEqual(decode_tool_arguments({"function": {"name": "x", "arguments": "{\"x\":1}"}}), {"x": 1})
+        self.assertEqual(
+            decode_tool_arguments({"function": {"name": "memory.search", "arguments": json.dumps({
+                "bbox": "{\"west\":1}", "time_range": "{\"start\":\"x\"}"
+            })}}),
+            {"bbox": {"west": 1}, "time_range": {"start": "x"}},
+        )
         message = content_message("text", {"size_bytes": 2, "sha256": "f" * 64, "media_type": "image/png"}, b"ab", "image/png")
         self.assertIn("data:image/png;base64,YWI=", message["content"][1]["image_url"]["url"])
         self.assertEqual(compact_messages([{"role": "user", "content": "keep"}, message]),
