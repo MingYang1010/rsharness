@@ -102,6 +102,43 @@ class QwenAgentRunnerTests(unittest.TestCase):
             self.assertEqual(manifest["summary"]["groups"][0]["false_confidence"], 1)
             self.assertTrue((runtime / "reports" / "qwen-0_224.json").is_file())
 
+    def test_whu_batch_enriches_report_from_readonly_terminal_state(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runtime = root / "runtime" / "whu"
+            state_root = runtime / "state"
+            state_root.mkdir(parents=True)
+            report = {
+                "status": "passed",
+                "episode_id": "ep2-" + "7" * 32,
+                "terminal_state": {
+                    "episode_id": "ep2-" + "7" * 32,
+                    "status": "terminated",
+                    "final_answer": {"outcome": "submitted"},
+                },
+            }
+            state = {
+                "status": "terminated",
+                "final_answer": {"outcome": "submitted"},
+                "evaluation": {"status": "completed", "diagnostics": {
+                    "false_confidence": True, "unnecessary_abstention": False,
+                }},
+            }
+            import sqlite3
+            with sqlite3.connect(state_root / "episodes.sqlite3") as connection:
+                connection.execute(
+                    "CREATE TABLE v2_episodes (episode_id TEXT PRIMARY KEY, state_json TEXT)"
+                )
+                connection.execute(
+                    "INSERT INTO v2_episodes VALUES (?, ?)",
+                    ("ep2-" + "7" * 32, json.dumps(state)),
+                )
+            enriched = BATCH._enrich_terminal_state(runtime, report)
+            self.assertEqual(
+                enriched["terminal_state"]["evaluation"]["diagnostics"]["false_confidence"],
+                True,
+            )
+
     def test_model_client_ignores_inherited_proxy_environment(self):
         self.assertIn("multiple input", RUNNER.SYSTEM_PROMPT)
 

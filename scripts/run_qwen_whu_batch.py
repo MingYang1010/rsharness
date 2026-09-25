@@ -6,6 +6,7 @@ import argparse
 import importlib.util
 import json
 import os
+import sqlite3
 from pathlib import Path
 import sys
 import subprocess
@@ -126,6 +127,32 @@ def _summarize(jobs: list[dict], reports: dict[str, dict]) -> dict:
     }
 
 
+def _enrich_terminal_state(runtime: Path, report: dict) -> dict:
+    """Bind public runner outcomes to the authoritative persisted evaluation."""
+    episode_id = report.get("episode_id")
+    if not isinstance(episode_id, str) or not episode_id.startswith("ep2-"):
+        return report
+    database = runtime / "state" / "episodes.sqlite3"
+    if database.is_symlink() or not database.is_file():
+        return report
+    with sqlite3.connect(f"file:{database}?mode=ro", uri=True) as connection:
+        row = connection.execute(
+            "SELECT state_json FROM v2_episodes WHERE episode_id=?",
+            (episode_id,),
+        ).fetchone()
+    if row is None:
+        return report
+    state = json.loads(row[0])
+    terminal = report.setdefault("terminal_state", {
+        "episode_id": episode_id,
+        "status": state.get("status"),
+        "final_answer": state.get("final_answer"),
+    })
+    if state.get("evaluation") is not None:
+        terminal["evaluation"] = state["evaluation"]
+    return report
+
+
 def batch_run(args: argparse.Namespace) -> dict:
     runtime = args.runtime.resolve()
     runtime_boundary = getattr(args, "runtime_boundary", ROOT / "runtime")
@@ -159,6 +186,10 @@ def batch_run(args: argparse.Namespace) -> dict:
         report_path = report_root / ("qwen-" + sample + ".json")
         if report_path.is_file():
             report = _bounded_json(report_path)
+            enriched = _enrich_terminal_state(runtime, report)
+            if enriched is not report or enriched != report:
+                report = enriched
+                _write_json(report_path, report)
         else:
             token = _ensure_credential(
                 job_path=runtime / "jobs" / (sample + ".json"),
@@ -177,6 +208,8 @@ def batch_run(args: argparse.Namespace) -> dict:
                 close = getattr(client, "close", None)
                 if close is not None:
                     close()
+            _write_json(report_path, report)
+            report = _enrich_terminal_state(runtime, report)
             _write_json(report_path, report)
         reports[sample] = report
         _write_json(manifest_path, {**manifest, "completed": sorted(reports), "summary": _summarize(selected, reports)})
