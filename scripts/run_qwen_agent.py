@@ -28,7 +28,15 @@ verified artifact metadata. Then call answer.submit with valid JSON matching the
 task schema and cite the saved evidence_id. For tasks with multiple input
 assets, inspect every required asset before submitting and save separate
 evidence for each artifact. For rendered map tasks, call map.set_view with the
-fixed task AOI, then save evidence from the verified rendered artifact."""
+fixed task AOI, then save evidence from the verified rendered artifact.
+
+Identifiers have distinct roles. An observation_id identifies a result message
+and is never valid evidence. An evidence_id is returned only by
+memory.save_evidence and is the sole identifier accepted by answer.submit,
+answer.abstain, and answer.request_human_review. If public metadata shows that
+a required input is unavailable, inspect that input first, then call
+answer.abstain with an empty evidence_ids array and state the metadata reason
+in rationale; do not cite observation IDs or fabricate evidence IDs."""
 
 MAX_JSON_BYTES = 2 * 1024 * 1024
 MAX_IMAGE_BYTES = 64 * 1024 * 1024
@@ -122,7 +130,14 @@ def openai_tools(session: dict, artifacts: list[dict] | None = None) -> list[dic
             "type": "object",
             "properties": {
                 "rationale": {"type": "string"},
-                "evidence_ids": {"type": "array", "items": {"type": "string"}},
+                "evidence_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Only IDs returned by memory.save_evidence. For a "
+                        "metadata-only abstention, send []. Never send observation IDs."
+                    ),
+                },
             },
             "required": ["rationale"],
             "additionalProperties": False,
