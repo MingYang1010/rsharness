@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import re
 import sys
 from pathlib import Path
@@ -18,7 +19,9 @@ from app.core.storage.quota import StorageQuota
 
 
 MAX_FILE_BYTES = 2 * 1024 * 1024
-CONFIG = ROOT / "config" / "whu-change-samples.json"
+CONFIG = Path(
+    os.environ.get("EO_WHU_TEST_CONFIG", ROOT / "config" / "whu-change-samples.json")
+)
 
 
 def _json_bytes(value: object) -> bytes:
@@ -127,6 +130,7 @@ def _pixel_asset(
     timestamp: str,
     channels: int,
     dataset: dict,
+    quality: dict | None = None,
 ) -> dict:
     return {
         "asset_id": asset_id,
@@ -150,7 +154,7 @@ def _pixel_asset(
             if channels == 3
             else ["building_mask"]
         ),
-        "quality": {},
+        "quality": quality or {},
         "license": (
             "official research download; redistribution rights not asserted"
         ),
@@ -180,6 +184,7 @@ def _task_files(sample: dict, config: dict, out: Path) -> tuple[dict, dict]:
             timestamp="2012-01-01T00:00:00Z",
             channels=3,
             dataset=dataset,
+            quality=sample.get("public_quality", {}).get("before"),
         ),
         _pixel_asset(
             asset_id=after_input,
@@ -189,6 +194,7 @@ def _task_files(sample: dict, config: dict, out: Path) -> tuple[dict, dict]:
             timestamp="2016-01-01T00:00:00Z",
             channels=3,
             dataset=dataset,
+            quality=sample.get("public_quality", {}).get("after"),
         ),
         _pixel_asset(
             asset_id=before_label,
@@ -329,6 +335,10 @@ def _task_files(sample: dict, config: dict, out: Path) -> tuple[dict, dict]:
             "changed_fraction_tolerance": (
                 evaluator_config["changed_fraction_tolerance"]
             ),
+            "minimum_input_coverage_fraction": sample.get(
+                "minimum_input_coverage_fraction",
+                evaluator_config["minimum_input_coverage_fraction"],
+            ),
             "required_evidence_tool_id": (
                 evaluator_config["required_evidence_tool_id"]
             ),
@@ -368,6 +378,28 @@ def prepare(source: Path, out: Path, config: dict) -> None:
     evaluator = config["evaluator"]
     if dataset["redistribution_allowed"] is not False:
         raise ValueError("WHU redistribution policy must remain fail-closed")
+
+    for sample in config["samples"]:
+        expected = sample.get("expected_outcome")
+        if expected is not None and expected not in {"submitted", "abstained"}:
+            raise ValueError("sample expected outcome is invalid")
+        minimum = sample.get(
+            "minimum_input_coverage_fraction",
+            config["evaluator"]["minimum_input_coverage_fraction"],
+        )
+        quality = sample.get("public_quality", {})
+        insufficient = any(
+            item.get("coverage_fraction", 1.0) < minimum
+            for item in quality.values()
+        )
+        if expected == "abstained" and not insufficient:
+            raise ValueError(
+                "expected abstention lacks insufficient public input coverage"
+            )
+        if expected == "submitted" and insufficient:
+            raise ValueError(
+                "expected submission contradicts insufficient public input coverage"
+            )
     for name in (
         "inputs",
         "provider-out",
@@ -480,10 +512,11 @@ def main() -> None:
     source = args.source.resolve()
     if args.source.is_symlink() or not source.is_dir():
         raise SystemExit("source must be the reviewed WHU data directory")
-    out = ROOT / "runtime" / args.output_name
+    runtime_root = Path(os.environ.get("EO_WHU_TEST_ROOT", ROOT / "runtime"))
+    out = runtime_root / args.output_name
     if out.exists():
         raise SystemExit("output exists; preserve it and choose a fresh name")
-    with StorageQuota(ROOT / "runtime").hold(
+    with StorageQuota(runtime_root).hold(
         out, 64 * 1024 * 1024, "whu-change-smoke"
     ):
         prepare(source, out, config)

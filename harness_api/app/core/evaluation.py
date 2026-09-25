@@ -693,6 +693,8 @@ class EvaluatorRegistry:
                     "expected_outcome": expected_outcome,
                     "false_confidence": false_confidence,
                     "unnecessary_abstention": unnecessary_abstention,
+                    "insufficient_input_asset_ids": insufficient_inputs,
+                    "minimum_input_coverage_fraction": minimum_coverage,
                 },
             ),
             "evidence.faithfulness": (
@@ -1260,6 +1262,41 @@ class EvaluatorRegistry:
                 "evaluator_config_invalid",
                 "expected outcome must be submitted or abstained",
             )
+        required_inputs = (before_input, after_input)
+        minimum_coverage = float(
+            manifest.evaluator.config.get(
+                "minimum_input_coverage_fraction", 0.0
+            )
+        )
+        if not 0.0 <= minimum_coverage <= 1.0:
+            raise EvaluatorError(
+                "evaluator_config_invalid",
+                "minimum input coverage must be in [0, 1]",
+            )
+        availability = {
+            asset.asset_id: (
+                asset.quality.coverage_fraction
+                if asset.quality.coverage_fraction is not None
+                else 1.0
+            )
+            for asset in required_inputs
+        }
+        insufficient_inputs = sorted(
+            asset_id
+            for asset_id, coverage in availability.items()
+            if coverage < minimum_coverage
+        )
+        metadata_requires_abstention = bool(insufficient_inputs)
+        if expected_outcome == "abstained" and not metadata_requires_abstention:
+            raise EvaluatorError(
+                "expected_abstention_unsupported",
+                "task metadata does not justify required abstention",
+            )
+        if expected_outcome == "submitted" and metadata_requires_abstention:
+            raise EvaluatorError(
+                "expected_submission_unsupported",
+                "insufficient input coverage contradicts expected submission",
+            )
         false_confidence = bool(
             expected_outcome == "abstained" and actual_outcome == "submitted"
         )
@@ -1357,6 +1394,8 @@ class EvaluatorRegistry:
                     "actual_outcome": actual_outcome,
                     "expected_outcome": expected_outcome,
                     "false_confidence": false_confidence,
+                    "insufficient_input_asset_ids": insufficient_inputs,
+                    "minimum_input_coverage_fraction": minimum_coverage,
                     "unnecessary_abstention": unnecessary_abstention,
                 },
             ),
@@ -1390,6 +1429,7 @@ class EvaluatorRegistry:
                 "before_label_asset_id": before_label.asset_id,
                 "after_label_asset_id": after_label.asset_id,
                 "false_confidence": false_confidence,
+                "insufficient_input_asset_ids": insufficient_inputs,
                 "truth": truth,
                 "unnecessary_abstention": unnecessary_abstention,
             },

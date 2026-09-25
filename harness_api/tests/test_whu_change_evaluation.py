@@ -1,4 +1,8 @@
 import hashlib
+import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,6 +15,8 @@ from app.core.artifacts import ArtifactStore
 from app.core.domain import create_initial_state
 from app.core.evaluation import EvaluatorRegistry
 from app.core.execution_replay import read_snapshot, replay_episode
+ROOT = Path(__file__).resolve().parents[2]
+
 from app.core.schemas import (
     AnswerRecord,
     AnswerSubmitAction,
@@ -134,6 +140,8 @@ def _manifest(
     task_id: str = "whu-change-test",
     evaluation_profile: str | None = "whu-building-change-v1",
     evidence_required: bool = True,
+    expected_outcome: str | None = None,
+    minimum_coverage: float = 0.0,
 ) -> TaskManifest:
     before_hash, before_size = _write_label(
         dataset_root / "labels" / "before.tif", before
@@ -185,6 +193,8 @@ def _manifest(
     }
     if evaluation_profile is not None:
         metadata["evaluation_profile"] = evaluation_profile
+    if expected_outcome is not None:
+        metadata["expected_outcome"] = expected_outcome
     truth = _truth(before, after)
     weights = {
         "task.change_class_accuracy": 0.3,
@@ -267,6 +277,7 @@ def _manifest(
             "minor_change_max_fraction": 0.1,
             "direction_dominance_ratio": 1.5,
             "changed_fraction_tolerance": 0.05,
+            "minimum_input_coverage_fraction": minimum_coverage,
             "required_evidence_tool_id": "eo_gym.crop",
             "efficiency": {
                 "ideal_steps": 5,
@@ -394,9 +405,15 @@ class WHUChangeEvaluatorTests(unittest.TestCase):
             with self.subTest(expected=expected_outcome, actual=actual_outcome):
                 manifest = _manifest(self.datasets, before, after)
                 manifest.evaluator.config["expected_outcome"] = expected_outcome
-                manifest.evaluator.metric_names.insert(
-                    3, "answer.abstention_correctness"
-                )
+                if expected_outcome == "abstained":
+                    manifest.evaluator.config["minimum_input_coverage_fraction"] = 0.8
+                    next(
+                        asset for asset in manifest.assets if asset.asset_id == AFTER_ID
+                    ).quality.coverage_fraction = 0.25
+                if "answer.abstention_correctness" not in manifest.evaluator.metric_names:
+                    manifest.evaluator.metric_names.insert(
+                        3, "answer.abstention_correctness"
+                    )
                 manifest.evaluator.aggregate_weights[
                     "answer.abstention_correctness"
                 ] = 0.1
@@ -443,6 +460,90 @@ class WHUChangeEvaluatorTests(unittest.TestCase):
                 self.assertEqual(
                     result.diagnostics["unnecessary_abstention"], unnecessary
                 )
+
+    def test_public_quality_metadata_controls_answerability(self):
+        before = numpy.zeros((HEIGHT, WIDTH), dtype=numpy.uint8)
+        after = before.copy()
+        manifest = _manifest(self.datasets, before, after)
+        manifest.evaluator.config["expected_outcome"] = "abstained"
+        manifest.evaluator.config["minimum_input_coverage_fraction"] = 0.8
+        next(
+            asset for asset in manifest.assets if asset.asset_id == AFTER_ID
+        ).quality.coverage_fraction = 0.25
+        manifest.evaluator.metric_names.insert(
+            3, "answer.abstention_correctness"
+        )
+        manifest.evaluator.aggregate_weights[
+            "answer.abstention_correctness"
+        ] = 0.1
+        state, _ = create_initial_state(
+            "ep2-" + "2" * 32, manifest, 42, timestamp="2026-09-20T00:00:00Z"
+        )
+        state.final_answer = AnswerRecord(
+            outcome="abstained", answer={}, confidence=0.0, evidence_ids=[]
+        )
+        result = EvaluatorRegistry(
+            str(self.datasets), self.artifacts
+        ).evaluate_safely(manifest, state, {}, 0, 0, 1)
+        metric = next(
+            item for item in result.metrics
+            if item.name == "answer.abstention_correctness"
+        )
+        self.assertEqual(metric.value, 1.0)
+        self.assertEqual(
+            metric.diagnostics["insufficient_input_asset_ids"], [AFTER_ID]
+        )
+        self.assertEqual(
+            result.diagnostics["insufficient_input_asset_ids"], [AFTER_ID]
+        )
+
+    def test_answerability_truth_must_match_public_metadata(self):
+        before = numpy.zeros((HEIGHT, WIDTH), dtype=numpy.uint8)
+        after = before.copy()
+        cases = [
+            ("abstained", None, "expected_abstention_unsupported"),
+            ("submitted", 0.5, "expected_submission_unsupported"),
+        ]
+        for outcome, coverage, code in cases:
+            with self.subTest(code=code):
+                manifest = _manifest(self.datasets, before, after)
+                manifest.evaluator.config["expected_outcome"] = outcome
+                manifest.evaluator.config["minimum_input_coverage_fraction"] = 0.8
+                if coverage is not None:
+                    next(
+                        asset for asset in manifest.assets if asset.asset_id == AFTER_ID
+                    ).quality.coverage_fraction = coverage
+                state, _ = create_initial_state(
+                    "ep2-" + "3" * 32, manifest, 42, timestamp="2026-09-20T00:00:00Z"
+                )
+                result = EvaluatorRegistry(
+                    str(self.datasets), self.artifacts
+                ).evaluate_safely(manifest, state, {}, 0, 0, 1)
+                self.assertEqual(result.status, "failed")
+                self.assertEqual(result.diagnostics["code"], code)
+
+    @staticmethod
+    def _run_prepare(config: dict, source: Path):
+        with tempfile.TemporaryDirectory() as temp:
+            script = ROOT / "scripts" / "prepare_whu_change_smoke.py"
+            env = os.environ.copy()
+            env["EO_WHU_TEST_CONFIG"] = str(Path(temp) / "config.json")
+            env["EO_WHU_TEST_ROOT"] = str(Path(temp) / "runtime")
+            (Path(temp) / "config.json").write_text(json.dumps(config))
+            return subprocess.run(
+                [sys.executable, str(script), "--source", str(source), "--output-name", "invalid-answerability"],
+                env=env, capture_output=True, text=True, check=False,
+            )
+
+    def test_task_config_quality_must_justify_answerability(self):
+        config = json.loads((ROOT / "config" / "whu-change-samples.json").read_text())
+        sample = config["samples"][0]
+        sample["expected_outcome"] = "abstained"
+        source = Path(tempfile.mkdtemp(dir=self.root)) / "reviewed-source"
+        source.mkdir()
+        result = self._run_prepare(config, source)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("expected abstention lacks insufficient public input coverage", result.stderr)
 
     def test_truth_classes_and_directions(self):
         no_change = numpy.zeros((HEIGHT, WIDTH), dtype=numpy.uint8)

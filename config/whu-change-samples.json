@@ -19,6 +19,7 @@
     "minor_change_max_fraction": 0.1,
     "direction_dominance_ratio": 1.5,
     "changed_fraction_tolerance": 0.05,
+    "minimum_input_coverage_fraction": 0.8,
     "required_evidence_tool_id": "eo_gym.crop"
   },
   "samples": [
