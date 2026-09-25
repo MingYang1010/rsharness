@@ -14,13 +14,13 @@ from v2.test_tool_execution import FakeExecutor, make_tool_tasks
 from v2.test_pixel_artifacts import png_bytes
 from app.main import create_app
 from app.agent_gateway import build_binding, create_app as create_gateway
-from app.v2.artifacts import ArtifactStore
-from app.v2.artifact_identity import DERIVATION_SCHEME, with_derivation_identity, validate_derivation_metadata
-from app.v2.capabilities import TaskRegistry
-from app.v2.events import sha256_json
-from app.v2.execution_replay import read_snapshot, replay_episode
-from app.v2.schemas import Artifact, ArtifactLineage, V2EpisodeState, StepRequest, PixelExtent, PixelArtifactRef
-from app.v2.tools.runtime import ToolOutput, ToolRouter
+from app.core.artifacts import ArtifactStore
+from app.core.artifact_identity import DERIVATION_SCHEME, with_derivation_identity, validate_derivation_metadata
+from app.core.capabilities import TaskRegistry
+from app.core.events import sha256_json
+from app.core.execution_replay import read_snapshot, replay_episode
+from app.core.schemas import Artifact, ArtifactLineage, V2EpisodeState, StepRequest, PixelExtent, PixelArtifactRef
+from app.core.tools.runtime import ToolOutput, ToolRouter
 
 
 class ParameterExecutor(FakeExecutor):

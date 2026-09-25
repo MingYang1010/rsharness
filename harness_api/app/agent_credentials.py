@@ -10,8 +10,8 @@ from typing import Any, Callable, Literal
 
 from pydantic import AwareDatetime, Field, model_validator
 
-from .v2.artifact_identity import LEGACY_SCHEME
-from .v2.schemas import (BudgetSpec, EpisodeId, Identifier, SemanticVersion,
+from .core.artifact_identity import LEGACY_SCHEME
+from .core.schemas import (BudgetSpec, EpisodeId, Identifier, SemanticVersion,
                          Sha256, V2RequestModel)
 
 MAX_REGISTRY_BYTES = 2 * 1024 * 1024

@@ -12,7 +12,7 @@ import numpy
 from rasterio.io import MemoryFile
 from rasterio.transform import from_origin
 
-from app.v2.cloud_policy_validation import evaluate_cloud_policy
+from app.core.cloud_policy_validation import evaluate_cloud_policy
 
 
 PROJECT = Path(__file__).resolve().parents[2]

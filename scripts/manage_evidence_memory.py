@@ -13,14 +13,14 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "harness_api"))
 
 from app.control_plane import certificate_file_sha256
-from app.v2.evidence_memory import (
+from app.core.evidence_memory import (
     MAX_STORE_BYTES,
     EvidenceMemoryStore,
     build_evidence_memory_record,
     load_evidence_memory_policy,
     load_source_evidence,
 )
-from app.v2.storage.quota import StorageQuota
+from app.core.storage.quota import StorageQuota
 
 
 def runtime_path(value: Path, label: str) -> Path:

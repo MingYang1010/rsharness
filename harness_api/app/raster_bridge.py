@@ -13,24 +13,24 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 
-from .v2.raster_grid import (CONTINUOUS_VERSION as CONTINUOUS_GRID_VERSION,
+from .core.raster_grid import (CONTINUOUS_VERSION as CONTINUOUS_GRID_VERSION,
                              ContinuousBand, ContinuousGridResult, GridArguments,
                              GridResult, NativeSCL, VERSION as GRID_VERSION,
                              checked_continuous_grids, checked_grids,
                              validate_continuous_grid, validate_grid)
-from .v2.raster_math import (NDMI_VERSION, AlignedSWIRInput,
+from .core.raster_math import (NDMI_VERSION, AlignedSWIRInput,
                              BandMathArguments, MASKED_VERSION,
                              MaskArtifactInput, MaskedNDVIResult, NativeBand,
                              NDMIResult, NDVIResult, MAX_INPUT, MAX_OUTPUT,
                              VERSION, checked_ndmi_inputs, checked_pair,
                              validate_aligned_swir, validate_masked_ndvi,
                              validate_ndmi, validate_ndvi)
-from .v2.raster_zonal import (TOOL_ID as ZONAL_TOOL_ID,
+from .core.raster_zonal import (TOOL_ID as ZONAL_TOOL_ID,
                               NDMI_VERSION as NDMI_ZONAL_VERSION,
                               VERSION as ZONAL_VERSION, ZonalRequest,
                               ZonalResult,
                               validate_zonal_source)
-from .v2.temporal import (TemporalAlignRequest, TemporalStackResult,
+from .core.temporal import (TemporalAlignRequest, TemporalStackResult,
                           VERSION as TEMPORAL_VERSION, checked_temporal_inputs,
                           validate_temporal_stack)
 

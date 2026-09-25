@@ -13,7 +13,7 @@ from pathlib import Path, PurePosixPath
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "harness_api"))
 
-from app.v2.cloud_policy_validation import (  # noqa: E402
+from app.core.cloud_policy_validation import (  # noqa: E402
     BENCHMARK_ID,
     CLOUD_POLICY,
     MANUAL_CLASSES,
@@ -22,8 +22,8 @@ from app.v2.cloud_policy_validation import (  # noqa: E402
     aggregate_cloud_policy,
     evaluate_cloud_policy,
 )
-from app.v2.raster_math import CLOUD_EXCLUDED_CLASSES  # noqa: E402
-from app.v2.storage.quota import StorageQuota  # noqa: E402
+from app.core.raster_math import CLOUD_EXCLUDED_CLASSES  # noqa: E402
+from app.core.storage.quota import StorageQuota  # noqa: E402
 
 MAX_MEMBER_BYTES = 1024 * 1024
 OUTPUT_OVERHEAD_BYTES = 8 * 1024 * 1024

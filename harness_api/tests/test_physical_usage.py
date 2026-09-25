@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from app.v2.storage.physical_usage import (
+from app.core.storage.physical_usage import (
     PhysicalUsageError,
     audit_physical_usage,
 )
@@ -95,7 +95,7 @@ class PhysicalUsageTests(unittest.TestCase):
     def test_scan_error_is_explicit_and_report_is_incomplete(self):
         self.write("visible", b"x")
         with patch(
-            "app.v2.storage.physical_usage.os.scandir",
+            "app.core.storage.physical_usage.os.scandir",
             side_effect=PermissionError(13, "Permission denied"),
         ):
             report = audit_physical_usage(self.root)
@@ -108,7 +108,7 @@ class PhysicalUsageTests(unittest.TestCase):
     def test_count_error_is_explicit_not_silently_ignored(self):
         self.write("counted", b"x")
         with patch(
-            "app.v2.storage.physical_usage._allocated_bytes",
+            "app.core.storage.physical_usage._allocated_bytes",
             side_effect=PhysicalUsageError("invalid_block_count"),
         ):
             report = audit_physical_usage(self.root)

@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-from app.v2.raster_zonal import ZonalRequest, compute_zonal_stats
+from app.core.raster_zonal import ZonalRequest, compute_zonal_stats
 
 
 if __name__ == "__main__":

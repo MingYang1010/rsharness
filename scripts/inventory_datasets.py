@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "harness_api"))
-from app.v2.storage.quota import CONTROL_ALLOWANCE, StorageQuota
+from app.core.storage.quota import CONTROL_ALLOWANCE, StorageQuota
 
 MAX_CATALOG_BYTES = 8 * 1024 * 1024 * 1024
 MAX_COVERAGE_BYTES = 8 * 1024 * 1024

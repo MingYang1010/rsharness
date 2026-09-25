@@ -9,10 +9,10 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"harness_api"))
-from app.v2.raster_math import NativeBand, checked_pair, MAX_INPUT
-from app.v2.storage.quota import StorageQuota
-from app.v2.capabilities import TaskRegistry
-from app.v2.data.stac import json_bytes
+from app.core.raster_math import NativeBand, checked_pair, MAX_INPUT
+from app.core.storage.quota import StorageQuota
+from app.core.capabilities import TaskRegistry
+from app.core.data.stac import json_bytes
 
 
 def write(path,value):

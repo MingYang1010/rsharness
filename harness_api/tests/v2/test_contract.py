@@ -6,7 +6,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from app.v2.api import build_openapi_schema
+from app.core.api import build_openapi_schema
 
 from .helpers import (
     ANSWER_REQUEST,

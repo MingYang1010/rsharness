@@ -16,13 +16,13 @@ from rasterio.transform import from_origin
 from app.raster_bridge import RasterBridge, create_app
 from app.agent_gateway import build_binding, create_app as gateway
 from app.main import create_app as harness_app
-from app.v2.artifacts import ArtifactStore
-from app.v2.capabilities import TaskRegistry
-from app.v2.execution_replay import read_snapshot, replay_episode
-from app.v2.raster_grid import NativeSCL
-from app.v2.raster_math import CLOUD_POLICY, NativeBand
-from app.v2.schemas import ToolInvokeAction, V2EpisodeState
-from app.v2.temporal import (
+from app.core.artifacts import ArtifactStore
+from app.core.capabilities import TaskRegistry
+from app.core.execution_replay import read_snapshot, replay_episode
+from app.core.raster_grid import NativeSCL
+from app.core.raster_math import CLOUD_POLICY, NativeBand
+from app.core.schemas import ToolInvokeAction, V2EpisodeState
+from app.core.temporal import (
     STACK_BANDS,
     STACK_NODATA,
     TemporalAlignRequest,
@@ -30,8 +30,8 @@ from app.v2.temporal import (
     compute_temporal_stack,
     validate_temporal_stack,
 )
-from app.v2.tools.runtime import ToolRouter
-from app.v2.tools.temporal import TemporalExecutor
+from app.core.tools.runtime import ToolRouter
+from app.core.tools.temporal import TemporalExecutor
 from v2.test_tool_execution import make_tool_tasks
 
 

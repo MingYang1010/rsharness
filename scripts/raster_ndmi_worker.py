@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-from app.v2.raster_math import (AlignedSWIRInput, BandMathArguments, NativeBand,
+from app.core.raster_math import (AlignedSWIRInput, BandMathArguments, NativeBand,
                                 compute_ndmi)
 
 

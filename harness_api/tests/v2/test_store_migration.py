@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 
 from app.store import EpisodeStore
-from app.v2.capabilities import TaskRegistry
-from app.v2.store import V2EpisodeStore
+from app.core.capabilities import TaskRegistry
+from app.core.store import V2EpisodeStore
 
 from .helpers import TASKS_ROOT
 

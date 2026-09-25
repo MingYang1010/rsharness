@@ -24,9 +24,9 @@ from app.control_plane import (MAX_AUDIT_BYTES, ControlEventInput,
                                load_issuance_policy)
 from app.agent_gateway import (AgentBinding, MAX_JSON, build_backend_ssl_context,
                                build_binding)
-from app.v2.schemas import TaskManifest, V2EpisodeState
-from app.v2.tools.catalog import _is_public_image
-from app.v2.storage.quota import StorageQuota
+from app.core.schemas import TaskManifest, V2EpisodeState
+from app.core.tools.catalog import _is_public_image
+from app.core.storage.quota import StorageQuota
 
 
 def write_private(path: Path, content: bytes):
@@ -365,7 +365,7 @@ def main():
     if args.job.stat().st_size > 1024 * 1024:
         raise SystemExit("job exceeds limit")
     job = json.loads(args.job.read_text())
-    from app.v2.schemas import TaskRef
+    from app.core.schemas import TaskRef
     task_ref = TaskRef.model_validate(job["task_ref"])
     if output.exists():
         # Never repeat an ambiguous backend reset. Preserve pending receipt/token.

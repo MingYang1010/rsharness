@@ -15,7 +15,7 @@ from typing import Literal
 
 from pydantic import AwareDatetime, Field, model_validator
 
-from .v2.schemas import EpisodeId, Identifier, SemanticVersion, Sha256, V2RequestModel
+from .core.schemas import EpisodeId, Identifier, SemanticVersion, Sha256, V2RequestModel
 
 MAX_POLICY_BYTES = 1024 * 1024
 MAX_AUDIT_BYTES = 64 * 1024 * 1024

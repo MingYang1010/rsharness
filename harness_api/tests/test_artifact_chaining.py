@@ -16,19 +16,19 @@ from rasterio.transform import from_origin
 from v2.test_tool_execution import make_tool_tasks
 from app.main import create_app
 from app.raster_bridge import RasterBridge, create_app as provider_app
-from app.v2.artifacts import ArtifactStore
-from app.v2.capabilities import TaskRegistry
-from app.v2.execution_replay import read_snapshot, replay_episode
-from app.v2.raster_grid import (GridArguments, NativeSCL, TOOL_ID as GRID_TOOL,
+from app.core.artifacts import ArtifactStore
+from app.core.capabilities import TaskRegistry
+from app.core.execution_replay import read_snapshot, replay_episode
+from app.core.raster_grid import (GridArguments, NativeSCL, TOOL_ID as GRID_TOOL,
                                 VERSION as GRID_VERSION, compute_grid)
-from app.v2.raster_math import (BandMathArguments, CLOUD_POLICY, MASKED_VERSION,
+from app.core.raster_math import (BandMathArguments, CLOUD_POLICY, MASKED_VERSION,
                                 MaskArtifactInput, NativeBand, NODATA,
                                 TOOL_ID as RASTER_TOOL, compute_masked_ndvi,
                                 validate_masked_ndvi)
-from app.v2.schemas import ToolInvokeAction
-from app.v2.tools.raster import RasterExecutor
-from app.v2.tools.raster_grid import RasterGridExecutor
-from app.v2.tools.runtime import ToolRouter
+from app.core.schemas import ToolInvokeAction
+from app.core.tools.raster import RasterExecutor
+from app.core.tools.raster_grid import RasterGridExecutor
+from app.core.tools.runtime import ToolRouter
 
 ROOT = Path(__file__).resolve().parents[2]
 

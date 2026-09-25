@@ -15,28 +15,28 @@ from rasterio.warp import transform_bounds
 from app.agent_gateway import build_binding, create_app as gateway
 from app.main import create_app
 from app.raster_bridge import RasterBridge, create_app as provider_app
-from app.v2.artifact_identity import with_derivation_identity
-from app.v2.artifacts import ArtifactStore
-from app.v2.capabilities import TaskRegistry
-from app.v2.domain import V2DomainError
-from app.v2.execution_replay import read_snapshot, replay_episode
-from app.v2.raster_grid import (CONTINUOUS_VERSION, GridArguments,
+from app.core.artifact_identity import with_derivation_identity
+from app.core.artifacts import ArtifactStore
+from app.core.capabilities import TaskRegistry
+from app.core.domain import V2DomainError
+from app.core.execution_replay import read_snapshot, replay_episode
+from app.core.raster_grid import (CONTINUOUS_VERSION, GridArguments,
                                 TOOL_ID as GRID_TOOL)
-from app.v2.raster_math import (NDMI_FORMULA, NDMI_INVALID_POLICY,
+from app.core.raster_math import (NDMI_FORMULA, NDMI_INVALID_POLICY,
                                 NDMI_VERSION, AlignedSWIRInput,
                                 BandMathArguments, MAX_OUTPUT, NDMIResult,
                                 TOOL_ID as MATH_TOOL, compute_ndmi,
                                 validate_ndmi)
-from app.v2.raster_zonal import (INCLUSION_POLICY,
+from app.core.raster_zonal import (INCLUSION_POLICY,
                                  NDMI_VERSION as NDMI_ZONAL_VERSION,
                                  TOOL_ID as ZONAL_TOOL, ZoneSpec,
                                  ZonalArguments, ZonalRequest,
                                  compute_zonal_stats)
-from app.v2.schemas import ToolInvokeAction, V2EpisodeState
-from app.v2.tools.raster import RasterExecutor
-from app.v2.tools.raster_grid import RasterGridExecutor
-from app.v2.tools.raster_zonal import RasterZonalExecutor
-from app.v2.tools.runtime import ToolRouter
+from app.core.schemas import ToolInvokeAction, V2EpisodeState
+from app.core.tools.raster import RasterExecutor
+from app.core.tools.raster_grid import RasterGridExecutor
+from app.core.tools.raster_zonal import RasterZonalExecutor
+from app.core.tools.runtime import ToolRouter
 import test_raster_grid as grid_fixtures
 from v2.test_tool_execution import make_tool_tasks
 

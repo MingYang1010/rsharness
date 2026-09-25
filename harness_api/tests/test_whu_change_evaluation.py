@@ -7,11 +7,11 @@ import numpy
 import rasterio
 from rasterio.io import MemoryFile
 
-from app.v2.artifacts import ArtifactStore
-from app.v2.domain import create_initial_state
-from app.v2.evaluation import EvaluatorRegistry
-from app.v2.execution_replay import read_snapshot, replay_episode
-from app.v2.schemas import (
+from app.core.artifacts import ArtifactStore
+from app.core.domain import create_initial_state
+from app.core.evaluation import EvaluatorRegistry
+from app.core.execution_replay import read_snapshot, replay_episode
+from app.core.schemas import (
     AnswerRecord,
     AnswerSubmitAction,
     ArtifactLineage,
@@ -26,7 +26,7 @@ from app.v2.schemas import (
     TaskSpec,
     TemporalExtent,
 )
-from app.v2.store import V2EpisodeStore
+from app.core.store import V2EpisodeStore
 
 
 WIDTH = 10

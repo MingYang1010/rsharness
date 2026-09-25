@@ -14,10 +14,10 @@ from rasterio.io import MemoryFile
 from rasterio.transform import from_origin
 from rasterio.warp import transform_bounds
 
-from app.v2.data.http_range import BoundedHTTP, RangeSource, checked_url, BLOCK_SIZE
-from app.v2.data.stac import (ASSETS, checked_config, discover, validate_item,
+from app.core.data.http_range import BoundedHTTP, RangeSource, checked_url, BLOCK_SIZE
+from app.core.data.stac import (ASSETS, checked_config, discover, validate_item,
                               validate_swir16_asset)
-from app.v2.data.stac_windows import extract_window
+from app.core.data.stac_windows import extract_window
 
 URL = "https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/test/B04.tif"
 PROJECT = Path(__file__).resolve().parents[2]

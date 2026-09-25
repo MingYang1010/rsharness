@@ -22,7 +22,7 @@ from app.control_plane import (
     load_issuance_policy,
     verify_control_audit,
 )
-from app.v2.schemas import BudgetSpec
+from app.core.schemas import BudgetSpec
 
 
 PROJECT = Path(__file__).resolve().parents[2]

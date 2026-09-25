@@ -9,8 +9,8 @@ import numpy
 import rasterio
 from rasterio.transform import from_origin
 
-from app.v2.capabilities import TaskRegistry
-from app.v2.temporal import (
+from app.core.capabilities import TaskRegistry
+from app.core.temporal import (
     TemporalInputProfile,
     TemporalSelectAlignArguments,
     select_temporal_pair,

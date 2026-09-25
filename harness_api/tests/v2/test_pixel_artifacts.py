@@ -12,10 +12,10 @@ from pydantic import TypeAdapter, ValidationError
 from rasterio.io import MemoryFile
 
 from app.main import create_app
-from app.v2.artifacts import ArtifactStore, ArtifactStoreError
-from app.v2.evidence import validate_evidence
-from app.v2.schemas import Artifact, ArtifactLineage, EvidenceRef, PixelArtifactRef, PixelExtent
-from app.v2.tools.eo_gym import EOGymExecutor, ToolOutput
+from app.core.artifacts import ArtifactStore, ArtifactStoreError
+from app.core.evidence import validate_evidence
+from app.core.schemas import Artifact, ArtifactLineage, EvidenceRef, PixelArtifactRef, PixelExtent
+from app.core.tools.eo_gym import EOGymExecutor, ToolOutput
 from .test_pixel_assets import make_pixel_tasks
 
 

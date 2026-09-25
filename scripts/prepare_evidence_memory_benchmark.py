@@ -16,15 +16,15 @@ from pydantic import Field, model_validator
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "harness_api"))
 
-from app.v2.capabilities import TaskRegistry
-from app.v2.evidence_memory import (
+from app.core.capabilities import TaskRegistry
+from app.core.evidence_memory import (
     EvidenceMemoryBinding,
     EvidenceMemoryStore,
     MemorySearchArguments,
     load_evidence_memory_policy,
 )
-from app.v2.events import canonical_json, sha256_json
-from app.v2.schemas import (
+from app.core.events import canonical_json, sha256_json
+from app.core.schemas import (
     BudgetSpec,
     Identifier,
     NonEmptyText,

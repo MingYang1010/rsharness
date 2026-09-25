@@ -49,8 +49,8 @@ class RealEOGymTests(unittest.TestCase):
         import httpx
         from PIL import Image
         from app.main import create_app as create_harness
-        from app.v2.artifacts import ArtifactStore
-        from app.v2.tools.eo_gym import EOGymExecutor
+        from app.core.artifacts import ArtifactStore
+        from app.core.tools.eo_gym import EOGymExecutor
         from v2.test_tool_execution import make_tool_tasks
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

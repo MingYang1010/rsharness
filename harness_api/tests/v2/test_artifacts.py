@@ -3,8 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from app.v2.artifacts import ArtifactStore
-from app.v2.schemas import ArtifactLineage
+from app.core.artifacts import ArtifactStore
+from app.core.schemas import ArtifactLineage
 
 
 class V2ArtifactTests(unittest.TestCase):

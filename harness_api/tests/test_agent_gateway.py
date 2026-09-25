@@ -25,10 +25,10 @@ from app.agent_gateway import (AgentBinding, AgentGuard, build_backend_ssl_conte
                                TOOL_ARGUMENTS, build_binding, create_app,
                                public_observation, public_state, validate_agent_binding)
 from app.control_plane import AgentIssuancePolicy, verify_control_audit
-from app.v2.artifacts import ArtifactStore
-from app.v2.capabilities import TaskRegistry
-from app.v2.schemas import V2EpisodeState
-from app.v2.tools.runtime import ToolRouter, ToolOutput
+from app.core.artifacts import ArtifactStore
+from app.core.capabilities import TaskRegistry
+from app.core.schemas import V2EpisodeState
+from app.core.tools.runtime import ToolRouter, ToolOutput
 
 TOKEN = "1" * 64  # Isolated test credential, never deployed.
 TOKEN2 = "2" * 64

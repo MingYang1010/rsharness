@@ -14,7 +14,7 @@ import rasterio
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "harness_api"))
-from app.v2.storage.quota import StorageQuota
+from app.core.storage.quota import StorageQuota
 
 
 def on_segment(x: float, y: float, first: list[float], second: list[float]) -> bool:

@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "harness_api"))
-from app.v2.storage.quota import StorageQuota
+from app.core.storage.quota import StorageQuota
 
 
 SECOND_AOI = {"west": 122.65, "south": 30.75, "east": 122.75, "north": 30.85}

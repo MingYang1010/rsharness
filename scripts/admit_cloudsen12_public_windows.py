@@ -12,11 +12,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "harness_api"))
-from app.v2.data.http_range import BoundedHTTP
-from app.v2.data.stac import ENDPOINT, COLLECTION, fetch_json, json_bytes, validate_item
-from app.v2.data.stac_windows import extract_window
-from app.v2.schemas import EvaluatorSpec, ScenarioProfile, TaskSpec
-from app.v2.storage.quota import StorageQuota
+from app.core.data.http_range import BoundedHTTP
+from app.core.data.stac import ENDPOINT, COLLECTION, fetch_json, json_bytes, validate_item
+from app.core.data.stac_windows import extract_window
+from app.core.schemas import EvaluatorSpec, ScenarioProfile, TaskSpec
+from app.core.storage.quota import StorageQuota
 
 
 REQUIRED_CONFIG = {"schema_version", "source", "samples", "license_review"}

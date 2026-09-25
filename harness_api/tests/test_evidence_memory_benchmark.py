@@ -9,17 +9,17 @@ import unittest
 from pathlib import Path
 
 import test_evidence_memory as memory_fixtures
-from app.v2.artifacts import ArtifactStore
-from app.v2.capabilities import TaskRegistry
-from app.v2.domain import create_initial_state
-from app.v2.evaluation import EvaluatorRegistry
-from app.v2.evidence_memory import (
+from app.core.artifacts import ArtifactStore
+from app.core.capabilities import TaskRegistry
+from app.core.domain import create_initial_state
+from app.core.evaluation import EvaluatorRegistry
+from app.core.evidence_memory import (
     EvidenceMemoryPolicy,
     EvidenceMemoryStore,
     MemorySearchArguments,
     build_evidence_memory_record,
 )
-from app.v2.schemas import AnswerRecord
+from app.core.schemas import AnswerRecord
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]

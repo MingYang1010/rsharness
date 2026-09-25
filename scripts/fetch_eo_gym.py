@@ -18,7 +18,7 @@ from pathlib import Path, PurePosixPath
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "harness_api"))
-from app.v2.storage.quota import CONTROL_ALLOWANCE, StorageQuota, checked_path
+from app.core.storage.quota import CONTROL_ALLOWANCE, StorageQuota, checked_path
 LOCK = REPO_ROOT / "config" / "eo-gym-source.json"
 
 

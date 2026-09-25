@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from app.v2.data.packed import AdmissionError
-from app.v2.data.path_coverage import audit_path_coverage, validate_coverage_output
+from app.core.data.packed import AdmissionError
+from app.core.data.path_coverage import audit_path_coverage, validate_coverage_output
 
 
 @unittest.skipUnless(importlib.util.find_spec("pyarrow"), "requires isolated packed-requirements")
@@ -118,7 +118,7 @@ class PathParquetCoverageTests(unittest.TestCase):
         self.write_png("small.png")
         self.write_parquet(["train/images/small.png"])
         with patch(
-            "app.v2.data.path_coverage._unchanged",
+            "app.core.data.path_coverage._unchanged",
             side_effect=AdmissionError("image_changed_during_header_audit"),
         ):
             with self.assertRaisesRegex(AdmissionError, "image_changed_during_header_audit"):

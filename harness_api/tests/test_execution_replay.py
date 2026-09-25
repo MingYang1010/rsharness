@@ -13,19 +13,19 @@ from unittest.mock import patch
 from v2.helpers import TASKS_ROOT
 from v2.test_m2_runtime import AOI, FakeEvaluatorRegistry, FakeRenderer
 from v2.test_tool_execution import FakeExecutor, make_tool_tasks
-from app.v2.artifacts import ArtifactStore
-from app.v2.capabilities import TaskRegistry
-from app.v2.domain import V2DomainError
-from app.v2.execution_replay import (
+from app.core.artifacts import ArtifactStore
+from app.core.capabilities import TaskRegistry
+from app.core.domain import V2DomainError
+from app.core.execution_replay import (
     ReplayError,
     prospective_runtime_identity,
     read_snapshot,
     replay_episode,
     semanticize,
 )
-from app.v2.schemas import StepRequest
-from app.v2.store import V2EpisodeStore
-from app.v2.tools.runtime import ToolRouter, ToolOutput
+from app.core.schemas import StepRequest
+from app.core.store import V2EpisodeStore
+from app.core.tools.runtime import ToolRouter, ToolOutput
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -345,7 +345,7 @@ class ExecutionReplayTests(unittest.TestCase):
 
     def test_snapshot_bounds_and_unknown_episode(self):
         self.record()
-        with patch("app.v2.execution_replay.MAX_ACTIONS", 1), self.assertRaises(ReplayError) as error:
+        with patch("app.core.execution_replay.MAX_ACTIONS", 1), self.assertRaises(ReplayError) as error:
             read_snapshot(self.root / "original.db", self.initial.episode_id)
         self.assertEqual(error.exception.code, "snapshot_limit_exceeded")
         with self.assertRaises(ReplayError) as error:
@@ -363,7 +363,7 @@ class ExecutionReplayTests(unittest.TestCase):
             destination.close()
             source.close()
         with patch(
-            "app.v2.execution_replay.sqlite3.connect",
+            "app.core.execution_replay.sqlite3.connect",
             wraps=sqlite3.connect,
         ) as connect:
             read_snapshot(checkpointed, self.initial.episode_id)

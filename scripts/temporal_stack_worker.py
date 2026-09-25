@@ -4,9 +4,9 @@ import json
 import sys
 from pathlib import Path
 
-from app.v2.raster_grid import NativeSCL
-from app.v2.raster_math import NativeBand
-from app.v2.temporal import compute_temporal_stack
+from app.core.raster_grid import NativeSCL
+from app.core.raster_math import NativeBand
+from app.core.temporal import compute_temporal_stack
 
 
 if __name__ == "__main__":

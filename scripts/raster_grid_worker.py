@@ -4,9 +4,9 @@ import json
 import sys
 from pathlib import Path
 
-from app.v2.raster_grid import (ContinuousBand, GridArguments, NativeSCL,
+from app.core.raster_grid import (ContinuousBand, GridArguments, NativeSCL,
                                 compute_continuous_grid, compute_grid)
-from app.v2.raster_math import NativeBand
+from app.core.raster_math import NativeBand
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@ from app.control_plane import (MAX_AUDIT_BYTES, ControlEventInput,
                                append_control_event, authorize_management,
                                certificate_file_sha256,
                                load_issuance_policy)
-from app.v2.storage.quota import StorageQuota
+from app.core.storage.quota import StorageQuota
 
 
 def replace_private(path: Path, content: bytes):

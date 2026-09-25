@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from app.v2.data.packed import (
+from app.core.data.packed import (
     AdmissionError, checked_shard, embedded_images, extract_samples,
     probe_bytes, projected_rows, validate_column,
 )
@@ -155,7 +155,7 @@ class PackedImageTests(unittest.TestCase):
             current = source_path.stat()
             os.utime(source_path, ns=(current.st_atime_ns, current.st_mtime_ns + 1_000_000))
             yield from original(source_path, column, max_rows)
-        with patch("app.v2.data.packed.projected_rows", changed):
+        with patch("app.core.data.packed.projected_rows", changed):
             with self.assertRaisesRegex(AdmissionError, "source_changed_during_read"):
                 extract_samples(self.spec, self.output)
         self.assertFalse((self.output / "inputs.json").exists())
@@ -170,7 +170,7 @@ class PackedImageTests(unittest.TestCase):
             current = source_path.stat()
             os.utime(source_path, ns=(current.st_atime_ns, current.st_mtime_ns + 1_000_000))
             raise self.pa.ArrowInvalid("PRIVATE_GOLD_parser_error")
-        with patch("app.v2.data.packed.projected_rows", changed):
+        with patch("app.core.data.packed.projected_rows", changed):
             with self.assertRaisesRegex(AdmissionError, "source_changed_during_read"):
                 extract_samples(self.spec, self.output)
         self.assertFalse((self.output / "inputs.json").exists())
@@ -179,7 +179,7 @@ class PackedImageTests(unittest.TestCase):
     def test_receipt_budget_precedes_any_metadata_publication(self):
         from unittest.mock import patch
         self.write()
-        with patch("app.v2.data.packed.MAX_RECEIPT_BYTES", 1):
+        with patch("app.core.data.packed.MAX_RECEIPT_BYTES", 1):
             with self.assertRaisesRegex(AdmissionError, "receipt_size_limit"):
                 extract_samples(self.spec, self.output)
         self.assertFalse((self.output / "inputs.json").exists())

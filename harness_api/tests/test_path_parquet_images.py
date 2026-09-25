@@ -8,8 +8,8 @@ import zlib
 from pathlib import Path, PurePosixPath
 from unittest.mock import patch
 
-from app.v2.data.packed import AdmissionError
-from app.v2.data.path_parquet import (
+from app.core.data.packed import AdmissionError
+from app.core.data.path_parquet import (
     checked_local_image,
     extract_path_samples,
     reviewed_relative_path,

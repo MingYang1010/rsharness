@@ -10,25 +10,25 @@ from fastapi.testclient import TestClient
 
 from v2.test_tool_execution import make_tool_tasks
 from app.main import create_app
-from app.v2.capabilities import TaskRegistry
-from app.v2.domain import V2DomainError, create_initial_state
-from app.v2.evidence_memory import (
+from app.core.capabilities import TaskRegistry
+from app.core.domain import V2DomainError, create_initial_state
+from app.core.evidence_memory import (
     EvidenceMemoryBinding,
     EvidenceMemoryPolicy,
     EvidenceMemoryStore,
     MemorySearchArguments,
     build_evidence_memory_record,
 )
-from app.v2.events import sha256_json
-from app.v2.schemas import (
+from app.core.events import sha256_json
+from app.core.schemas import (
     AnswerRecord,
     EvidenceRef,
     MetricResult,
     TaskManifest,
     ToolInvokeAction,
 )
-from app.v2.tools.memory import MemorySearchExecutor
-from app.v2.tools.runtime import ToolRouter
+from app.core.tools.memory import MemorySearchExecutor
+from app.core.tools.runtime import ToolRouter
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]

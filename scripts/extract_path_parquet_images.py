@@ -7,9 +7,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "harness_api"))
-from app.v2.data.path_parquet import extract_path_samples
-from app.v2.data.raster_windows import POLICY_ID, extract_raster_windows
-from app.v2.storage.quota import CONTROL_ALLOWANCE, StorageQuota
+from app.core.data.path_parquet import extract_path_samples
+from app.core.data.raster_windows import POLICY_ID, extract_raster_windows
+from app.core.storage.quota import CONTROL_ALLOWANCE, StorageQuota
 
 
 def main():

@@ -1,9 +1,9 @@
 import unittest
 
-from app.v2.raster_grid import NativeSCL
-from app.v2.raster_math import CLOUD_POLICY, NativeBand
-from app.v2.schemas import SpatialBoundingBox, TemporalExtent
-from app.v2.temporal import (
+from app.core.raster_grid import NativeSCL
+from app.core.raster_math import CLOUD_POLICY, NativeBand
+from app.core.schemas import SpatialBoundingBox, TemporalExtent
+from app.core.temporal import (
     TemporalInputProfile,
     TemporalSelectAlignArguments,
     coverage_fraction,

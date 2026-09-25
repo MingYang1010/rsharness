@@ -12,12 +12,12 @@ from rasterio.transform import from_bounds
 from .helpers import PROJECT_ROOT, TASKS_ROOT
 
 from app.main import create_app
-from app.v2.artifacts import ArtifactStore
-from app.v2.capabilities import TaskRegistry
-from app.v2.domain import create_initial_state
-from app.v2.evaluation import EvaluatorRegistry
-from app.v2.renderer.base import RenderResult
-from app.v2.schemas import (
+from app.core.artifacts import ArtifactStore
+from app.core.capabilities import TaskRegistry
+from app.core.domain import create_initial_state
+from app.core.evaluation import EvaluatorRegistry
+from app.core.renderer.base import RenderResult
+from app.core.schemas import (
     AnswerRecord,
     ArtifactLineage,
     EvidenceRef,

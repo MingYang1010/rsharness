@@ -12,7 +12,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 
-from .v2.storage.quota import QuotaError, StorageQuota, checked_path
+from .core.storage.quota import QuotaError, StorageQuota, checked_path
 
 MAX_OBJECT_BYTES = 64 * 1024 * 1024
 OBJECT_OVERHEAD = 64 * 1024

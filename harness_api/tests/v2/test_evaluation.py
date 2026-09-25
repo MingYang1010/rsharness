@@ -1,7 +1,7 @@
 import unittest
 
-from app.v2.evaluation import aggregate_metrics
-from app.v2.schemas import Metric
+from app.core.evaluation import aggregate_metrics
+from app.core.schemas import Metric
 
 
 class V2EvaluationTests(unittest.TestCase):

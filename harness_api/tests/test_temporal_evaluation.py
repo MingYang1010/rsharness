@@ -3,11 +3,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from app.v2.artifacts import ArtifactStore
-from app.v2.domain import create_initial_state
-from app.v2.evaluation import EvaluatorRegistry
-from app.v2.raster_math import CLOUD_POLICY
-from app.v2.schemas import (
+from app.core.artifacts import ArtifactStore
+from app.core.domain import create_initial_state
+from app.core.evaluation import EvaluatorRegistry
+from app.core.raster_math import CLOUD_POLICY
+from app.core.schemas import (
     AnswerAbstainAction,
     AnswerRecord,
     ArtifactLineage,
@@ -27,8 +27,8 @@ from app.v2.schemas import (
     TemporalStackMember,
     ToolInvokeAction,
 )
-from app.v2.store import V2EpisodeStore
-from app.v2.temporal import (
+from app.core.store import V2EpisodeStore
+from app.core.temporal import (
     STACK_BANDS,
     TOOL_ID,
     VERSION,
@@ -37,7 +37,7 @@ from app.v2.temporal import (
     TemporalStackResult,
     TemporalToolResult,
 )
-from app.v2.tools.runtime import PreparedTool, ToolOutput, ToolRouter
+from app.core.tools.runtime import PreparedTool, ToolOutput, ToolRouter
 
 
 INPUT_IDS = ["before-red", "before-scl", "after-red", "after-scl"]

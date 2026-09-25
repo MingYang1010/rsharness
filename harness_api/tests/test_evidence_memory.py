@@ -8,9 +8,9 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from app.v2.capabilities import TaskRegistry
-from app.v2.domain import create_initial_state
-from app.v2.evidence_memory import (
+from app.core.capabilities import TaskRegistry
+from app.core.domain import create_initial_state
+from app.core.evidence_memory import (
     EvidenceMemoryBinding,
     EvidenceMemoryPolicy,
     EvidenceMemoryStore,
@@ -20,8 +20,8 @@ from app.v2.evidence_memory import (
     load_evidence_memory_policy,
     load_source_evidence,
 )
-from app.v2.events import sha256_json
-from app.v2.schemas import AnswerRecord, EvidenceRef, MetricResult, TaskManifest
+from app.core.events import sha256_json
+from app.core.schemas import AnswerRecord, EvidenceRef, MetricResult, TaskManifest
 
 
 ROOT = Path(__file__).resolve().parents[2]

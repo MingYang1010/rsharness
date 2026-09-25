@@ -40,19 +40,19 @@ from .schemas import (
     ValidationIssue,
 )
 from .store import EpisodeStore
-from .v2.api import (
+from .core.api import (
     build_openapi_schema as build_v2_openapi_schema,
     error_response as v2_error_response,
     router as v2_router,
 )
-from .v2.artifacts import ArtifactStore
-from .v2.capabilities import TaskRegistry
-from .v2.domain import V2DomainError
-from .v2.evaluation import EvaluatorRegistry
-from .v2.renderer.base import RendererAdapter
-from .v2.renderer.terriamap import TerriaMapRenderer
-from .v2.schemas import V2ValidationIssue
-from .v2.store import V2EpisodeStore
+from .core.artifacts import ArtifactStore
+from .core.capabilities import TaskRegistry
+from .core.domain import V2DomainError
+from .core.evaluation import EvaluatorRegistry
+from .core.renderer.base import RendererAdapter
+from .core.renderer.terriamap import TerriaMapRenderer
+from .core.schemas import V2ValidationIssue
+from .core.store import V2EpisodeStore
 
 
 LOGGER = logging.getLogger(__name__)
@@ -204,14 +204,14 @@ def create_app(
         broker = None
         broker_url = os.environ.get("EO_HARNESS_ARTIFACT_BROKER_URL")
         if broker_url:
-            from .v2.storage.client import BrokerClient
+            from .core.storage.client import BrokerClient
             token = FilePath(os.environ["EO_HARNESS_ARTIFACT_TOKEN_FILE"]).read_text().strip()
             broker = BrokerClient(broker_url, token)
         artifact_store = ArtifactStore(resolved_artifacts_path, broker=broker)
         tool_executor = v2_tool_executor
         provider_url = os.environ.get("EO_HARNESS_EO_GYM_URL")
         if tool_executor is None and provider_url:
-            from .v2.tools.eo_gym import EOGymExecutor
+            from .core.tools.eo_gym import EOGymExecutor
             tool_executor = EOGymExecutor(provider_url, artifact_store)
         raster_url = os.environ.get("EO_HARNESS_RASTER_URL")
         memory_values = (
@@ -226,8 +226,8 @@ def create_app(
             )
         memory_executor = None
         if all(memory_values):
-            from .v2.evidence_memory import EvidenceMemoryStore, load_evidence_memory_policy
-            from .v2.tools.memory import MemorySearchExecutor
+            from .core.evidence_memory import EvidenceMemoryStore, load_evidence_memory_policy
+            from .core.tools.memory import MemorySearchExecutor
 
             policy, policy_sha256 = load_evidence_memory_policy(
                 FilePath(memory_values[1]), memory_values[2]
@@ -239,11 +239,11 @@ def create_app(
             )
         catalog_enabled = os.environ.get("EO_HARNESS_CATALOG_ENABLED") == "1"
         if catalog_enabled or raster_url or memory_executor is not None:
-            from .v2.tools.runtime import ToolRouter
-            from .v2.tools.raster import RasterExecutor
-            from .v2.tools.raster_grid import RasterGridExecutor
-            from .v2.tools.raster_zonal import RasterZonalExecutor
-            from .v2.tools.temporal import TemporalExecutor
+            from .core.tools.runtime import ToolRouter
+            from .core.tools.raster import RasterExecutor
+            from .core.tools.raster_grid import RasterGridExecutor
+            from .core.tools.raster_zonal import RasterZonalExecutor
+            from .core.tools.temporal import TemporalExecutor
             if isinstance(tool_executor, ToolRouter):
                 existing = tool_executor
                 provider = existing.provider

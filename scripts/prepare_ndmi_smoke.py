@@ -12,12 +12,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "harness_api"))
-from app.v2.capabilities import TaskRegistry
-from app.v2.data.stac import json_bytes
-from app.v2.raster_grid import ContinuousBand, checked_continuous_grids
-from app.v2.raster_math import NDMI_FORMULA
-from app.v2.raster_zonal import ZoneSpec, validate_zone_bounds
-from app.v2.storage.quota import StorageQuota
+from app.core.capabilities import TaskRegistry
+from app.core.data.stac import json_bytes
+from app.core.raster_grid import ContinuousBand, checked_continuous_grids
+from app.core.raster_math import NDMI_FORMULA
+from app.core.raster_zonal import ZoneSpec, validate_zone_bounds
+from app.core.storage.quota import StorageQuota
 
 
 def read_json(path: Path, maximum: int = 2 * 1024 * 1024):

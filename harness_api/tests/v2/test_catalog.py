@@ -11,13 +11,13 @@ from fastapi.testclient import TestClient
 
 from .test_tool_execution import make_tool_tasks, FakeExecutor
 from app.main import create_app
-from app.v2.artifacts import ArtifactStore
-from app.v2.capabilities import TaskRegistry
-from app.v2.domain import V2DomainError
-from app.v2.events import canonical_json
-from app.v2.schemas import ToolInvokeAction
-from app.v2.tools.catalog import CatalogExecutor
-from app.v2.tools.runtime import ToolRouter
+from app.core.artifacts import ArtifactStore
+from app.core.capabilities import TaskRegistry
+from app.core.domain import V2DomainError
+from app.core.events import canonical_json
+from app.core.schemas import ToolInvokeAction
+from app.core.tools.catalog import CatalogExecutor
+from app.core.tools.runtime import ToolRouter
 
 
 class CatalogTests(unittest.TestCase):
@@ -153,7 +153,7 @@ class CatalogTests(unittest.TestCase):
             self.plan()
         self.assertEqual(error.exception.code, "catalog_metadata_too_large")
         self.manifest.assets[-1].platform = "x"
-        with patch("app.v2.tools.catalog.MAX_RESULT_BYTES", 1), self.assertRaises(V2DomainError) as error:
+        with patch("app.core.tools.catalog.MAX_RESULT_BYTES", 1), self.assertRaises(V2DomainError) as error:
             self.plan()
         self.assertEqual(error.exception.code, "catalog_result_too_large")
 

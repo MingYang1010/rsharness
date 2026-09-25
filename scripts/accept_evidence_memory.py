@@ -23,22 +23,22 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "harness_api"))
 
 from app.control_plane import certificate_file_sha256
-from app.v2.artifacts import ArtifactStore
-from app.v2.capabilities import TaskRegistry
-from app.v2.evaluation import EvaluatorRegistry
-from app.v2.evidence_memory import (
+from app.core.artifacts import ArtifactStore
+from app.core.capabilities import TaskRegistry
+from app.core.evaluation import EvaluatorRegistry
+from app.core.evidence_memory import (
     EvidenceMemoryBinding,
     EvidenceMemoryStore,
     MemorySearchArguments,
     load_evidence_memory_policy,
     utc_now,
 )
-from app.v2.events import canonical_json, sha256_json
-from app.v2.execution_replay import read_snapshot, replay_episode
-from app.v2.schemas import StepRequest, TaskManifest
-from app.v2.store import V2EpisodeStore
-from app.v2.tools.memory import MemorySearchExecutor
-from app.v2.tools.runtime import ToolRouter
+from app.core.events import canonical_json, sha256_json
+from app.core.execution_replay import read_snapshot, replay_episode
+from app.core.schemas import StepRequest, TaskManifest
+from app.core.store import V2EpisodeStore
+from app.core.tools.memory import MemorySearchExecutor
+from app.core.tools.runtime import ToolRouter
 
 
 SOURCE_TASK_ID = "worldcover-grounded-vqa"

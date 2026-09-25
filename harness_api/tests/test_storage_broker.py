@@ -9,10 +9,10 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.storage_broker import create_app, MAX_OBJECT_BYTES
-from app.v2.storage.quota import CONTROL_ALLOWANCE, StorageQuota
-from app.v2.storage.client import BrokerClient
-from app.v2.artifacts import ArtifactStore, ArtifactStoreError
-from app.v2.schemas import ArtifactLineage
+from app.core.storage.quota import CONTROL_ALLOWANCE, StorageQuota
+from app.core.storage.client import BrokerClient
+from app.core.artifacts import ArtifactStore, ArtifactStoreError
+from app.core.schemas import ArtifactLineage
 from app.eo_gym_bridge import CropBridge
 
 MIB = 1024 * 1024
@@ -123,18 +123,18 @@ class StorageBrokerTests(unittest.TestCase):
 
     def test_client_rejects_corrupt_download_and_credential_redirect(self):
         for response in (httpx.Response(200, content=b"wrong"), httpx.Response(302, headers={"Location": "http://outside/"})):
-            from app.v2.storage.client import BrokerError
+            from app.core.storage.client import BrokerError
             broker = BrokerClient("http://storage", self.token, httpx.MockTransport(lambda request: response))
             with self.assertRaises(BrokerError):
                 broker.get(self.digest)
 
     def test_client_byte_bounds_apply_to_download_and_upload(self):
-        from app.v2.storage.client import BrokerError
+        from app.core.storage.client import BrokerError
         data = b"abcdef"
         digest = hashlib.sha256(data).hexdigest()
         broker = BrokerClient("http://storage", self.token,
                               httpx.MockTransport(lambda request: httpx.Response(200, content=data)))
-        with patch("app.v2.storage.client.MAX_OBJECT_BYTES", 4):
+        with patch("app.core.storage.client.MAX_OBJECT_BYTES", 4):
             with self.assertRaises(BrokerError) as read_error:
                 broker.get(digest)
             self.assertEqual(read_error.exception.code, "artifact_content_corrupt")
@@ -145,8 +145,8 @@ class StorageBrokerTests(unittest.TestCase):
 
 class ProviderCacheTests(unittest.TestCase):
     def test_provider_capacity_is_not_reported_as_transient_network_failure(self):
-        from app.v2.tools.eo_gym import EOGymExecutor
-        from app.v2.domain import V2DomainError
+        from app.core.tools.eo_gym import EOGymExecutor
+        from app.core.domain import V2DomainError
         with httpx.Client(base_url="http://provider", transport=httpx.MockTransport(lambda request: httpx.Response(507))) as client:
             with self.assertRaises(V2DomainError) as raised:
                 EOGymExecutor._bounded_response(client, "POST", "/execute", 100)

@@ -3,7 +3,7 @@
 import json
 import sys
 from pathlib import Path
-from app.v2.raster_math import MaskArtifactInput, NativeBand, compute_masked_ndvi, compute_ndvi
+from app.core.raster_math import MaskArtifactInput, NativeBand, compute_masked_ndvi, compute_ndvi
 
 if __name__ == "__main__":
     values=sys.argv[1:]

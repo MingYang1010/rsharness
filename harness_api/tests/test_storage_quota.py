@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from app.v2.storage.quota import CONTROL_ALLOWANCE, MAX_BYTES, QuotaError, StorageQuota
+from app.core.storage.quota import CONTROL_ALLOWANCE, MAX_BYTES, QuotaError, StorageQuota
 
 MIB = 1024 * 1024
 ROOT = Path(__file__).resolve().parents[2]
@@ -131,7 +131,7 @@ class StorageQuotaTests(unittest.TestCase):
                 self.fail()
 
     def test_free_disk_space_is_checked(self):
-        with patch("app.v2.storage.quota.shutil.disk_usage", return_value=type("Disk", (), {"free": 0})()):
+        with patch("app.core.storage.quota.shutil.disk_usage", return_value=type("Disk", (), {"free": 0})()):
             with self.assertRaisesRegex(QuotaError, "insufficient_filesystem_space"):
                 with self.quota.hold(self.root / "disk", MIB, "test"):
                     self.fail()

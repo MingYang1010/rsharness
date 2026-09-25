@@ -25,33 +25,33 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from .agent_credentials import (AgentBinding, AgentCredentialRegistry, CredentialError,
                                 CredentialResolver, PublicTask, utc_now)
 from .eo_gym_bridge import CropArguments
-from .v2.raster_math import (BandMathArguments, CLOUD_POLICY,
+from .core.raster_math import (BandMathArguments, CLOUD_POLICY,
                              MASKED_VERSION as RASTER_MASKED_VERSION,
                              NDMI_VERSION as RASTER_NDMI_VERSION,
                              MaskedNDVIResult, NDMIResult, NDVIResult,
                              TOOL_ID as RASTER_TOOL,
                              VERSION as RASTER_VERSION, MAX_OUTPUT as MAX_RASTER)
-from .v2.raster_grid import (CONTINUOUS_VERSION as CONTINUOUS_GRID_VERSION,
+from .core.raster_grid import (CONTINUOUS_VERSION as CONTINUOUS_GRID_VERSION,
                              ContinuousGridResult, GridArguments, GridResult,
                              TOOL_ID as GRID_TOOL, VERSION as GRID_VERSION)
-from .v2.raster_zonal import (TOOL_ID as ZONAL_TOOL,
+from .core.raster_zonal import (TOOL_ID as ZONAL_TOOL,
                               NDMI_VERSION as NDMI_ZONAL_VERSION,
                               VERSION as ZONAL_VERSION, ZonalArguments,
                               ZonalResult)
-from .v2.temporal import (MAX_OUTPUT as MAX_TEMPORAL,
+from .core.temporal import (MAX_OUTPUT as MAX_TEMPORAL,
                           TOOL_ID as TEMPORAL_TOOL,
                           VERSION as TEMPORAL_VERSION,
                           TemporalSelectAlignArguments, TemporalToolResult)
-from .v2.evidence_memory import MemorySearchArguments, MemorySearchResult
-from .v2.tools.memory import TOOL_ID as MEMORY_TOOL
-from .v2.domain import _action_allowed
-from .v2.artifact_identity import DERIVATION_SCHEME, LEGACY_SCHEME, validate_derivation_metadata
-from .v2.schemas import (Artifact, ArtifactId, AssetQuality, Identifier, MapState,
+from .core.evidence_memory import MemorySearchArguments, MemorySearchResult
+from .core.tools.memory import TOOL_ID as MEMORY_TOOL
+from .core.domain import _action_allowed
+from .core.artifact_identity import DERIVATION_SCHEME, LEGACY_SCHEME, validate_derivation_metadata
+from .core.schemas import (Artifact, ArtifactId, AssetQuality, Identifier, MapState,
                          Observation, ObservationId, PixelExtent,
                          SemanticVersion, Sha256, SpatialBoundingBox, StepRequest,
                          TaskManifest, TemporalExtent, TemporalStackArtifactRef,
                          V2EpisodeState)
-from .v2.tools.catalog import InspectArguments, SearchArguments, _is_public_image
+from .core.tools.catalog import InspectArguments, SearchArguments, _is_public_image
 
 MAX_REQUEST = 128 * 1024
 MAX_JSON = 2 * 1024 * 1024

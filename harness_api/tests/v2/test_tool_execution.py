@@ -14,10 +14,10 @@ from fastapi.testclient import TestClient
 from .helpers import TASKS_ROOT
 from .test_m2_runtime import PNG_BYTES
 from app.main import create_app
-from app.v2.artifacts import ArtifactStore
-from app.v2.domain import V2DomainError
-from app.v2.schemas import ArtifactLineage
-from app.v2.tools.eo_gym import EOGymExecutor, ToolOutput
+from app.core.artifacts import ArtifactStore
+from app.core.domain import V2DomainError
+from app.core.schemas import ArtifactLineage
+from app.core.tools.eo_gym import EOGymExecutor, ToolOutput
 
 
 def make_tool_tasks(root: Path):

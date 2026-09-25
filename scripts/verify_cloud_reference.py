@@ -11,7 +11,7 @@ import rasterio
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "harness_api"))
-from app.v2.storage.quota import StorageQuota
+from app.core.storage.quota import StorageQuota
 
 POLICY = "sentinel-2-scl-cloud-shadow-cirrus-snow-saturation-v1"
 EXCLUDED = (1, 3, 8, 9, 10, 11)

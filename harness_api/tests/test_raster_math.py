@@ -19,15 +19,15 @@ from v2.test_tool_execution import make_tool_tasks
 from app.main import create_app
 from app.agent_gateway import build_binding, create_app as gateway, public_observation
 from app.raster_bridge import RasterBridge, create_app as provider_app
-from app.v2.raster_math import (NativeBand, BandMathArguments, NDVIResult, compute_ndvi,
+from app.core.raster_math import (NativeBand, BandMathArguments, NDVIResult, compute_ndvi,
     checked_pair, validate_ndvi, VERSION, TOOL_ID, NODATA, MAX_OUTPUT)
-from app.v2.tools.raster import RasterExecutor
-from app.v2.tools.runtime import ToolRouter
-from app.v2.artifacts import ArtifactStore
-from app.v2.capabilities import TaskRegistry
-from app.v2.domain import V2DomainError
-from app.v2.schemas import ToolInvokeAction, V2EpisodeState
-from app.v2.execution_replay import read_snapshot, replay_episode
+from app.core.tools.raster import RasterExecutor
+from app.core.tools.runtime import ToolRouter
+from app.core.artifacts import ArtifactStore
+from app.core.capabilities import TaskRegistry
+from app.core.domain import V2DomainError
+from app.core.schemas import ToolInvokeAction, V2EpisodeState
+from app.core.execution_replay import read_snapshot, replay_episode
 
 ROOT=Path(__file__).resolve().parents[2]
 

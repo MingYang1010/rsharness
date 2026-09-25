@@ -13,8 +13,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "harness_api"))
 
-from app.v2.capabilities import TaskRegistry
-from app.v2.storage.quota import StorageQuota
+from app.core.capabilities import TaskRegistry
+from app.core.storage.quota import StorageQuota
 
 
 MAX_FILE_BYTES = 2 * 1024 * 1024

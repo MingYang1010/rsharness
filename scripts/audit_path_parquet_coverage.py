@@ -8,13 +8,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "harness_api"))
-from app.v2.data.packed import MAX_RECEIPT_BYTES, AdmissionError
-from app.v2.data.path_coverage import (
+from app.core.data.packed import MAX_RECEIPT_BYTES, AdmissionError
+from app.core.data.path_coverage import (
     MAX_COVERAGE_ROWS,
     audit_path_coverage,
     validate_coverage_output,
 )
-from app.v2.storage.quota import CONTROL_ALLOWANCE, StorageQuota
+from app.core.storage.quota import CONTROL_ALLOWANCE, StorageQuota
 
 
 def main() -> None:

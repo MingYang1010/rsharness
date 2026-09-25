@@ -9,10 +9,10 @@ from fastapi.testclient import TestClient
 from pydantic import TypeAdapter, ValidationError
 
 from app.main import create_app
-from app.v2.artifacts import ArtifactStore
-from app.v2.capabilities import TaskRegistry
-from app.v2.evidence import validate_evidence
-from app.v2.schemas import EvidenceRef, PixelAssetRef, TaskAsset, TaskManifest
+from app.core.artifacts import ArtifactStore
+from app.core.capabilities import TaskRegistry
+from app.core.evidence import validate_evidence
+from app.core.schemas import EvidenceRef, PixelAssetRef, TaskAsset, TaskManifest
 from .test_tool_execution import FakeExecutor, make_tool_tasks
 
 
@@ -145,7 +145,7 @@ class PixelAssetTests(unittest.TestCase):
             self.assertEqual(manifest["assets"][0]["pixel"]["coordinate_system"], "pixel")
 
     def test_primary_input_not_first_hidden_asset_and_mixed_inputs_have_no_map(self):
-        from app.v2.domain import create_initial_state
+        from app.core.domain import create_initial_state
         from .helpers import TASKS_ROOT
         geo = TaskRegistry(str(TASKS_ROOT)).get("worldcover-grounded-vqa", "1.0.0").assets[0].model_copy(deep=True)
         geo.asset_id = "asset-hidden-geographic"
@@ -163,9 +163,9 @@ class PixelAssetTests(unittest.TestCase):
         import hashlib
         import httpx
         from app.eo_gym_bridge import REVISION
-        from app.v2.domain import V2DomainError
-        from app.v2.schemas import ToolInvokeAction
-        from app.v2.tools.eo_gym import EOGymExecutor
+        from app.core.domain import V2DomainError
+        from app.core.schemas import ToolInvokeAction
+        from app.core.tools.eo_gym import EOGymExecutor
         from .test_m2_runtime import PNG_BYTES
         manifest = self.manifest.model_copy(deep=True)
         manifest.assets[0].pixel.width = 2

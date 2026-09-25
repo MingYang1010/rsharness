@@ -9,14 +9,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "harness_api"))
-from app.v2.capabilities import TaskRegistry
-from app.v2.data.http_range import BoundedHTTP
-from app.v2.data.stac import (SWIR16_KEY, checked_config, json_bytes,
+from app.core.capabilities import TaskRegistry
+from app.core.data.http_range import BoundedHTTP
+from app.core.data.stac import (SWIR16_KEY, checked_config, json_bytes,
                               validate_item, validate_swir16_asset)
-from app.v2.data.stac_windows import extract_window
-from app.v2.raster_grid import ContinuousBand, checked_continuous_grids
-from app.v2.raster_math import MAX_INPUT
-from app.v2.storage.quota import StorageQuota
+from app.core.data.stac_windows import extract_window
+from app.core.raster_grid import ContinuousBand, checked_continuous_grids
+from app.core.raster_math import MAX_INPUT
+from app.core.storage.quota import StorageQuota
 
 
 def write_json(path: Path, value: object) -> None:

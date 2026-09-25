@@ -12,12 +12,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "harness_api"))
 
-from app.v2.capabilities import TaskRegistry
-from app.v2.raster_grid import NativeSCL
-from app.v2.raster_math import CLOUD_EXCLUDED_CLASSES, CLOUD_POLICY, NativeBand
-from app.v2.schemas import TaskManifest
-from app.v2.storage.quota import StorageQuota
-from app.v2.temporal import TemporalInputProfile, TemporalSelectAlignArguments
+from app.core.capabilities import TaskRegistry
+from app.core.raster_grid import NativeSCL
+from app.core.raster_math import CLOUD_EXCLUDED_CLASSES, CLOUD_POLICY, NativeBand
+from app.core.schemas import TaskManifest
+from app.core.storage.quota import StorageQuota
+from app.core.temporal import TemporalInputProfile, TemporalSelectAlignArguments
 
 
 CONFIG = ROOT / "config" / "temporal-benchmark-v1.json"

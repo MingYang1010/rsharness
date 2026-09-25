@@ -2,9 +2,9 @@ import unittest
 
 from pydantic import ValidationError
 
-from app.v2.capabilities import TaskRegistry
-from app.v2.evidence import validate_evidence
-from app.v2.schemas import EvidenceRef
+from app.core.capabilities import TaskRegistry
+from app.core.evidence import validate_evidence
+from app.core.schemas import EvidenceRef
 
 from .helpers import EVIDENCE_REQUEST, TASKS_ROOT
 

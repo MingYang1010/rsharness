@@ -6,8 +6,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from app.v2.data.packed import AdmissionError, digest_file as real_digest_file
-from app.v2.data.raster_windows import (
+from app.core.data.packed import AdmissionError, digest_file as real_digest_file
+from app.core.data.raster_windows import (
     POLICY_ID,
     extract_raster_windows,
     iter_grid_windows,
@@ -108,7 +108,7 @@ class RasterWindowAdmissionTests(unittest.TestCase):
         import rasterio
 
         paths = self.write_fixture()[1:]
-        with patch("app.v2.data.raster_windows.MAX_IMAGE_PIXELS", 16):
+        with patch("app.core.data.raster_windows.MAX_IMAGE_PIXELS", 16):
             report = extract_raster_windows(self.spec, self.output, sample_count=3)
         self.assertEqual(report["unique_windows"], 3)
         self.assertEqual(report["unique_sources"], 3)
@@ -147,7 +147,7 @@ class RasterWindowAdmissionTests(unittest.TestCase):
     def test_derivation_is_repeatable_and_binds_parquet_source_and_window(self):
         self.write_fixture()
         second = self.root / "runtime/windows-second"
-        with patch("app.v2.data.raster_windows.MAX_IMAGE_PIXELS", 16):
+        with patch("app.core.data.raster_windows.MAX_IMAGE_PIXELS", 16):
             first_report = extract_raster_windows(self.spec, self.output, sample_count=3)
             second_report = extract_raster_windows(self.spec, second, sample_count=3)
         first = first_report["datasets"][0]["samples"]
@@ -159,7 +159,7 @@ class RasterWindowAdmissionTests(unittest.TestCase):
 
         changed_source = self.write_raster("source-0.tif", 90)
         third = self.root / "runtime/windows-third"
-        with patch("app.v2.data.raster_windows.MAX_IMAGE_PIXELS", 16):
+        with patch("app.core.data.raster_windows.MAX_IMAGE_PIXELS", 16):
             changed_report = extract_raster_windows(self.spec, third, sample_count=3)
         changed = changed_report["datasets"][0]["samples"]
         self.assertNotEqual(first[0]["source_snapshot_hash"], changed[0]["source_snapshot_hash"])
@@ -174,7 +174,7 @@ class RasterWindowAdmissionTests(unittest.TestCase):
 
     def test_output_byte_limit_is_sanitized_and_does_not_publish_assets(self):
         self.write_fixture()
-        with patch("app.v2.data.raster_windows.MAX_IMAGE_PIXELS", 16):
+        with patch("app.core.data.raster_windows.MAX_IMAGE_PIXELS", 16):
             report = extract_raster_windows(self.spec, self.output, sample_count=1, max_output_bytes=1)
         self.assertEqual(report["unique_windows"], 0)
         self.assertTrue(any(value["code"] == "output_byte_limit" for value in report["failures"]))
@@ -193,8 +193,8 @@ class RasterWindowAdmissionTests(unittest.TestCase):
                 path.write_bytes(path.read_bytes() + b"x")
             return value
 
-        with patch("app.v2.data.raster_windows.MAX_IMAGE_PIXELS", 16), patch(
-            "app.v2.data.raster_windows.digest_file", side_effect=digest_then_mutate
+        with patch("app.core.data.raster_windows.MAX_IMAGE_PIXELS", 16), patch(
+            "app.core.data.raster_windows.digest_file", side_effect=digest_then_mutate
         ):
             with self.assertRaisesRegex(AdmissionError, "source_changed_during_hash"):
                 extract_raster_windows(self.spec, self.output, sample_count=1)
@@ -203,7 +203,7 @@ class RasterWindowAdmissionTests(unittest.TestCase):
 
     def test_verifier_rejects_tampered_staged_window(self):
         self.write_fixture()
-        with patch("app.v2.data.raster_windows.MAX_IMAGE_PIXELS", 16):
+        with patch("app.core.data.raster_windows.MAX_IMAGE_PIXELS", 16):
             report = extract_raster_windows(self.spec, self.output, sample_count=1)
         sample = report["datasets"][0]["samples"][0]
         staged = self.output / "inputs" / sample["relative_path"]

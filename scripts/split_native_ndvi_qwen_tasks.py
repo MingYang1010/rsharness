@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "harness_api"))
-from app.v2.storage.quota import StorageQuota
+from app.core.storage.quota import StorageQuota
 
 
 def write_json(path: Path, value: object) -> None:

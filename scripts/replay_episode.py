@@ -12,23 +12,23 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "harness_api"))
 from app.eo_gym_bridge import REVISION, SOURCE_FILES_HASH
-from app.v2.capabilities import TaskRegistry
-from app.v2.evaluation import EvaluatorRegistry
-from app.v2.execution_replay import (
+from app.core.capabilities import TaskRegistry
+from app.core.evaluation import EvaluatorRegistry
+from app.core.execution_replay import (
     ReplayError,
     prospective_runtime_identity,
     read_snapshot,
     replay_episode,
 )
-from app.v2.renderer.terriamap import TerriaMapRenderer
-from app.v2.schemas import V2EpisodeState
-from app.v2.storage.quota import StorageQuota
-from app.v2.tools.eo_gym import EOGymExecutor
-from app.v2.tools.raster import RasterExecutor
-from app.v2.tools.raster_grid import RasterGridExecutor
-from app.v2.tools.raster_zonal import RasterZonalExecutor
-from app.v2.tools.temporal import TemporalExecutor
-from app.v2.tools.runtime import ToolRouter
+from app.core.renderer.terriamap import TerriaMapRenderer
+from app.core.schemas import V2EpisodeState
+from app.core.storage.quota import StorageQuota
+from app.core.tools.eo_gym import EOGymExecutor
+from app.core.tools.raster import RasterExecutor
+from app.core.tools.raster_grid import RasterGridExecutor
+from app.core.tools.raster_zonal import RasterZonalExecutor
+from app.core.tools.temporal import TemporalExecutor
+from app.core.tools.runtime import ToolRouter
 
 
 def runtime_fingerprint(renderer_config=None):
