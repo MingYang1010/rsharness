@@ -186,9 +186,36 @@ MIGRATION_2 = [
     """,
 ]
 
+MIGRATION_3 = [
+    """
+    CREATE TABLE v2_evidence_episode_scope (
+        evidence_id TEXT NOT NULL,
+        episode_id TEXT NOT NULL,
+        evidence_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (episode_id, evidence_id),
+        FOREIGN KEY (episode_id) REFERENCES v2_episodes(episode_id)
+    )
+    """,
+    """
+    INSERT INTO v2_evidence_episode_scope (
+        evidence_id, episode_id, evidence_json, created_at
+    )
+    SELECT evidence_id, episode_id, evidence_json, created_at
+    FROM v2_evidence
+    """,
+    "DROP TABLE v2_evidence",
+    "ALTER TABLE v2_evidence_episode_scope RENAME TO v2_evidence",
+    """
+    CREATE INDEX IF NOT EXISTS idx_v2_evidence_episode_evidence
+    ON v2_evidence(episode_id, evidence_id)
+    """,
+]
+
 MIGRATIONS = {
     1: MIGRATION_1,
     2: MIGRATION_2,
+    3: MIGRATION_3,
 }
 
 

@@ -2,7 +2,7 @@
 
 ## Contract Boundary
 
-Implementation release `0.4.0` exposes V2 body schema `2.0.0` alongside the frozen V1 API. V2 uses independent DTOs, routes, task manifests, events, action results, and `v2_*` SQLite tables. It does not convert or modify V1 episodes. Store schema `2` adds observation-artifact associations and evaluation records through an additive migration.
+Implementation release `0.4.0` exposes V2 body schema `2.0.0` alongside the frozen V1 API. V2 uses independent DTOs, routes, task manifests, events, action results, and `v2_*` SQLite tables. It does not convert or modify V1 episodes. Store schema `3` adds observation-artifact associations, evaluation records, and episode-local evidence uniqueness.
 
 Every success uses a typed `meta + data` envelope:
 
@@ -155,7 +155,7 @@ Artifact content paths are derived only from validated SHA-256 values. Missing o
 
 ## Storage And Rollback
 
-V2 startup applies additive, transactional, idempotent migrations to `/sata/yangm/eo-harness/state/episodes.sqlite3`. Migration failure does not advance the V2 schema version or leave partial V2 tables. The artifact mount is `/sata/yangm/eo-harness/artifacts:/app/artifacts`; content is written atomically by SHA-256 and audited before reads.
+V2 startup applies transactional, idempotent migrations to `/sata/yangm/eo-harness/state/episodes.sqlite3`. Migration failure does not advance the V2 schema version or leave partial V2 tables. The artifact mount is `/sata/yangm/eo-harness/artifacts:/app/artifacts`; content is written atomically by SHA-256 and audited before reads. Store schema `3` rebuilds `v2_evidence` with primary key `(episode_id, evidence_id)`; evidence IDs are episode-local, while duplicate IDs within one episode still return HTTP `409 evidence_conflict`. Rolling back the application before schema `3` requires a compatible store migration or restoring the pre-migration SQLite backup; do not delete V2 tables or artifact files.
 
 Set `EO_HARNESS_V2_ENABLED=0` to start the application in V1-only runtime mode without running V2 migration. V2 stateful routes remain registered and return typed HTTP `503 v2_disabled`; V1 remains healthy. Do not delete V2 tables or artifact files when rolling back the application version.
 
