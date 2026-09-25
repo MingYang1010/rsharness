@@ -11,12 +11,16 @@ import httpx
 
 RUNNER_PATH = Path(__file__).resolve().parents[2] / "scripts" / "run_qwen_agent.py"
 BATCH_PATH = Path(__file__).resolve().parents[2] / "scripts" / "run_qwen_whu_batch.py"
+MEMORY_PAIR_PATH = Path(__file__).resolve().parents[2] / "scripts" / "run_qwen_memory_pair.py"
 SPEC = importlib.util.spec_from_file_location("qwen_agent_runner", RUNNER_PATH)
 RUNNER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(RUNNER)
 BATCH_SPEC = importlib.util.spec_from_file_location("qwen_whu_batch", BATCH_PATH)
 BATCH = importlib.util.module_from_spec(BATCH_SPEC)
 BATCH_SPEC.loader.exec_module(BATCH)
+MEMORY_PAIR_SPEC = importlib.util.spec_from_file_location("qwen_memory_pair", MEMORY_PAIR_PATH)
+MEMORY_PAIR = importlib.util.module_from_spec(MEMORY_PAIR_SPEC)
+MEMORY_PAIR_SPEC.loader.exec_module(MEMORY_PAIR)
 artifact_refs = RUNNER.artifact_refs
 action_from_tool_call = RUNNER.action_from_tool_call
 compact_messages = RUNNER.compact_messages
@@ -101,6 +105,31 @@ class QwenAgentRunnerTests(unittest.TestCase):
             self.assertEqual(manifest["summary"]["abstained"], 1)
             self.assertEqual(manifest["summary"]["groups"][0]["false_confidence"], 1)
             self.assertTrue((runtime / "reports" / "qwen-0_224.json").is_file())
+
+    def test_memory_pair_summarizes_cost_and_authoritative_evaluation(self):
+        reports = {
+            "with_memory": {
+                "status": "passed", "episode_id": "ep2-" + "8" * 32,
+                "cost": {"model_calls": 2, "total_tokens": 20},
+                "elapsed_ms": 100,
+                "terminal_state": {"evaluation": {"aggregate_reward": 1.0, "metrics": [
+                    {"name": "task.accuracy", "value": 1.0}
+                ]}, "final_answer": {"outcome": "submitted"}},
+            },
+            "without_memory": {
+                "status": "passed", "episode_id": "ep2-" + "9" * 32,
+                "cost": {"model_calls": 1, "total_tokens": 5},
+                "elapsed_ms": 50,
+                "terminal_state": {"evaluation": {"aggregate_reward": 0.1, "metrics": [
+                    {"name": "task.accuracy", "value": 0.0}
+                ]}, "final_answer": {"outcome": "abstained"}},
+            },
+        }
+        summary = MEMORY_PAIR._summary(reports)
+        self.assertEqual(summary["schema_version"], "qwen-evidence-memory-pair-v1")
+        self.assertEqual(summary["episodes"][0]["condition"], "with_memory")
+        self.assertEqual(summary["episodes"][0]["metrics"]["task.accuracy"], 1.0)
+        self.assertEqual(summary["episodes"][1]["total_tokens"], 5)
 
     def test_whu_batch_enriches_report_from_readonly_terminal_state(self):
         with tempfile.TemporaryDirectory() as temporary:
