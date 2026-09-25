@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from collections import Counter
 from pathlib import Path
 
 import numpy
@@ -552,6 +553,50 @@ class WHUChangeEvaluatorTests(unittest.TestCase):
         result = self._run_prepare(config, source)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("reviewed source file is missing", result.stderr)
+
+    def test_answerability_development_config_is_stratified_and_pinned(self):
+        path = ROOT / "config" / "whu-answerability-dev-v1.json"
+        config = json.loads(path.read_text())
+        samples = config["samples"]
+        outcomes = Counter(
+            sample["expected_outcome"] for sample in samples
+        )
+        self.assertEqual(len(samples), 40)
+        self.assertEqual(outcomes["submitted"], 30)
+        self.assertEqual(outcomes["abstained"], 10)
+        self.assertEqual(len({sample["sample_id"] for sample in samples}), 40)
+        self.assertEqual(
+            Counter(
+                (sample["truth"]["change_class"], sample["truth"]["change_direction"])
+                for sample in samples
+            ),
+            {
+                ("no_change", "no_change"): 7,
+                ("minor_change", "expansion"): 7,
+                ("minor_change", "reduction"): 7,
+                ("minor_change", "mixed"): 6,
+                ("major_change", "expansion"): 6,
+                ("major_change", "mixed"): 4,
+                ("major_change", "reduction"): 3,
+            },
+        )
+        self.assertLessEqual(path.stat().st_size, 1024 * 1024)
+        for sample in samples:
+            self.assertEqual(set(sample["files"]), {
+                "before_image", "after_image", "before_label", "after_label",
+            })
+            for receipt in sample["files"].values():
+                self.assertIn(receipt["size_bytes"], {786572, 262266})
+                self.assertRegex(receipt["sha256"], r"^[0-9a-f]{64}$")
+        source_tiles = {
+            sample["filename"] for sample in samples
+            if not sample["sample_id"].endswith("-low-coverage")
+        }
+        low_tiles = {
+            sample["filename"] for sample in samples
+            if sample["sample_id"].endswith("-low-coverage")
+        }
+        self.assertEqual(len(source_tiles | low_tiles), 40)
 
     def test_task_config_quality_must_justify_answerability(self):
         config = json.loads((ROOT / "config" / "whu-change-samples.json").read_text())

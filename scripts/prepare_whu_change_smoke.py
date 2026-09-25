@@ -532,8 +532,12 @@ def main() -> None:
     out = runtime_root / args.output_name
     if out.exists():
         raise SystemExit("output exists; preserve it and choose a fresh name")
+    reservation_bytes = max(
+        64 * 1024 * 1024,
+        2 * len(config["samples"]) * 2 * MAX_FILE_BYTES,
+    )
     with StorageQuota(runtime_root).hold(
-        out, 64 * 1024 * 1024, "whu-change-smoke"
+        out, reservation_bytes, "whu-change-smoke"
     ):
         prepare(source, out, config)
     print(

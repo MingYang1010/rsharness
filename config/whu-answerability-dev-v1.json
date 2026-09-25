@@ -1,0 +1,1780 @@
+{
+  "dataset": {
+    "height": 512,
+    "image_channels": 3,
+    "label_values": [
+      0,
+      255
+    ],
+    "license_status": "official research download; no explicit redistribution license found",
+    "name": "WHU Building Change Detection Dataset",
+    "official_page": "http://gpcv.whu.edu.cn/data/building_dataset.html",
+    "official_page_sha256": "cad881b1ba51674f920ea19e6e4d656cea3305d748537e2758f12b13dc83aa4c",
+    "redistribution_allowed": false,
+    "source_archive_sha256": "3c014fff27d7ca814690ea27242fb1aa329521b89fedfd0fdd676954dfd0e2c4",
+    "split": "test",
+    "width": 512
+  },
+  "evaluator": {
+    "changed_fraction_tolerance": 0.05,
+    "direction_dominance_ratio": 1.5,
+    "evaluator_id": "whu-building-change-v1",
+    "evaluator_version": "1.0.0",
+    "minimum_input_coverage_fraction": 0.8,
+    "minor_change_max_fraction": 0.1,
+    "required_evidence_tool_id": "eo_gym.crop"
+  },
+  "samples": [
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_224.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_224.tif",
+          "sha256": "bcd2b68aa0e6cf29d97fb45313ddbafb4539fdd26bd674a87ed566ef8e402caa",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_224.tif",
+          "sha256": "83f55a1d42eaef4c09045c26f36a2b547e2760f0875eadd8f3627e5314461ab6",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_224.tif",
+          "sha256": "3366081a249b8e52b3396ee44db97fad8c8f33caa3c863b2f2d92e73ffc739b0",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_224.tif",
+          "sha256": "83f55a1d42eaef4c09045c26f36a2b547e2760f0875eadd8f3627e5314461ab6",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_224",
+      "truth": {
+        "change_class": "no_change",
+        "change_direction": "no_change",
+        "changed_fraction": 0.0,
+        "changed_pixels": 0,
+        "demolished_pixels": 0,
+        "new_pixels": 0
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_225.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_225.tif",
+          "sha256": "4a228b2011290cdb37533545df61bc389014be7c4b3c0da761e5a3b881bcd14a",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_225.tif",
+          "sha256": "83f55a1d42eaef4c09045c26f36a2b547e2760f0875eadd8f3627e5314461ab6",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_225.tif",
+          "sha256": "6e94899508359f8c8a20cb3fcccbeee34001595f75ecf8d09229e1a6631032c4",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_225.tif",
+          "sha256": "83f55a1d42eaef4c09045c26f36a2b547e2760f0875eadd8f3627e5314461ab6",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_225",
+      "truth": {
+        "change_class": "no_change",
+        "change_direction": "no_change",
+        "changed_fraction": 0.0,
+        "changed_pixels": 0,
+        "demolished_pixels": 0,
+        "new_pixels": 0
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_226.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_226.tif",
+          "sha256": "71abe32339663851c70c285fa4fe754bc55163496930e8a2dd8475087b1fb0e9",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_226.tif",
+          "sha256": "83f55a1d42eaef4c09045c26f36a2b547e2760f0875eadd8f3627e5314461ab6",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_226.tif",
+          "sha256": "48e03780824d2a993d6c00c9e6a2784f8118cb565a781f693eba71c40a5a52b3",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_226.tif",
+          "sha256": "83f55a1d42eaef4c09045c26f36a2b547e2760f0875eadd8f3627e5314461ab6",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_226",
+      "truth": {
+        "change_class": "no_change",
+        "change_direction": "no_change",
+        "changed_fraction": 0.0,
+        "changed_pixels": 0,
+        "demolished_pixels": 0,
+        "new_pixels": 0
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_227.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_227.tif",
+          "sha256": "27807e1893df9544cd18196bc18a6da502fe713ec60f55d499e4217f238cb526",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_227.tif",
+          "sha256": "83f55a1d42eaef4c09045c26f36a2b547e2760f0875eadd8f3627e5314461ab6",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_227.tif",
+          "sha256": "2b466f6a488e2edbd618732fd0fdbca2085d574ea732957300ca811db3ca0d1c",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_227.tif",
+          "sha256": "83f55a1d42eaef4c09045c26f36a2b547e2760f0875eadd8f3627e5314461ab6",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_227",
+      "truth": {
+        "change_class": "no_change",
+        "change_direction": "no_change",
+        "changed_fraction": 0.0,
+        "changed_pixels": 0,
+        "demolished_pixels": 0,
+        "new_pixels": 0
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_228.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_228.tif",
+          "sha256": "9721e35f9fa380e5568f8bf3263fe5752e5c52282d640216809cc402f0835f07",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_228.tif",
+          "sha256": "83f55a1d42eaef4c09045c26f36a2b547e2760f0875eadd8f3627e5314461ab6",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_228.tif",
+          "sha256": "d4be3acce5378f0d81fc4ec0219690cb4c6e089dd799112e9ab802b9c61029ff",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_228.tif",
+          "sha256": "83f55a1d42eaef4c09045c26f36a2b547e2760f0875eadd8f3627e5314461ab6",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_228",
+      "truth": {
+        "change_class": "no_change",
+        "change_direction": "no_change",
+        "changed_fraction": 0.0,
+        "changed_pixels": 0,
+        "demolished_pixels": 0,
+        "new_pixels": 0
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_10.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_10.tif",
+          "sha256": "38fbcb158addb3a23824ae4e98b92888cd9ede4e931953857e09e1ac8c7835b0",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_10.tif",
+          "sha256": "bdd7f9ae9494cef14e306e42b3f2ce8de748cff4fe0ae9d08ef4ae140261eb40",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_10.tif",
+          "sha256": "7f1889f949ae53b61f91867f29f154ad7872206af36b27968558c8132bc0e850",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_10.tif",
+          "sha256": "5ef5a69d65376c03a3c1c63708be0dc830a2936e173ffe2c40d48ced7424c2ea",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_10",
+      "truth": {
+        "change_class": "minor_change",
+        "change_direction": "expansion",
+        "changed_fraction": 0.0893402099609375,
+        "changed_pixels": 23420,
+        "demolished_pixels": 3339,
+        "new_pixels": 20081
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_101.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_101.tif",
+          "sha256": "4d59c77612dde7e11265c2d7c0bd1dc96ae4d9bba272c1a80d2816a42065fff1",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_101.tif",
+          "sha256": "e83671ca74ab743bb909ae99bf7b14187a59c897530a28661dbc731950517a7d",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_101.tif",
+          "sha256": "c7a4d01ea27e8155d5ee47d6612e3776136bbe62b4b555015cdccb1dfad8edb7",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_101.tif",
+          "sha256": "2014bc1344a7b705793b75fa2b32e6b716f026b3bbe0a205d2fb3bbba99f3829",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_101",
+      "truth": {
+        "change_class": "minor_change",
+        "change_direction": "expansion",
+        "changed_fraction": 0.001285552978515625,
+        "changed_pixels": 337,
+        "demolished_pixels": 103,
+        "new_pixels": 234
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_104.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_104.tif",
+          "sha256": "33b69ff67f10c5c14cbafe279fc77bee21efc6e49e201dd0145d02d6690ac457",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_104.tif",
+          "sha256": "a6e31a0a687f3f2c4eed968bcccabd74f5f862c981d76f2ab494ae48ff5b3f22",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_104.tif",
+          "sha256": "c0faa34485bd20c54c1afe6cd8a2dcee1f5727d0fd271151a001cdf2c5bbdc45",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_104.tif",
+          "sha256": "556a8e430cbe34274d463ac8d14b53caf1ea6215f165c7f5d822161ac7d08650",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_104",
+      "truth": {
+        "change_class": "minor_change",
+        "change_direction": "expansion",
+        "changed_fraction": 0.036243438720703125,
+        "changed_pixels": 9501,
+        "demolished_pixels": 1298,
+        "new_pixels": 8203
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_105.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_105.tif",
+          "sha256": "14dd3cecd8597c897035631cfd4dc93678508e9270b368192a3c66731e5d2a85",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_105.tif",
+          "sha256": "1b51491c207664869a4d30da9628066dee8f3b58a1e55cb9d39cdb441392f6b2",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_105.tif",
+          "sha256": "37e3c3c8a4179219c94c632a21057527a74c84d1d95e8db067c575300fe4db1f",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_105.tif",
+          "sha256": "70a981ea0ea37a9535f47baaa59ee978cc917a732a5b9e5919f8ca05855c3721",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_105",
+      "truth": {
+        "change_class": "minor_change",
+        "change_direction": "expansion",
+        "changed_fraction": 0.04322052001953125,
+        "changed_pixels": 11330,
+        "demolished_pixels": 3614,
+        "new_pixels": 7716
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_106.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_106.tif",
+          "sha256": "e214a86c08024e06caac180996e7ee276a4ecae038a1c9fa60d38954a2283043",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_106.tif",
+          "sha256": "fd24d402a14088c978138688d63cb5ad35816973de1c7676874f70644c9b2597",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_106.tif",
+          "sha256": "827a64b73a29b8d71d3f7c85f8c63166966b5076c1f2a41c86f86ff2851278af",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_106.tif",
+          "sha256": "c044eaa053275b6d58318090464300cb1ea4e68826c17ea0d9841674a9a18469",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_106",
+      "truth": {
+        "change_class": "minor_change",
+        "change_direction": "expansion",
+        "changed_fraction": 0.055728912353515625,
+        "changed_pixels": 14609,
+        "demolished_pixels": 5748,
+        "new_pixels": 8861
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_137.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_137.tif",
+          "sha256": "d61bd74a43ca5dbe401bc8e6335e8dbb1d85f825ad45b5521dc65cb2cec6328f",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_137.tif",
+          "sha256": "d290009829c4b1d72178cbda44e285320acb0d8dad4313fd7c99e43b1ea84ed2",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_137.tif",
+          "sha256": "6d3f1946766b7895d139083300eef89c647464baaaf8206b73953e9f8c01c0c5",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_137.tif",
+          "sha256": "bad5a187142b9ed75413d6f12d0338ae17da0c59755aa83cc8410afab59a3a26",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_137",
+      "truth": {
+        "change_class": "minor_change",
+        "change_direction": "reduction",
+        "changed_fraction": 0.02618408203125,
+        "changed_pixels": 6864,
+        "demolished_pixels": 4777,
+        "new_pixels": 2087
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_0.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_0.tif",
+          "sha256": "89467273a65f75cbb203dec0812acb3eed411a07257fe23bb7bb15eb841d3d23",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_0.tif",
+          "sha256": "aade3e5b225ff385958c1e6c5c6c255d1f0d94a0aa59e8267442ab0270c59b74",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_0.tif",
+          "sha256": "691ce00f746e639a82d776bf4c27c216fded6d587a2e55870aecac1010831024",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_0.tif",
+          "sha256": "b27640f5f34ed4a2a82357ffd52539087d246cf025d066265b9e1ae85460bf2e",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_0",
+      "truth": {
+        "change_class": "minor_change",
+        "change_direction": "reduction",
+        "changed_fraction": 0.054744720458984375,
+        "changed_pixels": 14351,
+        "demolished_pixels": 9482,
+        "new_pixels": 4869
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_1.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_1.tif",
+          "sha256": "b8cdfb113b28dd88acafefee9d97f8b337a20bed7fca02ebfcb80aec411b6cfb",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_1.tif",
+          "sha256": "620d7de284df0ee9e4fc60705fbf8df35fa2c2ac3b1b3ede241cd6b57ebe8377",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_1.tif",
+          "sha256": "739881c9a1e9d42d3731f60fdf6cc24245e87ea0413559c9d801587690549e15",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_1.tif",
+          "sha256": "0475b8eabb589b7afd30e89eb1310d566bc4b008f07fe44b0b875947b3de0c3e",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_1",
+      "truth": {
+        "change_class": "minor_change",
+        "change_direction": "reduction",
+        "changed_fraction": 0.0346527099609375,
+        "changed_pixels": 9084,
+        "demolished_pixels": 5457,
+        "new_pixels": 3627
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_100.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_100.tif",
+          "sha256": "72b0667e063cf0545f1e1ef1223c13ea2e44f4382620ba212d4b8b4ead088cfc",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_100.tif",
+          "sha256": "e00720e3eed5aa2e97ae656259a054e7253899e3ed5821b8969eab463b3bba75",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_100.tif",
+          "sha256": "2978ec2bde4d602b438bb88dab3a41f31c6a4e0f774cc5ab7cc193ae874e1067",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_100.tif",
+          "sha256": "6de2b9deb878281896aca8a298073753813dc64e8e67543b7130edad2769a281",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_100",
+      "truth": {
+        "change_class": "minor_change",
+        "change_direction": "reduction",
+        "changed_fraction": 0.0025482177734375,
+        "changed_pixels": 668,
+        "demolished_pixels": 435,
+        "new_pixels": 233
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_102.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_102.tif",
+          "sha256": "59b79f8181ab83c40ea0c746606b881d936a865b4e6fc3b81392d69f5d4be174",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_102.tif",
+          "sha256": "740973d6416c04df4c62d1eb5d9a8799d200e78ef865f0f384b2622f08f30e63",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_102.tif",
+          "sha256": "7774305c24a9c2815a5bbd9aba3195233e872795d2235dc3bff1bd5f5a21fa57",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_102.tif",
+          "sha256": "89696546e6ab25582d1b8c730c3d655f0644b63ed3e2371449a836b8aaae3255",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_102",
+      "truth": {
+        "change_class": "minor_change",
+        "change_direction": "reduction",
+        "changed_fraction": 0.02909088134765625,
+        "changed_pixels": 7626,
+        "demolished_pixels": 6622,
+        "new_pixels": 1004
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_103.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_103.tif",
+          "sha256": "de673ff79279f653eba332167855e5e8ee3ea6029ab5bfc85e5778a0eb89b236",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_103.tif",
+          "sha256": "e709929b12ded28a236ef321b104ebae8f247399adec0d4027afa674d11a09ed",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_103.tif",
+          "sha256": "a3802af85fc8caa2c694ca7436964c80b239418cd51de390188db421e962d388",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_103.tif",
+          "sha256": "d3297ccb919159d6f6083160dbbcfdc9558a7574b010704199b87929d985789d",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_103",
+      "truth": {
+        "change_class": "minor_change",
+        "change_direction": "mixed",
+        "changed_fraction": 0.004695892333984375,
+        "changed_pixels": 1231,
+        "demolished_pixels": 534,
+        "new_pixels": 697
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_107.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_107.tif",
+          "sha256": "d3f7224c27dcc0833d264a9be4f06de6564080fc3032122c0e97587b42271bec",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_107.tif",
+          "sha256": "9a269c11262b7dde693429e2486963cb413a3391dbe9547dd572a2705b2839e3",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_107.tif",
+          "sha256": "1dd1f6ff9d8197f39755e73585b2ac349da7428957822d970086a19d842d59c7",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_107.tif",
+          "sha256": "b4b6ed805013106f5f6c90094a321adaf098d462bb46d74434c92a24186100bb",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_107",
+      "truth": {
+        "change_class": "minor_change",
+        "change_direction": "mixed",
+        "changed_fraction": 0.040714263916015625,
+        "changed_pixels": 10673,
+        "demolished_pixels": 5066,
+        "new_pixels": 5607
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_108.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_108.tif",
+          "sha256": "950392d4594f2ef20fc3af7f9451b2b9d5b37cd90bbca21cedf5a8442ce98111",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_108.tif",
+          "sha256": "d4c3a28f83bbd6d7388c45f49cb99f8abf326cc134eac05ddf39b453fcac2649",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_108.tif",
+          "sha256": "c39c219a2937ec4fbea7b797779b8a79fb10f73956404295cc8c096155467b5c",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_108.tif",
+          "sha256": "7c5a2d3806656355b6030106e03f71bd2b3f4f3556be5ac321ad31b1fc84895d",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_108",
+      "truth": {
+        "change_class": "minor_change",
+        "change_direction": "mixed",
+        "changed_fraction": 0.044887542724609375,
+        "changed_pixels": 11767,
+        "demolished_pixels": 6221,
+        "new_pixels": 5546
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_111.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_111.tif",
+          "sha256": "09a970d637d6c5687e983de29d05c09cc20dce477946771106ac14545b276fea",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_111.tif",
+          "sha256": "61a25a5cdebe76ddee9e8013edbb9b9080c7b96381ddbc198f596e183702c87c",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_111.tif",
+          "sha256": "11b7918564da157f5733d5dcbbe5069656248c1e6145c0e43302ceb65bfbe27d",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_111.tif",
+          "sha256": "02749f2cfc2b83c9aeab666c3b50b1509603c8a2c4a41b6889b0d3b2b8fe50c3",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_111",
+      "truth": {
+        "change_class": "minor_change",
+        "change_direction": "mixed",
+        "changed_fraction": 0.022308349609375,
+        "changed_pixels": 5848,
+        "demolished_pixels": 2708,
+        "new_pixels": 3140
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_117.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_117.tif",
+          "sha256": "c045ea3fd3e225a7ff69c538b8aeb1e8821770b8a620d7151a39c827efdaf2f3",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_117.tif",
+          "sha256": "7bee3c07e7ccbe35133432577f47e469e86ad8757a0e61cb454cce23780e4568",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_117.tif",
+          "sha256": "8875de18cddc21af396d1a38225c2f859894f7f2fde1ad304744d2ab57ae9b99",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_117.tif",
+          "sha256": "9dd6e96c0c82ccfdbcc4b37e938505b46aaf1404819e20e4bd9fbef24a233d24",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_117",
+      "truth": {
+        "change_class": "minor_change",
+        "change_direction": "mixed",
+        "changed_fraction": 0.01474761962890625,
+        "changed_pixels": 3866,
+        "demolished_pixels": 1958,
+        "new_pixels": 1908
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_255.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_255.tif",
+          "sha256": "4b9ac213a5a60632820e7b1a788c27db3a6dac73bab2c4350bda5dbbd069fe4d",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_255.tif",
+          "sha256": "d869ba4e30fa13a4a2a00a3d7920508a97742bc347f04adaa2861e6807a31c4f",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_255.tif",
+          "sha256": "e91686dd021e8a5b44b7a8beaa9b30616579e30f9501ca68293624f018d6038f",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_255.tif",
+          "sha256": "83f55a1d42eaef4c09045c26f36a2b547e2760f0875eadd8f3627e5314461ab6",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_255",
+      "truth": {
+        "change_class": "major_change",
+        "change_direction": "expansion",
+        "changed_fraction": 0.6843147277832031,
+        "changed_pixels": 179389,
+        "demolished_pixels": 0,
+        "new_pixels": 179389
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_115.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_115.tif",
+          "sha256": "2461d3d8135e28bed2730e94e1291718ef10620414cef73c183ae568c04a7d51",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_115.tif",
+          "sha256": "a4ac8a0f6055d5b1a60f39a82a1c70db4f54e1be53ebb655bb4bb02cdeaad348",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_115.tif",
+          "sha256": "0dfbe93fbc184fc417901fdd32769f210067ca80aa41d4268eaa9cd8eec16044",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_115.tif",
+          "sha256": "f8898fc8462ac386aa3123bd151855cb4d4f524ed8252dd671e0724d646416f8",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_115",
+      "truth": {
+        "change_class": "major_change",
+        "change_direction": "expansion",
+        "changed_fraction": 0.6744194030761719,
+        "changed_pixels": 176795,
+        "demolished_pixels": 5713,
+        "new_pixels": 171082
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_116.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_116.tif",
+          "sha256": "a53d8aaa8fea318ca341a04011dab90b16d72806bd64502a7560cd68aa5b3ba6",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_116.tif",
+          "sha256": "a7e976f90195e0c78b06aa25b3e801628900e410eae004790595d575e5d53f00",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_116.tif",
+          "sha256": "93d3d0013ffe9330c8f558a1bbfdf413e99ea571d803d6f5543b1340c9b13660",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_116.tif",
+          "sha256": "d1895dbffbfd1aedc5bc477ea7d0f93d0a4533aea7ea47a60c607c1d96c1440b",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_116",
+      "truth": {
+        "change_class": "major_change",
+        "change_direction": "expansion",
+        "changed_fraction": 0.2938804626464844,
+        "changed_pixels": 77039,
+        "demolished_pixels": 1518,
+        "new_pixels": 75521
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_133.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_133.tif",
+          "sha256": "409b189a0221b5e3b4b1beebdd4432e4e3bd104fa4bb1226de899720ca185f3c",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_133.tif",
+          "sha256": "db63a872565c4f70909cb0e41a9af0922e69aba274776c1c44cdbcc4f76350f9",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_133.tif",
+          "sha256": "c95424df472e4fe7f97f7d95657517ecf9898a93dea8e01fea0350d563910142",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_133.tif",
+          "sha256": "04fe7aef484c82952338a54e210cd976de929e90f3d060b2b71d1994fa7d1248",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_133",
+      "truth": {
+        "change_class": "major_change",
+        "change_direction": "expansion",
+        "changed_fraction": 0.17714691162109375,
+        "changed_pixels": 46438,
+        "demolished_pixels": 1663,
+        "new_pixels": 44775
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_138.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_138.tif",
+          "sha256": "6e0417833dc45fcd5cf5f4d47c396fdc69cb320292a130dbafaa002c9757058d",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_138.tif",
+          "sha256": "9c6979209f2dd0645a755746357abbdfc57084dcdd8c04cd1ff9bde8fc63ec49",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_138.tif",
+          "sha256": "8176c4138b08308fa66058fcad849fc4d46a97519f70f8fd3e7463565de3ae8c",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_138.tif",
+          "sha256": "72393cd401df8637b4e5af816c3dcbf417b8827af63cad8fe9af69dfe4936dfb",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_138",
+      "truth": {
+        "change_class": "major_change",
+        "change_direction": "expansion",
+        "changed_fraction": 0.44741058349609375,
+        "changed_pixels": 117286,
+        "demolished_pixels": 3444,
+        "new_pixels": 113842
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_169.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_169.tif",
+          "sha256": "e58cc382b3df9d1ae440b4382635798565a7e89e97c18fe88115008ee45d3a72",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_169.tif",
+          "sha256": "8ab9568620925d4b1ee7e40f213945cff606be9f79fe7f79171d157461f1c319",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_169.tif",
+          "sha256": "a338e94c4822e14b56a97eada3563b7e2ca371c1157af8fccbbdb469445a92a9",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_169.tif",
+          "sha256": "57195837eacfbe9a2b454d2fb23f8af5bca55d381d7187ecaddb3da6ba1e0a4e",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_169",
+      "truth": {
+        "change_class": "major_change",
+        "change_direction": "reduction",
+        "changed_fraction": 0.10736083984375,
+        "changed_pixels": 28144,
+        "demolished_pixels": 26282,
+        "new_pixels": 1862
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_170.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_170.tif",
+          "sha256": "00f26c8ef766dadda9ac3cf4b11438552e562ffaec248b8b55f5da06377fbe76",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_170.tif",
+          "sha256": "a3bcd67eda4f378c27507c39c4abe9f6053639b61eb8461516a0bdadaca490cc",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_170.tif",
+          "sha256": "0365d53413c074290a9ea70a32e99530e16414b51271ddcdd47bf1ae23cbcb5b",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_170.tif",
+          "sha256": "0c4a3d755c150c3a2ae5b04ea164922d2f24912a50ef16a7930dcee8c3b34ccc",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_170",
+      "truth": {
+        "change_class": "major_change",
+        "change_direction": "reduction",
+        "changed_fraction": 0.19826507568359375,
+        "changed_pixels": 51974,
+        "demolished_pixels": 36263,
+        "new_pixels": 15711
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_2.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_2.tif",
+          "sha256": "98a08c4db14866dc5f16012806eb5eb92e7c27a179c88d171c772ae848bba7eb",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_2.tif",
+          "sha256": "bb3b0d0c348b3298b8763ebd0af8fc94969db51f92acb72e128e4b6241ec82f5",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_2.tif",
+          "sha256": "819b4494903aa99609ec1affd46fdbffc55e993cab901b7d24e287ed67f05009",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_2.tif",
+          "sha256": "418ba55aa523b9af83a378f20789520fd8bcc696315d996de19d08624dfbb73f",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_2",
+      "truth": {
+        "change_class": "major_change",
+        "change_direction": "mixed",
+        "changed_fraction": 0.10057449340820312,
+        "changed_pixels": 26365,
+        "demolished_pixels": 14390,
+        "new_pixels": 11975
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_330.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_330.tif",
+          "sha256": "75021e379ef92a8d87fd21cf12b94953c69cd17460032d11843e96e0e9648e5a",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_330.tif",
+          "sha256": "f52cd9a44d9eea93d24427a6d4318ddb5f05f68e840e3e55c17a5060d0ede68f",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_330.tif",
+          "sha256": "c619891ddbf725b33b716c0a8a1649334fbe1431ff753fa175cb2e05c51730b7",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_330.tif",
+          "sha256": "b02a193d87e73b799c99e08e3d4ad21d8621639c2c94764863065cd95955930c",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_330",
+      "truth": {
+        "change_class": "major_change",
+        "change_direction": "mixed",
+        "changed_fraction": 0.11946868896484375,
+        "changed_pixels": 31318,
+        "demolished_pixels": 13861,
+        "new_pixels": 17457
+      }
+    },
+    {
+      "expected_outcome": "submitted",
+      "filename": "0_584.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_584.tif",
+          "sha256": "bca43069d0dc8a34f4a948a675499b687e4fc6ec773bec2a839752a2aecee244",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_584.tif",
+          "sha256": "8f750dbeddabf34920152920269ab204c021660665e028cdd3bed018e429b37b",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_584.tif",
+          "sha256": "4b4e1d6156b7d08890fa478218f36f388a37f6c6a565c8efdcccbb6a4216f91c",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_584.tif",
+          "sha256": "2429d0c255819abd74e4384fe5b613bc36985c730ef421898871cc2ccd44ca8b",
+          "size_bytes": 262266
+        }
+      },
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 1.0
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_584",
+      "truth": {
+        "change_class": "major_change",
+        "change_direction": "mixed",
+        "changed_fraction": 0.17916488647460938,
+        "changed_pixels": 46967,
+        "demolished_pixels": 26442,
+        "new_pixels": 20525
+      }
+    },
+    {
+      "expected_outcome": "abstained",
+      "filename": "0 229.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_229.tif",
+          "sha256": "98b7252758e3167a5fd7bc04f31ba87211d5f557c102836850f8b452026cc10c",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_229.tif",
+          "sha256": "83f55a1d42eaef4c09045c26f36a2b547e2760f0875eadd8f3627e5314461ab6",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_229.tif",
+          "sha256": "83ef1f4881174324ae4a97b3ea3fc6ccc93f265b80083f78a57f735c1e668c97",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_229.tif",
+          "sha256": "83f55a1d42eaef4c09045c26f36a2b547e2760f0875eadd8f3627e5314461ab6",
+          "size_bytes": 262266
+        }
+      },
+      "minimum_input_coverage_fraction": 0.8,
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 0.25
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_229-low-coverage",
+      "task_variant": "public-metadata-insufficient-after-coverage",
+      "truth": {
+        "change_class": "no_change",
+        "change_direction": "no_change",
+        "changed_fraction": 0.0,
+        "changed_pixels": 0,
+        "demolished_pixels": 0,
+        "new_pixels": 0
+      }
+    },
+    {
+      "expected_outcome": "abstained",
+      "filename": "0 245.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_245.tif",
+          "sha256": "eade5c90bc1ae4b0de1e6a5162030f1dab9ad35c9ce54d519d678fc704180478",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_245.tif",
+          "sha256": "83f55a1d42eaef4c09045c26f36a2b547e2760f0875eadd8f3627e5314461ab6",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_245.tif",
+          "sha256": "95fb201561317643f1abfd1c38230779931e249afa0b296a99394c58c22036e9",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_245.tif",
+          "sha256": "83f55a1d42eaef4c09045c26f36a2b547e2760f0875eadd8f3627e5314461ab6",
+          "size_bytes": 262266
+        }
+      },
+      "minimum_input_coverage_fraction": 0.8,
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 0.4
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_245-low-coverage",
+      "task_variant": "public-metadata-insufficient-after-coverage",
+      "truth": {
+        "change_class": "no_change",
+        "change_direction": "no_change",
+        "changed_fraction": 0.0,
+        "changed_pixels": 0,
+        "demolished_pixels": 0,
+        "new_pixels": 0
+      }
+    },
+    {
+      "expected_outcome": "abstained",
+      "filename": "0 109.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_109.tif",
+          "sha256": "7a04e008e7afa91e7a8097740da131d49550355e2de3b55a805d7ab6f0381165",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_109.tif",
+          "sha256": "1f35904c62d2ad06283d1e0c9807dfd0f152e1420365cd6b53291a5598e24ff3",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_109.tif",
+          "sha256": "313947e4206c1a65d7015ef73475a88ae4d0872198c81190f7cf5f3318a3bcc4",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_109.tif",
+          "sha256": "20a2767fccf54d9453192ceaf8c2cde63642ff96febd032f007b41693c103d62",
+          "size_bytes": 262266
+        }
+      },
+      "minimum_input_coverage_fraction": 0.8,
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 0.55
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_109-low-coverage",
+      "task_variant": "public-metadata-insufficient-after-coverage",
+      "truth": {
+        "change_class": "minor_change",
+        "change_direction": "expansion",
+        "changed_fraction": 0.06476211547851562,
+        "changed_pixels": 16977,
+        "demolished_pixels": 4975,
+        "new_pixels": 12002
+      }
+    },
+    {
+      "expected_outcome": "abstained",
+      "filename": "0 110.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_110.tif",
+          "sha256": "5127e9795b5782f67b6641707ddf95f4c0c3bd9bbbcd7ff07579a8effe574764",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_110.tif",
+          "sha256": "00ba3ecf5af3cd43763bf5d0df6dd7bde155cf568b4d20bd9fc17a7c7bfb94ed",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_110.tif",
+          "sha256": "3567e8d3283ce10602b5cace418064f7ace8194086d18ce2ff6a5bf7918a2950",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_110.tif",
+          "sha256": "4da5aaf76baa175f7681c2aa3524c3a6f5bccb5c256139ba9329580a3c99e42e",
+          "size_bytes": 262266
+        }
+      },
+      "minimum_input_coverage_fraction": 0.8,
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 0.65
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_110-low-coverage",
+      "task_variant": "public-metadata-insufficient-after-coverage",
+      "truth": {
+        "change_class": "minor_change",
+        "change_direction": "expansion",
+        "changed_fraction": 0.031131744384765625,
+        "changed_pixels": 8161,
+        "demolished_pixels": 1843,
+        "new_pixels": 6318
+      }
+    },
+    {
+      "expected_outcome": "abstained",
+      "filename": "0 126.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_126.tif",
+          "sha256": "80dd24c7556e226d8c15f6442396f6395645506a53af12f3687ff6d0f34b9943",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_126.tif",
+          "sha256": "da9738eb5254b6550f6bc503738b5dd6a5ec75d76746e8f1303f0b3ecd84e699",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_126.tif",
+          "sha256": "c0003d3e9064c6401c79182152918ab8d9d0c1ca86740eab30c89de2ee096ef4",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_126.tif",
+          "sha256": "018a812bee285ea4968120fdf7523ba4c96d6b20f89417ed6e5892afef17a745",
+          "size_bytes": 262266
+        }
+      },
+      "minimum_input_coverage_fraction": 0.8,
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 0.7
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_126-low-coverage",
+      "task_variant": "public-metadata-insufficient-after-coverage",
+      "truth": {
+        "change_class": "minor_change",
+        "change_direction": "reduction",
+        "changed_fraction": 0.024257659912109375,
+        "changed_pixels": 6359,
+        "demolished_pixels": 4081,
+        "new_pixels": 2278
+      }
+    },
+    {
+      "expected_outcome": "abstained",
+      "filename": "0 127.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_127.tif",
+          "sha256": "15c0dcaa1375fe5fec527b287fabd2bb0bab3866467b833d9998158471a4efc5",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_127.tif",
+          "sha256": "f90715cfb46d2e92a36543e49d6a99fc1fe989484a33dd6fa132acfb7332edfa",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_127.tif",
+          "sha256": "74d2ad9d4183a52d09aa3500b4786cec10d2828cdd902a1cbb700847f3530bb3",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_127.tif",
+          "sha256": "200d5c3949737ff404b1616167b41668583b5b61f8281c35fc0c81ab59af19a9",
+          "size_bytes": 262266
+        }
+      },
+      "minimum_input_coverage_fraction": 0.8,
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 0.25
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_127-low-coverage",
+      "task_variant": "public-metadata-insufficient-after-coverage",
+      "truth": {
+        "change_class": "minor_change",
+        "change_direction": "reduction",
+        "changed_fraction": 0.01214599609375,
+        "changed_pixels": 3184,
+        "demolished_pixels": 2375,
+        "new_pixels": 809
+      }
+    },
+    {
+      "expected_outcome": "abstained",
+      "filename": "0 118.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_118.tif",
+          "sha256": "d7432af85b8b54cce4828c02891f588a9499164d56f01d6c54162c40d0608f34",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_118.tif",
+          "sha256": "78069ce4ee92aaff996e12b00231c54fa8092a0865633b1dae21522fd880d6dd",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_118.tif",
+          "sha256": "b3a8740f005b5fed93e91dd47f0a90c097f3ba2236b92a5bc55c755b70d4d178",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_118.tif",
+          "sha256": "c8ebf2ce6d17fac33b0e066f17c41e4b4dc2dfbe2afc038b0ec91a323a06762e",
+          "size_bytes": 262266
+        }
+      },
+      "minimum_input_coverage_fraction": 0.8,
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 0.45
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_118-low-coverage",
+      "task_variant": "public-metadata-insufficient-after-coverage",
+      "truth": {
+        "change_class": "minor_change",
+        "change_direction": "mixed",
+        "changed_fraction": 0.0171051025390625,
+        "changed_pixels": 4484,
+        "demolished_pixels": 2528,
+        "new_pixels": 1956
+      }
+    },
+    {
+      "expected_outcome": "abstained",
+      "filename": "0 193.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_193.tif",
+          "sha256": "999b43a80f6bbe50c4e377d1c3463e5d2a0334faa347fa1cb54ac2b82fe176fe",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_193.tif",
+          "sha256": "79519532e2ff5c819706183a4301afe16e2ffffd36688092d6a849868d0b054a",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_193.tif",
+          "sha256": "5965899bce8222b787c11206003f75386c50d1558f52067a6391370f3ee5d8e0",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_193.tif",
+          "sha256": "7774acde104b854bbe98760a5a15a20801af01881bbdb16d1f0df61cd85c8018",
+          "size_bytes": 262266
+        }
+      },
+      "minimum_input_coverage_fraction": 0.8,
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 0.6
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_193-low-coverage",
+      "task_variant": "public-metadata-insufficient-after-coverage",
+      "truth": {
+        "change_class": "major_change",
+        "change_direction": "expansion",
+        "changed_fraction": 0.24180221557617188,
+        "changed_pixels": 63387,
+        "demolished_pixels": 736,
+        "new_pixels": 62651
+      }
+    },
+    {
+      "expected_outcome": "abstained",
+      "filename": "0 583.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_583.tif",
+          "sha256": "ae1e3dfdb2dee7dee98515669ecf017c7b8249aefd85b3f1f6e86d77bacd03c5",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_583.tif",
+          "sha256": "d3a78f3cb650c937201fb42e2901f47678f8f970ba407c317e72cc65212fff27",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_583.tif",
+          "sha256": "76f7607ab50ad9385d2f0c50fd6212ab322ae39c459336d066a9094259508de5",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_583.tif",
+          "sha256": "70c1094f7478eb499d2b3ee014f5c5da14806f9079325c68473850efcf3b92c0",
+          "size_bytes": 262266
+        }
+      },
+      "minimum_input_coverage_fraction": 0.8,
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 0.5
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_583-low-coverage",
+      "task_variant": "public-metadata-insufficient-after-coverage",
+      "truth": {
+        "change_class": "major_change",
+        "change_direction": "reduction",
+        "changed_fraction": 0.1103363037109375,
+        "changed_pixels": 28924,
+        "demolished_pixels": 27997,
+        "new_pixels": 927
+      }
+    },
+    {
+      "expected_outcome": "abstained",
+      "filename": "0 654.tif",
+      "files": {
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_654.tif",
+          "sha256": "f6a01263356405592e6f35eccc82869c23ff99273a0caaec0888795998aa09ac",
+          "size_bytes": 786572
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_654.tif",
+          "sha256": "0f7995ca909a1dced0ada0ee9235d475c2a038ea50ed02adb3eafdc3a92e73f8",
+          "size_bytes": 262266
+        },
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_654.tif",
+          "sha256": "18cb28386deea21c88871267f6a2551cb08158e2902556920c1971350ea2bd65",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_654.tif",
+          "sha256": "521f83c4aa7cce5c27316d85c0bdef8f1bedb9f7de9d24e62dc319b87ec06892",
+          "size_bytes": 262266
+        }
+      },
+      "minimum_input_coverage_fraction": 0.8,
+      "public_quality": {
+        "after": {
+          "coverage_fraction": 0.35
+        },
+        "before": {
+          "coverage_fraction": 1.0
+        }
+      },
+      "sample_id": "0_654-low-coverage",
+      "task_variant": "public-metadata-insufficient-after-coverage",
+      "truth": {
+        "change_class": "major_change",
+        "change_direction": "mixed",
+        "changed_fraction": 0.26436614990234375,
+        "changed_pixels": 69302,
+        "demolished_pixels": 31742,
+        "new_pixels": 37560
+      }
+    }
+  ],
+  "schema_version": "1.0.0",
+  "selection": {
+    "abstained": 10,
+    "answerable": 30,
+    "purpose": "development answerability stratification",
+    "schema_version": "1.0.0",
+    "source_sample_count": 690,
+    "split": "test",
+    "strategy": "fixed deterministic stratified selection by hidden change class/direction; low-coverage variants reuse reviewed source bytes",
+    "target_total": 40
+  }
+}

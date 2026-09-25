@@ -159,6 +159,14 @@ read-only hidden evaluator directory; it does not read original artifact bytes.
 
 ## Boundaries
 
+## Answerability development package
+
+`config/whu-answerability-dev-v1.json` freezes a 40-episode development package from the reviewed WHU test split: 30 expected submissions and 10 expected abstentions. The expected-submission strata cover all seven configured class/direction combinations (7 no-change, 20 minor-change, and 3 major-change cases by class). Abstention cases are metadata-controlled variants of 10 distinct source tiles, with after-image public coverage between 0.25 and 0.70 while the minimum remains 0.80.
+
+Generate the package with `scripts/prepare_whu_change_smoke.py` and the config override. The preparer copies 80 public image inputs and 80 hidden evaluator labels, verifies source bytes against SHA-256 receipts, and writes 40 task manifests and jobs. It never mounts evaluator labels in the provider dataset and retains `redistribution_allowed: false`.
+
+This package supports development/debugging for action, answerability, and cost analysis. It is not a held-out statistical benchmark until scene/event grouping and a fixed test split are declared.
+
 This checkpoint proves a deterministic, evidence-grounded evaluator for three
 real WHU pairs. It does not yet cover cloudy or insufficient-coverage examples,
 wrong-date task construction, calibrated abstention, aligned temporal-stack
