@@ -167,6 +167,8 @@ Generate the package with `scripts/prepare_whu_change_smoke.py` and the config o
 
 This package supports development/debugging for action, answerability, and cost analysis. It is not a held-out statistical benchmark until scene/event grouping and a fixed test split are declared.
 
+`scripts/run_qwen_whu_batch.py` drives that package with explicit gateway, backend, model, and credential-registry endpoints. It writes one report per sample, reuses existing completed reports without invoking the model again, persists an incrementally updated manifest after each sample, and summarizes passed/failed, abstention, false confidence, unnecessary abstention, token cost, elapsed time, and truth strata. A failed report is preserved and stops later analysis rather than being silently retried.
+
 This checkpoint proves a deterministic, evidence-grounded evaluator for three
 real WHU pairs. It does not yet cover cloudy or insufficient-coverage examples,
 wrong-date task construction, calibrated abstention, aligned temporal-stack

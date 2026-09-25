@@ -1,6 +1,7 @@
 import json
 import importlib.util
 import os
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -9,9 +10,13 @@ from unittest.mock import patch
 import httpx
 
 RUNNER_PATH = Path(__file__).resolve().parents[2] / "scripts" / "run_qwen_agent.py"
+BATCH_PATH = Path(__file__).resolve().parents[2] / "scripts" / "run_qwen_whu_batch.py"
 SPEC = importlib.util.spec_from_file_location("qwen_agent_runner", RUNNER_PATH)
 RUNNER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(RUNNER)
+BATCH_SPEC = importlib.util.spec_from_file_location("qwen_whu_batch", BATCH_PATH)
+BATCH = importlib.util.module_from_spec(BATCH_SPEC)
+BATCH_SPEC.loader.exec_module(BATCH)
 artifact_refs = RUNNER.artifact_refs
 action_from_tool_call = RUNNER.action_from_tool_call
 compact_messages = RUNNER.compact_messages
@@ -59,6 +64,44 @@ class FakeModel:
 
 
 class QwenAgentRunnerTests(unittest.TestCase):
+    def test_whu_batch_preserves_reports_and_writes_incremental_manifest(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runtime = root / "runtime" / "whu"
+            (runtime / "jobs").mkdir(parents=True)
+            job = {
+                "sample_id": "0_224",
+                "truth": {"change_class": "no_change", "change_direction": "no_change"},
+            }
+            (runtime / "jobs" / "0_224.json").write_text(json.dumps(job))
+            (runtime / "job.json").write_text(json.dumps({"jobs": [job]}))
+            report = {
+                "status": "passed",
+                "cost": {"total_tokens": 12},
+                "elapsed_ms": 100,
+                "evaluation": {"diagnostics": {"unnecessary_abstention": False,
+                                                "false_confidence": True}},
+                "transcript": [{"name": "answer.abstain"}],
+            }
+            (runtime / "reports").mkdir()
+            (runtime / "reports" / "qwen-0_224.json").write_text(json.dumps(report))
+            args = SimpleNamespace(
+                runtime=runtime, samples=None, manifest=root / "manifest.json",
+                gateway="http://gateway", backend="http://backend",
+                openai_base_url="http://model", registry=root / "registry.json",
+                max_turns=2, ttl_seconds=3600,
+                model_client_factory=lambda _: None, run_episode=lambda *args: None,
+                runtime_boundary=root / "runtime",
+            )
+            result = BATCH.batch_run(args)
+            manifest = json.loads((root / "manifest.json").read_text())
+            self.assertEqual(result["reports"]["0_224"], report)
+            self.assertEqual(manifest["completed"], ["0_224"])
+            self.assertEqual(manifest["summary"]["total"], 1)
+            self.assertEqual(manifest["summary"]["abstained"], 1)
+            self.assertEqual(manifest["summary"]["groups"][0]["false_confidence"], 1)
+            self.assertTrue((runtime / "reports" / "qwen-0_224.json").is_file())
+
     def test_model_client_ignores_inherited_proxy_environment(self):
         self.assertIn("multiple input", RUNNER.SYSTEM_PROMPT)
 
