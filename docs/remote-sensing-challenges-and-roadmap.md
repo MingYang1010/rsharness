@@ -69,7 +69,7 @@ G01–G04 是本次静态审计发现或待证明边界，不等于已经出现�
 | A / P0 严格验收 | 修正 result summarizer、receipt 与 fixture；read-only 审计原 22 份 report/SQLite/task/source manifest | 错 task/hash/样本/时相、失败 tool、空矩阵、损坏 snapshot 全部被拒绝；输出逐项原因；新报告单独存放 | `fix(acceptance): verify task and asset provenance` |
 | B / P0 科学结果 | 汇总已有 evaluator 分数与 unscored；记录每次尝试、首轮成功、失败类型、累计 token/耗时；补中途故障恢复测试 | 交互成功且语义错误的反例不能进“任务成功”；终态 resume 不覆盖原运行统计；恢复不重复收费 | `feat(evaluation): report semantic outcomes and run costs` |
 | C / P1 单实现布局 | 已在 `3e5bd2e` 完成：活跃实现迁至 `harness_api/app/core/`，`v2` 只保留转发 shim，协议路径/表/序列化名不变 | frozen HTTP fixtures 通过（V1 5/5，V2 4/4）；全量容器测试与迁移前基线同为 385 total / 5 fail / 3 error / 34 skip；payload guard 通过 | 已提交：`refactor(core): organize runtime by responsibility` |
-| D / P1 决策任务包 | `71b953a` 完成 oracle answerability episodes；`994d006` 完成首个 Qwen 真实模型对照：低覆盖任务自主 inspect metadata、双 crop、双 evidence 后正确 abstain；可回答任务首轮在引用未保存 after evidence 时被 fail-closed 拒绝 | 低覆盖 episode `answer.abstention_correctness=1.0`、faithfulness `1.0`、false-confidence/unnecessary-abstention 均 false；可回答首轮错误为 `unknown_evidence: ev-after-2016`，未产生隐藏评价；后续扩展样本数并修复模型提示/流程 | `994d006 fix(agent): support sequential Qwen tool execution` |
+| D / P1 决策任务包 | `71b953a` 完成 oracle answerability episodes；`994d006` 完成首个 Qwen 对照并暴露 runner 丢调用问题；`8185646` 修复为同轮多个 Qwen tool calls 按状态顺序全部执行，专项测试 10/10 OK | 低覆盖真实 episode 已证明正确 abstention；可回答首轮 `unknown_evidence` 保留为历史失败证据，需用修复后 runner 重跑并扩展样本 | `8185646 fix(agent): execute batched Qwen calls in order` |
 | E / P1 记忆实验 | 接入已有 memory，加入冲突与过期条件，统一 direct/fixed-pipeline/agent 的资源计量 | 报告共同准确率、错误率、成本及按 AOI/event 的配对置信区间；保留不提升或退化结果 | `feat(benchmarks): evaluate governed evidence memory` |
 
 实施次序是 A→B→C→D→E；命名重构与科学行为变化分开提交。每阶段在 A800 验证、提交后再同步本地，不累计到一个无法定位问题的大提交。
