@@ -380,6 +380,70 @@ class WHUChangeEvaluatorTests(unittest.TestCase):
         )
         return result
 
+    def test_outcome_semantics_and_abstention_metric(self):
+        before = numpy.zeros((HEIGHT, WIDTH), dtype=numpy.uint8)
+        after = before.copy()
+        after.flat[:4] = 255
+        cases = [
+            ("submitted", "submitted", 1.0, False, False),
+            ("submitted", "abstained", 0.0, False, True),
+            ("abstained", "abstained", 1.0, False, False),
+            ("abstained", "submitted", 0.0, True, False),
+        ]
+        for expected_outcome, actual_outcome, score, false_confident, unnecessary in cases:
+            with self.subTest(expected=expected_outcome, actual=actual_outcome):
+                manifest = _manifest(self.datasets, before, after)
+                manifest.evaluator.config["expected_outcome"] = expected_outcome
+                manifest.evaluator.metric_names.insert(
+                    3, "answer.abstention_correctness"
+                )
+                manifest.evaluator.aggregate_weights[
+                    "answer.abstention_correctness"
+                ] = 0.1
+                state, _ = create_initial_state(
+                    "ep2-" + "1" * 32, manifest, 42, timestamp="2026-09-20T00:00:00Z"
+                )
+                if actual_outcome == "submitted":
+                    truth = _truth(before, after)
+                    state.final_answer = AnswerRecord(
+                        outcome="submitted",
+                        answer={
+                            "change_class": truth["change_class"],
+                            "change_direction": truth["change_direction"],
+                            "changed_fraction": truth["changed_fraction"],
+                            "claims": [],
+                        },
+                        confidence=1.0,
+                        evidence_ids=[],
+                    )
+                else:
+                    state.final_answer = AnswerRecord(
+                        outcome="abstained",
+                        answer={},
+                        confidence=0.0,
+                        evidence_ids=[],
+                    )
+                result = EvaluatorRegistry(
+                    str(self.datasets), self.artifacts
+                ).evaluate_safely(manifest, state, {}, 0, 0, 1)
+                metric = next(
+                    item for item in result.metrics
+                    if item.name == "answer.abstention_correctness"
+                )
+                self.assertEqual(metric.value, score)
+                self.assertEqual(
+                    metric.diagnostics["expected_outcome"], expected_outcome
+                )
+                self.assertEqual(
+                    metric.diagnostics["actual_outcome"], actual_outcome
+                )
+                self.assertEqual(
+                    result.diagnostics["false_confidence"], false_confident
+                )
+                self.assertEqual(
+                    result.diagnostics["unnecessary_abstention"], unnecessary
+                )
+
     def test_truth_classes_and_directions(self):
         no_change = numpy.zeros((HEIGHT, WIDTH), dtype=numpy.uint8)
         minor_after = no_change.copy()

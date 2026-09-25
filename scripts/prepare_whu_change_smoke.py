@@ -218,10 +218,11 @@ def _task_files(sample: dict, config: dict, out: Path) -> tuple[dict, dict]:
         ),
     ]
     weights = {
-        "task.change_class_accuracy": 0.3,
-        "task.direction_accuracy": 0.2,
-        "task.changed_fraction_score": 0.2,
-        "evidence.faithfulness": 0.2,
+        "task.change_class_accuracy": 0.25,
+        "task.direction_accuracy": 0.15,
+        "task.changed_fraction_score": 0.15,
+        "answer.abstention_correctness": 0.1,
+        "evidence.faithfulness": 0.25,
         "process.efficiency": 0.1,
     }
     task = {

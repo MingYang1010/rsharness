@@ -1249,6 +1249,24 @@ class EvaluatorRegistry:
             and state.final_answer.outcome == "submitted"
             and isinstance(answer_value, dict)
         )
+        actual_outcome = (
+            state.final_answer.outcome if state.final_answer is not None else None
+        )
+        expected_outcome = str(
+            manifest.evaluator.config.get("expected_outcome", "submitted")
+        )
+        if expected_outcome not in {"submitted", "abstained"}:
+            raise EvaluatorError(
+                "evaluator_config_invalid",
+                "expected outcome must be submitted or abstained",
+            )
+        false_confidence = bool(
+            expected_outcome == "abstained" and actual_outcome == "submitted"
+        )
+        unnecessary_abstention = bool(
+            expected_outcome == "submitted" and actual_outcome == "abstained"
+        )
+        abstention_correctness = float(actual_outcome == expected_outcome)
         submitted_class = (
             answer_value.get("change_class") if submitted else None
         )
@@ -1333,6 +1351,15 @@ class EvaluatorRegistry:
                 faithfulness,
                 faithfulness_diagnostics,
             ),
+            "answer.abstention_correctness": (
+                abstention_correctness,
+                {
+                    "actual_outcome": actual_outcome,
+                    "expected_outcome": expected_outcome,
+                    "false_confidence": false_confidence,
+                    "unnecessary_abstention": unnecessary_abstention,
+                },
+            ),
             "process.efficiency": (
                 efficiency,
                 efficiency_diagnostics,
@@ -1362,7 +1389,9 @@ class EvaluatorRegistry:
             diagnostics={
                 "before_label_asset_id": before_label.asset_id,
                 "after_label_asset_id": after_label.asset_id,
+                "false_confidence": false_confidence,
                 "truth": truth,
+                "unnecessary_abstention": unnecessary_abstention,
             },
         )
 
