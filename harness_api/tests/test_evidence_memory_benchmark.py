@@ -24,6 +24,7 @@ from app.core.schemas import AnswerRecord
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CONFIG = PROJECT_ROOT / "config" / "evidence-memory-benchmark-v1.json"
+MATRIX = PROJECT_ROOT / "scripts" / "prepare_evidence_memory_matrix.py"
 ACTOR_CERTIFICATE = "1" * 64
 NOW = "2026-08-02T00:00:00Z"
 
@@ -265,6 +266,34 @@ class EvidenceMemoryBenchmarkTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "exactly one"):
             self.module.prepare(self.arguments(self.root / "duplicate"))
+
+    def test_matrix_derives_distinct_valid_records(self):
+        spec = importlib.util.spec_from_file_location("memory_matrix", MATRIX)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        manifest, state, evaluation, evidence, source = (
+            memory_fixtures.EvidenceMemoryTests.source_episode()
+        )
+        base = build_evidence_memory_record(
+            policy=self.policy,
+            policy_sha256=self.policy_sha256,
+            manifest=manifest,
+            state=state,
+            evaluation=evaluation,
+            evidence=evidence,
+            source=source,
+            object_type="land-cover-assessment",
+            public_summary="Reviewed built-up evidence.",
+            ttl_seconds=14 * 24 * 60 * 60,
+        )
+        records = [
+            module._derive(base),
+            module._derive(base, public_summary="Conflicting summary."),
+            module._derive(base, bbox={"west": 1, "south": 2, "east": 3, "north": 4}),
+        ]
+        self.assertEqual(len({record.memory_id for record in records}), 3)
+        for record in records:
+            self.assertTrue(record.memory_id.startswith("mem-"))
 
 
 if __name__ == "__main__":
