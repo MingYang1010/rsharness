@@ -53,15 +53,38 @@ x-whu-backend-check-common: &whu-backend-check-common
       condition: service_started
 
 services:
+  issue-whu-variant:
+    <<: *whu-issue-common
+    command: ["python", "scripts/issue_agent_session.py", "--job", "/job.json", "--output", "${EO_AGENT_OUTPUT}", "--registry", "${EO_AGENT_REGISTRY}", "--ttl-seconds", "${EO_AGENT_TTL_SECONDS:-3600}", "--reviewed-public-task"]
+    volumes:
+      - ./harness_api:/workspace/harness_api:ro
+      - ./scripts:/workspace/scripts:ro
+      - ./runtime:/workspace/runtime:rw
+      - ${EO_SMOKE_ROOT}/jobs/${EO_WHU_SAMPLE}.json:/job.json:ro
+
+  check-whu-variant:
+    <<: *whu-agent-check-common
+    command: ["python", "/verify.py", "--job", "/job.json", "--report", "/reports/gateway-${EO_WHU_SAMPLE}.json"]
+    volumes:
+      - ./scripts/verify_whu_change_gateway.py:/verify.py:ro
+      - ${EO_SMOKE_ROOT}/jobs/${EO_WHU_SAMPLE}.json:/job.json:ro
+      - ${EO_AGENT_TOKEN_FILE}:/run/agent-token:ro
+      - ${EO_SMOKE_ROOT}/reports:/reports:rw
+
+  verify-whu-variant:
+    <<: *whu-backend-check-common
+    command: ["python", "/verify.py", "--job", "/smoke/jobs/${EO_WHU_SAMPLE}.json", "--gateway-report", "/reports/gateway-${EO_WHU_SAMPLE}.json", "--report", "/reports/accepted-${EO_WHU_SAMPLE}.json"]
+
   harness:
     environment:
       EO_HARNESS_DATASETS: /evaluator-datasets
+      EO_HARNESS_CATALOG_ENABLED: ${EO_HARNESS_CATALOG_ENABLED:-1}
     volumes:
       - ${EO_SMOKE_ROOT}/evaluator-datasets:/evaluator-datasets:ro
 
   issue-whu-0-224:
     <<: *whu-issue-common
-    command: ["python", "scripts/issue_agent_session.py", "--job", "/job.json", "--output", "/workspace/${EO_SMOKE_ROOT}/agent-0-224", "--registry", "/workspace/${EO_SMOKE_ROOT}/credentials/registry.json", "--ttl-seconds", "${EO_AGENT_TTL_SECONDS:-3600}", "--reviewed-public-task"]
+    command: ["python", "scripts/issue_agent_session.py", "--job", "/job.json", "--output", "/workspace/${EO_SMOKE_ROOT}/agent-0-224", "--registry", "${EO_AGENT_REGISTRY}", "--ttl-seconds", "${EO_AGENT_TTL_SECONDS:-3600}", "--reviewed-public-task"]
     volumes:
       - ./harness_api:/workspace/harness_api:ro
       - ./scripts:/workspace/scripts:ro
@@ -70,7 +93,7 @@ services:
 
   issue-whu-0-137:
     <<: *whu-issue-common
-    command: ["python", "scripts/issue_agent_session.py", "--job", "/job.json", "--output", "/workspace/${EO_SMOKE_ROOT}/agent-0-137", "--registry", "/workspace/${EO_SMOKE_ROOT}/credentials/registry.json", "--ttl-seconds", "${EO_AGENT_TTL_SECONDS:-3600}", "--reviewed-public-task"]
+    command: ["python", "scripts/issue_agent_session.py", "--job", "/job.json", "--output", "/workspace/${EO_SMOKE_ROOT}/agent-0-137", "--registry", "${EO_AGENT_REGISTRY}", "--ttl-seconds", "${EO_AGENT_TTL_SECONDS:-3600}", "--reviewed-public-task"]
     volumes:
       - ./harness_api:/workspace/harness_api:ro
       - ./scripts:/workspace/scripts:ro
@@ -79,7 +102,7 @@ services:
 
   issue-whu-0-255:
     <<: *whu-issue-common
-    command: ["python", "scripts/issue_agent_session.py", "--job", "/job.json", "--output", "/workspace/${EO_SMOKE_ROOT}/agent-0-255", "--registry", "/workspace/${EO_SMOKE_ROOT}/credentials/registry.json", "--ttl-seconds", "${EO_AGENT_TTL_SECONDS:-3600}", "--reviewed-public-task"]
+    command: ["python", "scripts/issue_agent_session.py", "--job", "/job.json", "--output", "/workspace/${EO_SMOKE_ROOT}/agent-0-255", "--registry", "${EO_AGENT_REGISTRY}", "--ttl-seconds", "${EO_AGENT_TTL_SECONDS:-3600}", "--reviewed-public-task"]
     volumes:
       - ./harness_api:/workspace/harness_api:ro
       - ./scripts:/workspace/scripts:ro

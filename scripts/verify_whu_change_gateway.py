@@ -80,7 +80,9 @@ def main() -> None:
             job["before_asset_id"],
             job["after_asset_id"],
         ]
-        assert session["task"]["allowed_tools"] == ["eo_gym.crop"]
+        assert session["task"]["allowed_tools"] == [
+            "catalog.search", "catalog.inspect_asset", "eo_gym.crop"
+        ]
         assert "evaluation" not in session["state"]
         serialized = json.dumps(session)
         assert "before-label" not in serialized
@@ -88,12 +90,11 @@ def main() -> None:
         state = session["state"]
         actions = []
         artifacts = []
-
         def step(action: dict) -> dict:
             nonlocal state
             body = {
                 "client_action_id": (
-                    "whu-" + job["sample_id"] + "-" + str(len(actions))
+                    "whu-" + job["sample_id"] + "-action-" + str(len(actions))
                 ),
                 "expected_state_version": state["state_version"],
                 "action": action,
@@ -103,6 +104,69 @@ def main() -> None:
             actions.append({"request": body, "response": response})
             state = response["state"]
             return response
+
+        catalog = request(
+            "POST",
+            "/agent/step",
+            {
+                "client_action_id": (
+                    "whu-" + job["sample_id"] + "-action-catalog-" + str(len(actions))
+                ),
+                "expected_state_version": state["state_version"],
+                "action": {
+                    "type": "tool.invoke",
+                    "tool_id": "catalog.search",
+                    "arguments": {"limit": 20},
+                },
+            },
+        )
+        actions.append({"request": "catalog-search", "response": catalog})
+        state = catalog["state"]
+        expected_outcome = job.get("expected_outcome", "submitted")
+        if expected_outcome == "abstained":
+            final = step(
+                {
+                    "type": "answer.abstain",
+                    "rationale": (
+                        "Public input coverage is below the task policy; "
+                        "the temporal comparison is not answerable."
+                    ),
+                    "evidence_ids": [],
+                }
+            )
+            assert final["terminated"]
+            assert "evaluation" not in final["state"]
+            report = {
+                "status": "passed",
+                "scope": "operator oracle through scoped Agent gateway; no model reasoning",
+                "sample_id": job["sample_id"],
+                "expected_outcome": expected_outcome,
+                "episode_id": state["episode_id"],
+                "task_manifest_hash": state["task_manifest_hash"],
+                "actions": len(actions) + 1,
+                "catalog_observation": catalog["observation"],
+                "private_connections_denied": denied,
+                "gateway_hidden_labels_absent": True,
+                "oracle_answer_injected": True,
+                "gateway_hidden_evaluation_absent": True,
+            }
+            args.report.parent.mkdir(parents=True, exist_ok=True)
+            with args.report.open("x") as stream:
+                json.dump(report, stream, indent=2)
+                stream.write(chr(10))
+            print(
+                json.dumps(
+                    {
+                        key: report[key]
+                        for key in (
+                            "status", "sample_id", "expected_outcome",
+                            "episode_id", "actions",
+                        )
+                    }
+                )
+            )
+            return
+
 
         for period, asset_id in (
             ("before", job["before_asset_id"]),

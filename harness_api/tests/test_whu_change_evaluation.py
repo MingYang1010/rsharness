@@ -535,6 +535,24 @@ class WHUChangeEvaluatorTests(unittest.TestCase):
                 env=env, capture_output=True, text=True, check=False,
             )
 
+    def test_preparer_configures_variant_task_and_public_quality(self):
+        config = json.loads((ROOT / "config" / "whu-change-samples.json").read_text())
+        by_id = {sample["sample_id"]: sample for sample in config["samples"]}
+        self.assertIn("0-224-low-coverage", by_id)
+        variant = by_id["0-224-low-coverage"]
+        self.assertEqual(variant["expected_outcome"], "abstained")
+        self.assertEqual(
+            variant["public_quality"]["after"]["coverage_fraction"], 0.25
+        )
+        self.assertEqual(
+            by_id["0-224"]["expected_outcome"], "submitted"
+        )
+        source = Path(tempfile.mkdtemp(dir=self.root)) / "reviewed-source"
+        source.mkdir()
+        result = self._run_prepare(config, source)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("reviewed source file is missing", result.stderr)
+
     def test_task_config_quality_must_justify_answerability(self):
         config = json.loads((ROOT / "config" / "whu-change-samples.json").read_text())
         sample = config["samples"][0]

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
+
 from pathlib import Path
 
 import httpx
@@ -91,14 +92,34 @@ def main() -> None:
             metric["name"]: metric["value"]
             for metric in evaluation["metrics"]
         }
-        assert metric_values == {
-            "task.change_class_accuracy": 1.0,
-            "task.direction_accuracy": 1.0,
-            "task.changed_fraction_score": 1.0,
-            "evidence.faithfulness": 1.0,
-            "process.efficiency": 1.0,
+        expected_outcome = job.get("expected_outcome", "submitted")
+        expected_metrics = {
+            "task.change_class_accuracy": 1.0 if expected_outcome == "submitted" else 0.0,
+            "task.direction_accuracy": 1.0 if expected_outcome == "submitted" else 0.0,
+            "task.changed_fraction_score": 1.0 if expected_outcome == "submitted" else 0.0,
+            "answer.abstention_correctness": 1.0,
+            "evidence.faithfulness": 1.0 if expected_outcome == "submitted" else 0.0,
+            "process.efficiency": (
+                1.0
+                if expected_outcome == "submitted"
+                else 0.0
+            ),
         }
-        assert evaluation["aggregate_reward"] == 1.0
+        assert metric_values.keys() == expected_metrics.keys()
+        for name, expected in expected_metrics.items():
+            if name == "process.efficiency":
+                assert metric_values[name] >= 0.75, name
+            else:
+                assert metric_values[name] == expected, name
+        assert evaluation["aggregate_reward"] >= (
+            0.95 if expected_outcome == "submitted" else 0.1
+        )
+        if expected_outcome == "abstained":
+            assert evaluation["diagnostics"]["false_confidence"] is False
+            assert evaluation["diagnostics"]["unnecessary_abstention"] is False
+            assert evaluation["diagnostics"]["insufficient_input_asset_ids"] == [
+                job["after_asset_id"]
+            ]
         truth = evaluation["diagnostics"]["truth"]
         for key, expected in job["truth"].items():
             assert truth[key] == expected

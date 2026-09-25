@@ -11,7 +11,10 @@
     "width": 512,
     "height": 512,
     "image_channels": 3,
-    "label_values": [0, 255]
+    "label_values": [
+      0,
+      255
+    ]
   },
   "evaluator": {
     "evaluator_id": "whu-building-change-v1",
@@ -55,7 +58,61 @@
           "sha256": "83f55a1d42eaef4c09045c26f36a2b547e2760f0875eadd8f3627e5314461ab6",
           "size_bytes": 262266
         }
+      },
+      "expected_outcome": "submitted",
+      "public_quality": {
+        "before": {
+          "coverage_fraction": 1.0
+        },
+        "after": {
+          "coverage_fraction": 1.0
+        }
       }
+    },
+    {
+      "sample_id": "0-224-low-coverage",
+      "filename": "0_224.tif",
+      "truth": {
+        "change_class": "no_change",
+        "change_direction": "no_change",
+        "changed_pixels": 0,
+        "new_pixels": 0,
+        "demolished_pixels": 0,
+        "changed_fraction": 0.0
+      },
+      "files": {
+        "before_image": {
+          "relative_path": "2012/splited_images/test/image/0_224.tif",
+          "sha256": "3366081a249b8e52b3396ee44db97fad8c8f33caa3c863b2f2d92e73ffc739b0",
+          "size_bytes": 786572
+        },
+        "after_image": {
+          "relative_path": "2016/splited_images/test/image/0_224.tif",
+          "sha256": "bcd2b68aa0e6cf29d97fb45313ddbafb4539fdd26bd674a87ed566ef8e402caa",
+          "size_bytes": 786572
+        },
+        "before_label": {
+          "relative_path": "2012/splited_images/test/label/0_224.tif",
+          "sha256": "83f55a1d42eaef4c09045c26f36a2b547e2760f0875eadd8f3627e5314461ab6",
+          "size_bytes": 262266
+        },
+        "after_label": {
+          "relative_path": "2016/splited_images/test/label/0_224.tif",
+          "sha256": "83f55a1d42eaef4c09045c26f36a2b547e2760f0875eadd8f3627e5314461ab6",
+          "size_bytes": 262266
+        }
+      },
+      "expected_outcome": "abstained",
+      "public_quality": {
+        "before": {
+          "coverage_fraction": 1.0
+        },
+        "after": {
+          "coverage_fraction": 0.25
+        }
+      },
+      "minimum_input_coverage_fraction": 0.8,
+      "task_variant": "public-metadata-insufficient-after-coverage"
     },
     {
       "sample_id": "0-137",
@@ -88,6 +145,15 @@
           "relative_path": "2016/splited_images/test/label/0_137.tif",
           "sha256": "d290009829c4b1d72178cbda44e285320acb0d8dad4313fd7c99e43b1ea84ed2",
           "size_bytes": 262266
+        }
+      },
+      "expected_outcome": "submitted",
+      "public_quality": {
+        "before": {
+          "coverage_fraction": 1.0
+        },
+        "after": {
+          "coverage_fraction": 1.0
         }
       }
     },
@@ -122,6 +188,15 @@
           "relative_path": "2016/splited_images/test/label/0_255.tif",
           "sha256": "d869ba4e30fa13a4a2a00a3d7920508a97742bc347f04adaa2861e6807a31c4f",
           "size_bytes": 262266
+        }
+      },
+      "expected_outcome": "submitted",
+      "public_quality": {
+        "before": {
+          "coverage_fraction": 1.0
+        },
+        "after": {
+          "coverage_fraction": 1.0
         }
       }
     }

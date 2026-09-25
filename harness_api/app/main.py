@@ -237,7 +237,7 @@ def create_app(
                 policy,
                 policy_sha256,
             )
-        catalog_enabled = os.environ.get("EO_HARNESS_CATALOG_ENABLED") == "1"
+        catalog_enabled = os.environ.get("EO_HARNESS_CATALOG_ENABLED", "0") == "1"
         if catalog_enabled or raster_url or memory_executor is not None:
             from .core.tools.runtime import ToolRouter
             from .core.tools.raster import RasterExecutor

@@ -172,7 +172,7 @@ def _task_files(sample: dict, config: dict, out: Path) -> tuple[dict, dict]:
     after_input = "asset-whu-" + sample_id + "-after"
     before_label = "asset-whu-" + sample_id + "-before-label"
     after_label = "asset-whu-" + sample_id + "-after-label"
-    task_dir = out / "tasks" / task_id
+    task_dir = out / "tasks" / ("whu-building-change-" + sample_id)
     task_dir.mkdir()
 
     assets = [
@@ -293,6 +293,16 @@ def _task_files(sample: dict, config: dict, out: Path) -> tuple[dict, dict]:
             "acceptance": "real-whu-human-label-change-evaluation",
         },
     }
+    task_variant = sample.get("task_variant")
+    if task_variant:
+        task["task_id"] = task_id + "-" + task_variant
+        task["prompt"] = (
+            "Before answering, inspect the public input metadata. " + task["prompt"]
+            + " If a required input has coverage below the task policy, abstain rather than infer."
+        )
+    if sample.get("expected_outcome") is not None:
+        task["metadata"]["expected_outcome"] = sample["expected_outcome"]
+
     scenario = {
         "profile_id": "whu-building-change-v1",
         "domain": "building_change_detection",
@@ -303,7 +313,7 @@ def _task_files(sample: dict, config: dict, out: Path) -> tuple[dict, dict]:
             "memory.save_evidence",
             "answer.*",
         ],
-        "allowed_tools": ["eo_gym.crop"],
+        "allowed_tools": ["catalog.search", "catalog.inspect_asset", "eo_gym.crop"],
         "network_policy": "none",
         "evidence_required": True,
         "abstention_allowed": True,
@@ -323,6 +333,7 @@ def _task_files(sample: dict, config: dict, out: Path) -> tuple[dict, dict]:
             "expected_width": dataset["width"],
             "expected_height": dataset["height"],
             "expected_pixel_count": dataset["width"] * dataset["height"],
+            "expected_outcome": sample.get("expected_outcome", "submitted"),
             "expected_changed_pixels": truth["changed_pixels"],
             "expected_new_pixels": truth["new_pixels"],
             "expected_demolished_pixels": truth["demolished_pixels"],
@@ -357,7 +368,7 @@ def _task_files(sample: dict, config: dict, out: Path) -> tuple[dict, dict]:
     ):
         _write_json(task_dir / name, value)
     job = {
-        "task_ref": {"task_id": task_id, "task_version": "1.0.0"},
+        "task_ref": {"task_id": task["task_id"], "task_version": "1.0.0"},
         "seed": 42,
         "sample_id": sample_id,
         "before_asset_id": before_input,
@@ -365,6 +376,11 @@ def _task_files(sample: dict, config: dict, out: Path) -> tuple[dict, dict]:
         "width": dataset["width"],
         "height": dataset["height"],
         "truth": truth,
+        "expected_outcome": sample.get("expected_outcome", "submitted"),
+        "minimum_input_coverage_fraction": sample.get(
+            "minimum_input_coverage_fraction",
+            evaluator_config["minimum_input_coverage_fraction"],
+        ),
     }
     separation = {
         "public_input_asset_ids": [before_input, after_input],
