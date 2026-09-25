@@ -18,6 +18,7 @@ from app.core.evidence_memory import (
     EvidenceMemoryStore,
     MemorySearchArguments,
     build_evidence_memory_record,
+    load_evidence_memory_policy,
 )
 from app.core.schemas import AnswerRecord
 
@@ -294,6 +295,74 @@ class EvidenceMemoryBenchmarkTests(unittest.TestCase):
         self.assertEqual(len({record.memory_id for record in records}), 3)
         for record in records:
             self.assertTrue(record.memory_id.startswith("mem-"))
+
+    def test_matrix_isolates_case_stores_and_flat_tasks(self):
+        spec = importlib.util.spec_from_file_location("memory_matrix", MATRIX)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        source_tasks = self.root / "source-tasks"
+        self.module.prepare(self.arguments(source_tasks))
+        output = self.root / "matrix"
+        report = module.prepare(
+            argparse.Namespace(
+                source_memory=self.store_path,
+                source_tasks=source_tasks,
+                policy=self.policy_path,
+                output=output,
+                actor_id="trusted-memory-curator",
+                actor_certificate_sha256=ACTOR_CERTIFICATE,
+            )
+        )
+        registry = TaskRegistry(str(output / "tasks"))
+        self.assertEqual(registry.count(), 8)
+        self.assertFalse((output / "memory" / "events.sqlite3").exists())
+        policy, policy_sha256 = load_evidence_memory_policy(
+            output / "policy" / "evidence-memory-policy.json",
+            report["policy_sha256"],
+        )
+        query = MemorySearchArguments.model_validate(
+            json.loads(CONFIG.read_text())["query"]
+        )
+        expected_matches = {
+            "correct-only": 1,
+            "conflict": 2,
+            "neighbor": 1,
+            "expired-only": 0,
+        }
+        expected_names = {
+            "correct-only": {"correct"},
+            "conflict": {"correct", "conflicting"},
+            "neighbor": {"correct"},
+            "expired-only": set(),
+        }
+        for case in module.CASES:
+            case_report = report["cases"][case]
+            store = EvidenceMemoryStore(Path(case_report["memory_store"]))
+            task_id = module.TASK_IDS[case]
+            manifest = registry.get(task_id, "1.0.0")
+            self.assertEqual(manifest.task.task_version, "1.0.0")
+            self.assertEqual(
+                registry.get(task_id, "1.0.1").task.task_version, "1.0.1"
+            )
+            self.assertEqual(
+                manifest.task.metadata["evidence_memory"]["snapshot_sha256"],
+                case_report["snapshot_sha256"],
+            )
+            result = store.search(policy, policy_sha256, manifest, query)
+            self.assertEqual(result.matched_count, expected_matches[case])
+            self.assertEqual(len(result.records), expected_matches[case])
+            self.assertEqual(
+                [record.memory_id for record in result.records],
+                sorted(
+                    case_report["memory_ids"][name]
+                    for name in expected_names[case]
+                ),
+            )
+            job = json.loads(
+                (output / "benchmark-agent" / f"{case}-with-memory.json").read_text()
+            )
+            self.assertEqual(job["task_ref"]["task_id"], task_id)
+            self.assertEqual(job["task_ref"]["task_version"], "1.0.0")
 
 
 if __name__ == "__main__":

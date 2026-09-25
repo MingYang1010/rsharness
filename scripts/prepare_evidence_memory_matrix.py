@@ -6,8 +6,8 @@ import argparse
 import hashlib
 import json
 import os
-import shutil
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +29,13 @@ CASES = {
     "expired-only": ["expired"],
 }
 
+TASK_IDS = {
+    "correct-only": "evidence-memory-correct-only",
+    "conflict": "evidence-memory-conflict",
+    "neighbor": "evidence-memory-neighbor",
+    "expired-only": "evidence-memory-expired-only",
+}
+
 
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -44,6 +51,11 @@ def _write(path: Path, value: Any) -> None:
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
     with os.fdopen(descriptor, "wb") as stream:
         stream.write(content)
+
+
+def _one_second_after(value: str) -> str:
+    timestamp = datetime.fromisoformat(value.replace("Z", "+00:00")) + timedelta(seconds=1)
+    return timestamp.isoformat().replace("+00:00", "Z")
 
 
 def _derive(record: EvidenceMemoryRecord, **changes: Any) -> EvidenceMemoryRecord:
@@ -68,25 +80,47 @@ def _derive(record: EvidenceMemoryRecord, **changes: Any) -> EvidenceMemoryRecor
     return value
 
 
-def _load_base(path: Path) -> EvidenceMemoryRecord:
+def _load_base(path: Path, scope_id: str) -> EvidenceMemoryRecord:
     store = EvidenceMemoryStore(path)
     # Sequence 1 predates the acceptance invalidation and preserves the reviewed source record.
-    snapshot = store.snapshot("worldcover-evidence-memory-acceptance", 1)
+    snapshot = store.snapshot(scope_id, 1)
     if len(snapshot.active_records) != 1:
         raise ValueError("source snapshot must contain exactly one active reviewed record")
     return snapshot.active_records[0]
 
 
-def _publish_records(
+def _matrix_policy(
+    output: Path, policy_path: Path
+) -> tuple[dict, Path, str]:
+    policy = json.loads(policy_path.read_text())
+    granted = {
+        (grant["task_id"], version)
+        for grant in policy["reader_grants"]
+        for version in grant["task_versions"]
+    }
+    for task_id in TASK_IDS.values():
+        granted.add((task_id, "1.0.0"))
+    policy["reader_grants"] = [
+        {"task_id": task_id, "task_versions": [version]}
+        for task_id, version in sorted(granted)
+    ]
+    target = output / "policy" / "evidence-memory-policy.json"
+    _write(target, policy)
+    return policy, target, _sha256(target)
+
+
+def _publish_case_records(
     output: Path,
     source_memory: Path,
     policy_path: Path,
-    policy_sha256: str,
+    source_policy_sha256: str,
+    matrix_policy_sha256: str,
+    scope_id: str,
     actor_id: str,
     certificate_sha256: str,
-) -> tuple[EvidenceMemoryStore, dict[str, EvidenceMemoryRecord]]:
-    policy, _ = load_evidence_memory_policy(policy_path, policy_sha256)
-    base = _load_base(source_memory)
+) -> dict[str, tuple[EvidenceMemoryStore, dict[str, EvidenceMemoryRecord]]]:
+    policy, _ = load_evidence_memory_policy(policy_path, source_policy_sha256)
+    base = _load_base(source_memory, scope_id)
     correct = _derive(base)
     conflict = _derive(
         base,
@@ -101,7 +135,7 @@ def _publish_records(
     expired = _derive(
         base,
         available_at=base.available_at,
-        expires_at="2026-09-20T01:20:13.000000Z",
+        expires_at=_one_second_after(base.available_at),
         public_summary="Expired built-up evidence that must not be returned.",
     )
     records = {
@@ -110,27 +144,44 @@ def _publish_records(
         "neighbor": neighbor,
         "expired": expired,
     }
-    memory_path = output / "memory" / "events.sqlite3"
-    store = EvidenceMemoryStore(memory_path)
-    for record in records.values():
-        store.publish(
-            policy,
-            policy_sha256,
-            record,
-            actor_id=actor_id,
-            actor_certificate_sha256=certificate_sha256,
-            now=record.available_at,
+    derived = {name: None for name in records}
+    cases = {}
+    for case, names in CASES.items():
+        store = EvidenceMemoryStore(
+            output / "matrix" / "cases" / case / "memory" / "events.sqlite3"
         )
-    return store, records
+        for name in names:
+            record = derived[name] or _derive(
+                records[name].model_copy(
+                    update={"policy_sha256": matrix_policy_sha256}
+                )
+            )
+            derived[name] = record
+            store.publish(
+                policy,
+                matrix_policy_sha256,
+                record,
+                actor_id=actor_id,
+                actor_certificate_sha256=certificate_sha256,
+                now=record.available_at,
+            )
+        cases[case] = (
+            store,
+            {name: derived[name] for name in CASES[case]},
+        )
+    return cases
 
 
-def _task_files(source: Path, case: str, binding: dict, expected_memory_id: str) -> dict[str, dict]:
+def _task_files(
+    source: Path, case: str, task_id: str, binding: dict, expected_memory_id: str
+) -> dict[str, dict]:
     values = {}
     for treatment, directory in (("with-memory", "with-memory"), ("without-memory", "without-memory")):
         task = json.loads((source / directory / "task.json").read_text())
         scenario = json.loads((source / directory / "scenario.json").read_text())
         evaluator = json.loads((source / directory / "evaluator.json").read_text())
         assets = json.loads((source / directory / "assets.json").read_text())
+        task["task_id"] = task_id
         task["metadata"]["benchmark_case"] = case
         if treatment == "with-memory":
             task["metadata"]["evidence_memory"] = binding
@@ -149,50 +200,82 @@ def _task_files(source: Path, case: str, binding: dict, expected_memory_id: str)
 def prepare(args: argparse.Namespace) -> dict:
     if args.output.exists():
         raise ValueError("matrix output already exists")
-    policy_sha256 = _sha256(args.policy)
-    store, records = _publish_records(
-        args.output,
-        args.source_memory,
-        args.policy,
-        policy_sha256,
-        args.actor_id,
-        args.actor_certificate_sha256,
-    )
-    snapshot = store.snapshot("worldcover-evidence-memory-acceptance")
     source_binding = json.loads(
         (args.source_tasks / "with-memory" / "task.json").read_text()
     )["metadata"]["evidence_memory"]
-    binding = {
-        **source_binding,
-        "snapshot_sequence": snapshot.sequence,
-        "snapshot_sha256": snapshot.snapshot_sha256,
-    }
+    source_policy_sha256 = _sha256(args.policy)
+    _, matrix_policy_path, policy_sha256 = _matrix_policy(
+        args.output,
+        args.policy,
+    )
+    cases = _publish_case_records(
+        args.output,
+        args.source_memory,
+        args.policy,
+        source_policy_sha256,
+        policy_sha256,
+        source_binding["scope_id"],
+        args.actor_id,
+        args.actor_certificate_sha256,
+    )
     variants = {}
-    for case, names in CASES.items():
-        directory = args.output / "tasks" / case
+    for case, (store, records) in cases.items():
+        snapshot = store.snapshot(source_binding["scope_id"])
+        binding = {
+            **source_binding,
+            "policy_sha256": policy_sha256,
+            "snapshot_sequence": snapshot.sequence,
+            "snapshot_sha256": snapshot.snapshot_sha256,
+        }
+        task_id = TASK_IDS[case]
         values = _task_files(
             args.source_tasks,
             case,
+            task_id,
             binding,
-            records["correct"].memory_id,
+            records["correct"].memory_id
+            if "correct" in CASES[case]
+            else records[CASES[case][0]].memory_id,
         )
         for treatment, files in values.items():
-            target = directory / treatment
+            directory = args.output / "tasks" / f"{case}-{treatment}"
             for name, value in files.items():
-                _write(target / name, value)
+                _write(directory / name, value)
+            job = {
+                "sample_id": f"{case}-{treatment}",
+                "seed": 42,
+                "task_ref": {
+                    "task_id": task_id,
+                    "task_version": files["task.json"]["task_version"],
+                },
+            }
+            _write(args.output / "benchmark-agent" / f"{case}-{treatment}.json", job)
         variants[case] = {
-            "records": names,
-            "task_directory": str(directory),
+            "records": CASES[case],
+            "memory_store": str(
+                args.output / "matrix" / "cases" / case / "memory" / "events.sqlite3"
+            ),
+            "task_directories": [
+                str(args.output / "tasks" / f"{case}-{treatment}")
+                for treatment in ("with-memory", "without-memory")
+            ],
+            "jobs": {
+                treatment: str(
+                    args.output / "benchmark-agent" / f"{case}-{treatment}.json"
+                )
+                for treatment in ("with-memory", "without-memory")
+            },
             "snapshot_sequence": snapshot.sequence,
             "snapshot_sha256": snapshot.snapshot_sha256,
-            "memory_ids": {name: records[name].memory_id for name in names},
+            "memory_ids": {name: records[name].memory_id for name in CASES[case]},
         }
     report = {
         "schema_version": "evidence-memory-matrix-v1",
+        "policy_path": str(matrix_policy_path),
         "cases": variants,
-        "record_count": len(records),
-        "snapshot_sequence": snapshot.sequence,
-        "snapshot_sha256": snapshot.snapshot_sha256,
+        "record_types": 4,
+        "task_count": 8,
+        "job_count": 8,
         "policy_sha256": policy_sha256,
     }
     _write(args.output / "matrix-manifest.json", report)
