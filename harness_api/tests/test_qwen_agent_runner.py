@@ -356,6 +356,15 @@ class QwenAgentRunnerTests(unittest.TestCase):
         self.assertIn("send an empty array", abstain_schema["description"])
         self.assertIn("never send observation IDs", abstain_schema["description"])
         self.assertIn("memory IDs", abstain_schema["description"])
+        review_session = {
+            "task": {"allowed_actions": ["answer.request_human_review"]},
+            "tool_schemas": {},
+        }
+        review_schema = openai_tools(review_session)[0]["function"][
+            "parameters"
+        ]["properties"]["evidence_ids"]["description"]
+        self.assertIn("send an empty array", review_schema)
+        self.assertIn("never send observation IDs or memory IDs", review_schema)
         map_session = {"task": {"allowed_actions": ["map.set_view"]}, "tool_schemas": {}}
         map_tools = openai_tools(map_session)
         self.assertEqual([item["function"]["name"] for item in map_tools], ["map.set_view"])

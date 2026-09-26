@@ -158,7 +158,15 @@ def openai_tools(session: dict, artifacts: list[dict] | None = None) -> list[dic
             "type": "object",
             "properties": {
                 "rationale": {"type": "string"},
-                "evidence_ids": {"type": "array", "items": {"type": "string"}},
+                "evidence_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "For this memory benchmark, send an empty array. Only "
+                        "IDs returned by memory.save_evidence are valid; never "
+                        "send observation IDs or memory IDs."
+                    ),
+                },
             },
             "required": ["rationale"],
             "additionalProperties": False,
