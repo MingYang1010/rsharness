@@ -38,7 +38,7 @@
 | ID / 优先级 | 当前实现及证据位置 | 缺口与下一步验收 |
 |---|---|---|
 | G01 / P0 验收绑定 | 已在 `2f0b92b` 修复：汇总器按权威 Pydantic 形态重建 manifest hash，并绑定 task/version、逐输入资产与内容 hash、episode、执行证据与模型 receipt；原始 22 例只读重审计通过 | 后续新增样本直接继承该严格验收；G01 从活动 TODO 移除 |
-| G02 / P0 验收独立性 | 同文件用非空 `tool_runs` 判断执行存在；非空图像 hash 判断模型图像输入；`resume_evidence_present` 接受声明字段。fixture 允许所有样本使用同一 episode ID，evidence 内容为 `{}` | 校验 action/结果/调用 ID 对应、成功状态、不同 episode 绑定、evidence 与提交引用；空矩阵 fail closed。模型输入需最小可验证请求 receipt，不能只计列表非空；原始模型响应与可信 adapter 的变换分别留存 |
+| G02 / P0 验收独立性 | `59612a0` 起逐 episode 校验 action/result/client_action_id 唯一且成功、每个 tool action 与唯一 completed tool_run 一一对应、tool request/action 和 expected_state_version 一致；空/缺失/错误 outcome fail closed。既有空矩阵与 episode 唯一性检查保留 | 仍需把图像输入验收从 artifact hash 非空提升到可复现 model request receipt，并核验 evidence 与 final answer 引用逐项对应；fixture 不再复用 episode ID 后可关闭 |
 | G03 / P0 科学评价覆盖 | 已在 `350e603` 汇总 semantic outcome：4 例有 evaluator、18 例明确 `unscored`，仅 1 例 task-correct；同时输出模型调用/token 成本 | 后续为 DOTA OBB、grounding、计数与 caption 定义独立 evaluator；不得把 `unscored` 计入正确 |
 | G04 / P0 恢复、图像和成本证据 | 已在 `350e603` 增加 runner 接收 bytes SHA-256 校验、checkpoint 成本账本、attempt phase 和 resume 累计成本；终态 resume 不再覆盖原 token/调用统计 | 尚需真实/模拟“服务器已提交、客户端未收到响应”的中途恢复测试；本轮已覆盖终态 resume 与 checksum fail-closed |
 | G05 / P1 自主信息获取 | 22 例大多是固定 crop→evidence→submit；任务、prompt 已规定动作与范围 | 构造必须选候选日期、空间窗口或替代输入的分支；错误区域、遮挡、空查询需触发有用的下一动作；与固定流程在相同权限/预算下比较 |
