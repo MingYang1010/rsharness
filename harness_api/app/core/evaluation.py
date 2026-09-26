@@ -791,6 +791,7 @@ class EvaluatorRegistry:
         expected_label = config.get("expected_label")
         expected_memory_id = config.get("expected_memory_id")
         expected_snapshot = config.get("expected_snapshot_sha256")
+        expected_outcome = config.get("expected_outcome")
         if (
             treatment not in {"with_memory", "without_memory"}
             or not isinstance(expected_label, str)
@@ -800,6 +801,7 @@ class EvaluatorRegistry:
             or len(expected_memory_id) != 68
             or not isinstance(expected_snapshot, str)
             or len(expected_snapshot) != 64
+            or expected_outcome not in {None, "submitted", "abstained"}
         ):
             raise EvaluatorError(
                 "evaluator_config_invalid",
@@ -815,7 +817,11 @@ class EvaluatorRegistry:
             and call_count == 1
             and len(results) == 1
             and result.snapshot_sha256 == expected_snapshot
-            and expected_memory_id in returned_ids
+            and (
+                result.matched_count == 0
+                if expected_outcome == "abstained"
+                else expected_memory_id in returned_ids
+            )
         )
         protocol_valid = (
             retrieval_valid if treatment == "with_memory" else call_count == 0
@@ -832,12 +838,31 @@ class EvaluatorRegistry:
             isinstance(value, str) for value in cited_memory_ids
         ):
             cited_memory_ids = []
-        accuracy = float(submitted and label == expected_label)
-        faithfulness = float(
-            accuracy == 1.0
-            and retrieval_valid
-            and cited_memory_ids == [expected_memory_id]
-        )
+        if expected_outcome is None:
+            accuracy = float(submitted and label == expected_label)
+        elif expected_outcome == "submitted":
+            accuracy = float(submitted and label == expected_label)
+        else:
+            accuracy = float(
+                answer is not None
+                and answer.outcome == "abstained"
+                and result is not None
+                and result.matched_count == 0
+            )
+        if expected_outcome == "abstained":
+            faithfulness = float(
+                accuracy == 1.0
+                and retrieval_valid
+                and not cited_memory_ids
+                and answer is not None
+                and answer.evidence_ids == []
+            )
+        else:
+            faithfulness = float(
+                accuracy == 1.0
+                and retrieval_valid
+                and cited_memory_ids == [expected_memory_id]
+            )
 
         efficiency_config = config.get("efficiency", {})
         ideal_steps = int(
@@ -870,6 +895,8 @@ class EvaluatorRegistry:
                     "expected_label": expected_label,
                     "submitted_label": label,
                     "submitted": submitted,
+                    **({"expected_outcome": expected_outcome}
+                       if expected_outcome is not None else {}),
                 },
             ),
             "evidence.memory_faithfulness": (

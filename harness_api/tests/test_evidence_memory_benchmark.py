@@ -268,6 +268,57 @@ class EvidenceMemoryBenchmarkTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "exactly one"):
             self.module.prepare(self.arguments(self.root / "duplicate"))
 
+    def test_expired_memory_abstention_scores_accuracy_and_faithfulness(self):
+        output = self.root / "expired-evaluator"
+        self.module.prepare(self.arguments(output))
+        evaluator = EvaluatorRegistry(
+            str(self.root), ArtifactStore(str(self.root / "artifacts"))
+        )
+        manifest = TaskRegistry(str(output)).get(
+            "evidence-memory-benchmark", "1.0.0"
+        ).model_copy(deep=True)
+        manifest.evaluator.config["expected_outcome"] = "abstained"
+        state, _ = create_initial_state(
+            "ep2-" + "d" * 32, manifest, 42, "2026-08-02T00:00:00Z"
+        )
+        state = state.model_copy(update={
+            "status": "terminated",
+            "step_count": 2,
+            "final_answer": AnswerRecord(
+                outcome="abstained",
+                answer=None,
+                confidence=None,
+                evidence_ids=[],
+                rationale="Memory search returned no valid records.",
+            ),
+        })
+        tool_result = {
+            "tool_id": "memory.search",
+            "tool_version": "1.0.0",
+            "status": "completed",
+            "records": [],
+            "matched_count": 0,
+            "next_offset": None,
+            "snapshot_sequence": 1,
+            "snapshot_sha256": manifest.evaluator.config[
+                "expected_snapshot_sha256"
+            ],
+            "cost": {
+                "model": "logical-evidence-memory-v1",
+                "records_scanned": 1,
+                "input_bytes": 1541,
+            },
+        }
+        scored = evaluator.evaluate_safely(
+            manifest, state, {}, 0, 0, 100, [tool_result]
+        )
+        metrics = {item.name: item.value for item in scored.metrics}
+        self.assertEqual(scored.status, "completed")
+        self.assertEqual(metrics["task.accuracy"], 1.0)
+        self.assertEqual(metrics["evidence.memory_faithfulness"], 1.0)
+        self.assertEqual(metrics["process.efficiency"], 1.0)
+        self.assertEqual(scored.aggregate_reward, 1.0)
+
     def test_matrix_derives_distinct_valid_records(self):
         spec = importlib.util.spec_from_file_location("memory_matrix", MATRIX)
         module = importlib.util.module_from_spec(spec)
@@ -351,6 +402,10 @@ class EvidenceMemoryBenchmarkTests(unittest.TestCase):
             self.assertEqual(
                 manifest.evaluator.config["expected_snapshot_sha256"],
                 case_report["snapshot_sha256"],
+            )
+            self.assertEqual(
+                manifest.evaluator.config["expected_outcome"],
+                "abstained" if case == "expired-only" else "submitted",
             )
             self.assertEqual(manifest.task.budget.max_wall_time_ms, 120000)
             self.assertEqual(

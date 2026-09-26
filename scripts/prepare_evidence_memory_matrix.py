@@ -28,6 +28,12 @@ CASES = {
     "neighbor": ["correct", "neighbor"],
     "expired-only": ["expired"],
 }
+EXPECTED_OUTCOMES = {
+    "correct-only": "submitted",
+    "conflict": "submitted",
+    "neighbor": "submitted",
+    "expired-only": "abstained",
+}
 
 TASK_IDS = {
     "correct-only": "evidence-memory-correct-only",
@@ -196,6 +202,7 @@ def _task_files(
             task["metadata"].pop("evidence_memory", None)
         evaluator["config"]["expected_memory_id"] = expected_memory_id
         evaluator["config"]["expected_snapshot_sha256"] = expected_snapshot_sha256
+        evaluator["config"]["expected_outcome"] = EXPECTED_OUTCOMES[case]
         evaluator["config"]["efficiency"]["wall_time_soft_limit_ms"] = MAX_WALL_TIME_MS
         values[directory] = {
             "task.json": task,
