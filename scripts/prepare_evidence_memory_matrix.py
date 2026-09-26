@@ -27,12 +27,16 @@ CASES = {
     "conflict": ["correct", "conflicting"],
     "neighbor": ["correct", "neighbor"],
     "expired-only": ["expired"],
+    "date-mismatch": ["date-mismatched"],
+    "sensor-mismatch": ["sensor-mismatched"],
 }
 EXPECTED_OUTCOMES = {
     "correct-only": "submitted",
     "conflict": "submitted",
     "neighbor": "submitted",
     "expired-only": "abstained",
+    "date-mismatch": "abstained",
+    "sensor-mismatch": "abstained",
 }
 
 TASK_IDS = {
@@ -40,6 +44,8 @@ TASK_IDS = {
     "conflict": "evidence-memory-conflict",
     "neighbor": "evidence-memory-neighbor",
     "expired-only": "evidence-memory-expired-only",
+    "date-mismatch": "evidence-memory-date-mismatch",
+    "sensor-mismatch": "evidence-memory-sensor-mismatch",
 }
 MAX_WALL_TIME_MS = 120000
 
@@ -70,6 +76,8 @@ def _derive(record: EvidenceMemoryRecord, **changes: Any) -> EvidenceMemoryRecor
     source = dict(body["source"])
     if "bbox" in changes:
         source["selector"] = {**source["selector"], "bbox": changes["bbox"]}
+    if "time_range" in changes:
+        source["selector"] = {**source["selector"], "time_range": changes["time_range"]}
     body["source"] = source
     body.update(changes)
     body["provenance_sha256"] = sha256_json(source)
@@ -145,11 +153,24 @@ def _publish_case_records(
         expires_at=_one_second_after(base.available_at),
         public_summary="Expired built-up evidence that must not be returned.",
     )
+    date_mismatched = _derive(
+        base,
+        time_range={"start": "2022-01-01T00:00:00Z", "end": "2022-12-31T23:59:59Z"},
+        public_summary="Built-up evidence for a different year; it must not be returned.",
+    )
+    sensor_mismatched = _derive(
+        base,
+        platform="Sentinel-2",
+        instrument="Sentinel-2 MSI",
+        public_summary="Built-up evidence from a different sensor; it must not be returned.",
+    )
     records = {
         "correct": correct,
         "conflicting": conflict,
         "neighbor": neighbor,
         "expired": expired,
+        "date-mismatched": date_mismatched,
+        "sensor-mismatched": sensor_mismatched,
     }
     derived = {name: None for name in records}
     cases = {}
@@ -195,6 +216,20 @@ def _task_files(
         assets = json.loads((source / directory / "assets.json").read_text())
         task["task_id"] = task_id
         task["budget"]["max_wall_time_ms"] = MAX_WALL_TIME_MS
+        if case == "sensor-mismatch":
+            prompt, query_json = task["prompt"].rsplit(" Query: ", 1)
+            query = json.loads(query_json)
+            query["instrument"] = "WorldCover-map"
+            task["prompt"] = prompt + " Query: " + canonical_json(query)
+            evaluator["config"]["query_sha256"] = sha256_json(query)
+        elif case == "date-mismatch":
+            prompt, query_json = task["prompt"].rsplit(" Query: ", 1)
+            query = json.loads(query_json)
+            query["time_range"] = {
+                "start": "2021-06-01T00:00:00Z",
+                "end": "2021-06-30T00:00:00Z",
+            }
+            task["prompt"] = prompt + " Query: " + canonical_json(query)
         task["metadata"]["benchmark_case"] = case
         if treatment == "with-memory":
             task["metadata"]["evidence_memory"] = binding
@@ -290,9 +325,9 @@ def prepare(args: argparse.Namespace) -> dict:
         "schema_version": "evidence-memory-matrix-v1",
         "policy_path": str(matrix_policy_path),
         "cases": variants,
-        "record_types": 4,
-        "task_count": 8,
-        "job_count": 8,
+        "record_types": len(CASES),
+        "task_count": 2 * len(CASES),
+        "job_count": 2 * len(CASES),
         "policy_sha256": policy_sha256,
     }
     _write(args.output / "matrix-manifest.json", report)

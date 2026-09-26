@@ -130,6 +130,9 @@ class EvidenceMemoryBenchmarkTests(unittest.TestCase):
     def test_evaluator_separates_accuracy_memory_faithfulness_and_control(self):
         output = self.root / "tasks"
         self.module.prepare(self.arguments(output))
+        query = MemorySearchArguments.model_validate(
+            json.loads(CONFIG.read_text())["query"]
+        )
         registry = TaskRegistry(str(output))
         evaluator = EvaluatorRegistry(str(self.root), ArtifactStore(str(self.root / "artifacts")))
         with_memory = registry.get("evidence-memory-benchmark", "1.0.0")
@@ -151,9 +154,6 @@ class EvidenceMemoryBenchmarkTests(unittest.TestCase):
                     evidence_ids=[],
                 ),
             }
-        )
-        query = MemorySearchArguments.model_validate(
-            json.loads(CONFIG.read_text())["query"]
         )
         result = self.store.search(
             self.policy, self.policy_sha256, with_memory, query
@@ -365,7 +365,7 @@ class EvidenceMemoryBenchmarkTests(unittest.TestCase):
             )
         )
         registry = TaskRegistry(str(output / "tasks"))
-        self.assertEqual(registry.count(), 8)
+        self.assertEqual(registry.count(), 12)
         self.assertFalse((output / "memory" / "events.sqlite3").exists())
         policy, policy_sha256 = load_evidence_memory_policy(
             output / "policy" / "evidence-memory-policy.json",
@@ -379,13 +379,22 @@ class EvidenceMemoryBenchmarkTests(unittest.TestCase):
             "conflict": 2,
             "neighbor": 1,
             "expired-only": 0,
+            "date-mismatch": 0,
+            "sensor-mismatch": 0,
         }
         expected_names = {
             "correct-only": {"correct"},
             "conflict": {"correct", "conflicting"},
             "neighbor": {"correct"},
             "expired-only": set(),
+            "date-mismatch": set(),
+            "sensor-mismatch": set(),
         }
+        def query_for(case_name):
+            prompt = registry.get(module.TASK_IDS[case_name], "1.0.0").task.prompt
+            return MemorySearchArguments.model_validate(
+                json.loads(prompt.rsplit(" Query: ", 1)[1])
+            )
         for case in module.CASES:
             case_report = report["cases"][case]
             store = EvidenceMemoryStore(Path(case_report["memory_store"]))
@@ -405,14 +414,16 @@ class EvidenceMemoryBenchmarkTests(unittest.TestCase):
             )
             self.assertEqual(
                 manifest.evaluator.config["expected_outcome"],
-                "abstained" if case == "expired-only" else "submitted",
+                "abstained"
+                if case in {"expired-only", "date-mismatch", "sensor-mismatch"}
+                else "submitted",
             )
             self.assertEqual(manifest.task.budget.max_wall_time_ms, 120000)
             self.assertEqual(
                 manifest.evaluator.config["efficiency"]["wall_time_soft_limit_ms"],
                 120000,
             )
-            result = store.search(policy, policy_sha256, manifest, query)
+            result = store.search(policy, policy_sha256, manifest, query_for(case))
             self.assertEqual(result.matched_count, expected_matches[case])
             self.assertEqual(len(result.records), expected_matches[case])
             self.assertEqual(
@@ -427,6 +438,9 @@ class EvidenceMemoryBenchmarkTests(unittest.TestCase):
             )
             self.assertEqual(job["task_ref"]["task_id"], task_id)
             self.assertEqual(job["task_ref"]["task_version"], "1.0.0")
+            if case == "sensor-mismatch":
+                query_json = manifest.task.prompt.rsplit(" Query: ", 1)[1]
+                self.assertEqual(json.loads(query_json)["instrument"], "WorldCover-map")
 
 
 if __name__ == "__main__":

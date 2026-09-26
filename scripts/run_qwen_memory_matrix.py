@@ -15,7 +15,14 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER_PATH = ROOT / "scripts" / "run_qwen_agent.py"
 ISSUER_PATH = ROOT / "scripts" / "issue_agent_session.py"
-CASES = ("correct-only", "conflict", "neighbor", "expired-only")
+CASES = (
+    "correct-only",
+    "conflict",
+    "neighbor",
+    "expired-only",
+    "date-mismatch",
+    "sensor-mismatch",
+)
 TREATMENTS = ("with-memory", "without-memory")
 
 
