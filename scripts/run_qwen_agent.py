@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 from typing import Any
 from types import SimpleNamespace
+from app.core.events import sha256_json
 
 import httpx
 
@@ -346,6 +347,54 @@ def response_metadata(response: Any) -> dict:
     }
 
 
+def provider_response(response: Any) -> dict:
+    """Preserve the provider JSON response before trusted adapter transforms."""
+    if hasattr(response, "model_dump"):
+        value = response.model_dump(mode="json")
+    elif hasattr(response, "model_dump_json"):
+        value = json.loads(response.model_dump_json())
+    elif isinstance(response, SimpleNamespace):
+        value = {
+            "id": getattr(response, "id", None),
+            "created": getattr(response, "created", None),
+            "model": getattr(response, "model", None),
+            "system_fingerprint": getattr(response, "system_fingerprint", None),
+            "choices": [
+                {
+                    "message": {
+                        "content": getattr(choice.message, "content", None),
+                        "tool_calls": [
+                            {
+                                "id": call.id,
+                                "type": getattr(call, "type", "function"),
+                                "function": {
+                                    "name": tool_function(call)["name"],
+                                    "arguments": tool_function(call)["arguments"],
+                                },
+                            }
+                            for call in (getattr(choice.message, "tool_calls", None) or [])
+                        ],
+                    },
+                }
+                for choice in getattr(response, "choices", [])
+            ],
+            "usage": response.usage.model_dump(mode="json")
+            if getattr(response, "usage", None) is not None else None,
+        }
+    else:
+        raise TypeError("provider response has no JSON projection")
+    return json.loads(json.dumps(value, ensure_ascii=False))
+
+
+def adapter_projection(provider: dict, assistant: dict) -> dict:
+    """Fingerprint the stable adapter representation used by the runner."""
+    return {
+        "schema_version": "qwen-response-adapter-projection-v1",
+        "provider_response_sha256": sha256_json(provider),
+        "assistant": assistant,
+    }
+
+
 def model_request_receipt(messages: list[dict], tools: list[dict]) -> dict:
     """Project a model request without retaining base64 image contents."""
     image_hashes = []
@@ -556,11 +605,14 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                 max_tokens=4096,
             )
             assistant, calls = tool_call_message(response)
+            provider = provider_response(response)
             cumulative_cost = add_cost(cumulative_cost, usage_cost(getattr(response, "usage", None)))
             messages.append(assistant)
             transcript.append({
                 "turn": turn,
                 "assistant": assistant,
+                "provider_response": provider,
+                "adapter_projection": adapter_projection(provider, assistant),
                 "model_request": receipt,
                 "model_response": response_metadata(response),
             })

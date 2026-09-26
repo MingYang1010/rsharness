@@ -4,6 +4,7 @@ import hashlib
 import sqlite3
 import tempfile
 import unittest
+from app.core.events import sha256_json
 from pathlib import Path
 
 SPEC = importlib.util.spec_from_file_location("qwen_result_manifest", Path(__file__).resolve().parents[2] / "scripts" / "summarize_qwen_results.py")
@@ -57,10 +58,16 @@ class QwenResultManifestTests(unittest.TestCase):
             report = {
                 "status": "passed", "episode_id": episode_id, "model_tool_calls": 1,
                 "image_hashes": ["b" * 64], "resume_checked": True,
-                "transcript": [{"model_request": {
+                "transcript": [{"assistant": {}, "model_request": {
                     "schema_version": "qwen-model-request-receipt-v1",
                     "model": module.MODEL_NAME,
                     "image_hashes": [{"payload_sha256": "b" * 64}],
+                }, "provider_response": {
+                    "id": f"response-{index}", "model": module.MODEL_NAME,
+                }, "adapter_projection": {
+                    "schema_version": "qwen-response-adapter-projection-v1",
+                    "provider_response_sha256": "placeholder",
+                    "assistant": {},
                 }, "model_response": {
                     "model": module.MODEL_NAME, "id": f"response-{index}",
                     "usage": {"prompt_tokens": 1, "completion_tokens": 0,
@@ -126,6 +133,14 @@ class QwenResultManifestTests(unittest.TestCase):
                                    "source_ref": f"art-{index}",
                                })))
             connection.commit(); connection.close()
+
+        for path in reports.glob("*.json"):
+            value = json.loads(path.read_text())
+            provider = value["transcript"][0]["provider_response"]
+            value["transcript"][0]["adapter_projection"][
+                "provider_response_sha256"
+            ] = module.sha256_json(provider)
+            path.write_text(json.dumps(value))
 
     def test_complete_fixture_passes_and_missing_report_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -250,6 +265,20 @@ class QwenResultManifestTests(unittest.TestCase):
                 source_db.replace(target_db)
             result = module.summarize(reports)
             self.assertIn("episode_ids_unique", result["failed_checks"])
+
+    def test_tampered_provider_adapter_binding_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_fixture(root)
+            reports = root / "reports"
+            path = next(iter(sorted(reports.glob("*.json"))))
+            value = json.loads(path.read_text())
+            value["transcript"][0]["adapter_projection"][
+                "provider_response_sha256"
+            ] = "0" * 64
+            path.write_text(json.dumps(value))
+            result = module.summarize(reports)
+            self.assertIn("provider_adapter_binding", result["failed_checks"])
 
 
 if __name__ == "__main__":

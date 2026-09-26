@@ -23,6 +23,10 @@ except ImportError:
     AssetRef = EvaluatorSpec = PixelAssetRef = ScenarioProfile = TaskSpec = None
     TypeAdapter = None
 
+# Result manifests hash provider JSON with the same canonical encoding as events.
+sys.path.insert(0, str(ROOT / "harness_api"))
+from app.core.events import sha256_json
+
 MATRIX = ROOT / "config" / "qwen-dataset-matrix-v1.json"
 MODEL_NAME = "Qwen3.5-9B"
 
@@ -272,6 +276,29 @@ def validate_model_image_request_receipt(report: dict) -> bool:
     return bool(receipt_hashes) and set(receipt_hashes).issubset(artifact_hashes)
 
 
+def validate_provider_adapter_binding(report: dict) -> bool:
+    """Require trusted adapter projection to bind to its provider response."""
+    for item in report.get("transcript", []):
+        provider = item.get("provider_response")
+        projection = item.get("adapter_projection")
+        assistant = item.get("assistant")
+        if not isinstance(provider, dict) or not isinstance(projection, dict):
+            continue
+        if projection.get("schema_version") != "qwen-response-adapter-projection-v1":
+            continue
+        expected = {
+            "provider_response_sha256": sha256_json(provider),
+            "assistant": assistant,
+        }
+        if (
+            projection.get("provider_response_sha256")
+            == expected["provider_response_sha256"]
+            and projection.get("assistant") == assistant
+        ):
+            return True
+    return False
+
+
 def episode_actions_consistent(episode: dict) -> bool:
     """Require action/tool joins and successful execution evidence."""
     results = episode.get("results", [])
@@ -366,6 +393,7 @@ def validate_report(dataset_id: str, sample_id: str, sample: dict, report: dict,
     checks["real_image_input_to_model"] = bool(report.get("image_hashes"))
     checks["model_response_metadata_present"] = validate_model_receipt(report)
     checks["model_image_request_receipt"] = validate_model_image_request_receipt(report)
+    checks["provider_adapter_binding"] = validate_provider_adapter_binding(report)
     checks["resume_evidence_present"] = report.get("resumed") is True or bool(report.get("checkpoint")) or report.get("resume_checked") is True
     episode_id = report.get("episode_id")
     checks["episode_id_present"] = isinstance(episode_id, str) and episode_id.startswith("ep2-")

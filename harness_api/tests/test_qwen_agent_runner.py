@@ -315,6 +315,17 @@ class QwenAgentRunnerTests(unittest.TestCase):
             "media_type": "image/png",
             "payload_sha256": hashlib.sha256(image).hexdigest(),
         }])
+        provider = {
+            "id": "response-one", "model": RUNNER.MODEL_NAME,
+            "choices": [], "usage": None,
+        }
+        assistant = {"role": "assistant", "content": "ok"}
+        projection = RUNNER.adapter_projection(provider, assistant)
+        self.assertEqual(
+            projection["provider_response_sha256"],
+            RUNNER.sha256_json(provider),
+        )
+        self.assertEqual(projection["assistant"], assistant)
         message = content_message("text", {"size_bytes": 2, "sha256": "f" * 64, "media_type": "image/png"}, b"ab", "image/png")
         self.assertIn("data:image/png;base64,YWI=", message["content"][1]["image_url"]["url"])
         self.assertEqual(compact_messages([{"role": "user", "content": "keep"}, message]),
