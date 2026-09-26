@@ -352,6 +352,11 @@ class EvidenceMemoryBenchmarkTests(unittest.TestCase):
                 manifest.evaluator.config["expected_snapshot_sha256"],
                 case_report["snapshot_sha256"],
             )
+            self.assertEqual(manifest.task.budget.max_wall_time_ms, 120000)
+            self.assertEqual(
+                manifest.evaluator.config["efficiency"]["wall_time_soft_limit_ms"],
+                120000,
+            )
             result = store.search(policy, policy_sha256, manifest, query)
             self.assertEqual(result.matched_count, expected_matches[case])
             self.assertEqual(len(result.records), expected_matches[case])

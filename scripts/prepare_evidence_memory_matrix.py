@@ -35,6 +35,7 @@ TASK_IDS = {
     "neighbor": "evidence-memory-neighbor",
     "expired-only": "evidence-memory-expired-only",
 }
+MAX_WALL_TIME_MS = 120000
 
 
 def _sha256(path: Path) -> str:
@@ -187,6 +188,7 @@ def _task_files(
         evaluator = json.loads((source / directory / "evaluator.json").read_text())
         assets = json.loads((source / directory / "assets.json").read_text())
         task["task_id"] = task_id
+        task["budget"]["max_wall_time_ms"] = MAX_WALL_TIME_MS
         task["metadata"]["benchmark_case"] = case
         if treatment == "with-memory":
             task["metadata"]["evidence_memory"] = binding
@@ -194,6 +196,7 @@ def _task_files(
             task["metadata"].pop("evidence_memory", None)
         evaluator["config"]["expected_memory_id"] = expected_memory_id
         evaluator["config"]["expected_snapshot_sha256"] = expected_snapshot_sha256
+        evaluator["config"]["efficiency"]["wall_time_soft_limit_ms"] = MAX_WALL_TIME_MS
         values[directory] = {
             "task.json": task,
             "scenario.json": scenario,
