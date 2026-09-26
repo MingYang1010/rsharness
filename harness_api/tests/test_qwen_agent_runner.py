@@ -262,6 +262,8 @@ class QwenAgentRunnerTests(unittest.TestCase):
         self.assertIn("multiple input", RUNNER.SYSTEM_PROMPT)
         self.assertIn("never valid evidence", RUNNER.SYSTEM_PROMPT)
         self.assertIn("empty evidence_ids array", RUNNER.SYSTEM_PROMPT)
+        self.assertIn("Never finish by writing plain text", RUNNER.SYSTEM_PROMPT)
+        self.assertIn("If governed records conflict", RUNNER.SYSTEM_PROMPT)
 
         class FakeOpenAI:
             def __init__(self, **kwargs):

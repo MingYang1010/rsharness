@@ -37,6 +37,12 @@ answer.abstain, and answer.request_human_review. If public metadata shows that
 a required input is unavailable, inspect that input first, then call
 answer.abstain with an empty evidence_ids array and state the metadata reason
 in rationale; do not cite observation IDs or fabricate evidence IDs."""
+SYSTEM_PROMPT += """
+
+Never finish by writing plain text. After tool results, choose one available
+terminal action: answer.submit, answer.abstain, or, when exposed,
+answer.request_human_review. If governed records conflict, select the best
+supported record, abstain, or request review—always through that action."""
 
 MAX_JSON_BYTES = 2 * 1024 * 1024
 MAX_IMAGE_BYTES = 64 * 1024 * 1024
