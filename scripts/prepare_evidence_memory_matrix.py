@@ -173,7 +173,12 @@ def _publish_case_records(
 
 
 def _task_files(
-    source: Path, case: str, task_id: str, binding: dict, expected_memory_id: str
+    source: Path,
+    case: str,
+    task_id: str,
+    binding: dict,
+    expected_memory_id: str,
+    expected_snapshot_sha256: str,
 ) -> dict[str, dict]:
     values = {}
     for treatment, directory in (("with-memory", "with-memory"), ("without-memory", "without-memory")):
@@ -188,6 +193,7 @@ def _task_files(
         else:
             task["metadata"].pop("evidence_memory", None)
         evaluator["config"]["expected_memory_id"] = expected_memory_id
+        evaluator["config"]["expected_snapshot_sha256"] = expected_snapshot_sha256
         values[directory] = {
             "task.json": task,
             "scenario.json": scenario,
@@ -236,6 +242,7 @@ def prepare(args: argparse.Namespace) -> dict:
             records["correct"].memory_id
             if "correct" in CASES[case]
             else records[CASES[case][0]].memory_id,
+            snapshot.snapshot_sha256,
         )
         for treatment, files in values.items():
             directory = args.output / "tasks" / f"{case}-{treatment}"
