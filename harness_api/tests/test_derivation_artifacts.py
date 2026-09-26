@@ -33,7 +33,8 @@ class ParameterExecutor(FakeExecutor):
             parameters_hash=sha256_json({"arguments": action.arguments, "input_sha256": asset.sha256}))})
         return ToolOutput(artifact, {"width": 1, "height": 1, "bbox_px": [0, 0, 1, 1],
             "aoi_norm": list(action.arguments["aoi"]), "input_asset_id": asset.asset_id,
-            "input_sha256": asset.sha256, "upstream_revision": "f" * 40}, output.input_bytes)
+            "input_sha256": asset.sha256, "upstream_revision": "f" * 40,
+            "artifact_id": artifact.artifact_id}, output.input_bytes)
 
 
 class DerivationArtifactTests(unittest.TestCase):

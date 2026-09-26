@@ -49,6 +49,7 @@ class PublicFakeExecutor(FakeExecutor):
         return ToolOutput(output.artifact, {"width": 1, "height": 1, "bbox_px": [0, 0, 1, 1],
             "aoi_norm": list(action.arguments["aoi"]), "input_asset_id": asset.asset_id,
             "input_sha256": asset.sha256, "upstream_revision": "f" * 40,
+            "artifact_id": output.artifact.artifact_id,
             "source": "/private/SECRET-source.tif", "diagnostics": {"gold": "SECRET-label"}}, output.input_bytes)
 
 

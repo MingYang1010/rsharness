@@ -108,4 +108,5 @@ class EOGymExecutor:
         # Do not infer crop georeferencing from a PNG. Pixel metadata and lineage
         # are sufficient until a separately verified raster transform is available.
         metadata = {key: result[key] for key in ("width", "height", "bbox_px", "aoi_norm", "input_asset_id", "input_sha256", "upstream_revision")}
+        metadata["artifact_id"] = artifact.artifact_id
         return ToolOutput(artifact=artifact, metadata=metadata, input_bytes=asset.size_bytes)

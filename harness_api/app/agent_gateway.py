@@ -149,6 +149,7 @@ class CropResult(BaseModel):
     input_asset_id: Identifier
     input_sha256: Sha256
     upstream_revision: str = Field(pattern=r"^[a-f0-9]{40}$")
+    artifact_id: ArtifactId
 
 
 class GatewayError(Exception):

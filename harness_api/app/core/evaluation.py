@@ -118,6 +118,11 @@ class EvaluatorRegistry:
                     **arguments,
                     tool_results=tool_results or [],
                 )
+            if evaluator_id == "xlrs-visual-grounding-v1":
+                return self._evaluate_xlrs_visual_grounding(
+                    **arguments,
+                    tool_results=tool_results or [],
+                )
             raise EvaluatorError(
                 "evaluator_not_supported",
                 "registered evaluator is not implemented",
@@ -1568,5 +1573,255 @@ class EvaluatorRegistry:
                 "observation_profile": manifest.evaluator.config.get(
                     "observation_profile"
                 ),
+            },
+        )
+
+    @staticmethod
+    def _normalized_bbox(value: object) -> Optional[Tuple[float, float, float, float]]:
+        if not isinstance(value, list) or len(value) != 4:
+            return None
+        if any(isinstance(item, bool) or not isinstance(item, (int, float)) for item in value):
+            return None
+        x0, y0, x1, y1 = (float(item) for item in value)
+        if not (
+            math.isfinite(x0)
+            and math.isfinite(y0)
+            and math.isfinite(x1)
+            and math.isfinite(y1)
+            and 0.0 <= x0 < x1 <= 1.0
+            and 0.0 <= y0 < y1 <= 1.0
+        ):
+            return None
+        return x0, y0, x1, y1
+
+    @staticmethod
+    def _iou(
+        expected: Tuple[float, float, float, float],
+        actual: Tuple[float, float, float, float],
+    ) -> float:
+        ex0, ey0, ex1, ey1 = expected
+        ax0, ay0, ax1, ay1 = actual
+        intersection = max(0.0, min(ex1, ax1) - max(ex0, ax0)) * max(
+            0.0, min(ey1, ay1) - max(ey0, ay0)
+        )
+        expected_area = (ex1 - ex0) * (ey1 - ey0)
+        actual_area = (ax1 - ax0) * (ay1 - ay0)
+        union = expected_area + actual_area - intersection
+        return intersection / union if union > 0.0 else 0.0
+
+    @staticmethod
+    def _crop_aoi(
+        artifact_id: str,
+        tool_results: list[dict],
+    ) -> Optional[Tuple[float, float, float, float]]:
+        matches = [
+            value
+            for value in tool_results
+            if isinstance(value, dict)
+            and value.get("tool_id") == "eo_gym.crop"
+            and value.get("status") == "completed"
+            and value.get("artifact_id") == artifact_id
+        ]
+        if len(matches) != 1:
+            return None
+        return EvaluatorRegistry._normalized_bbox(matches[0].get("aoi_norm"))
+
+    def _grounding_crop_evidence(
+        self,
+        manifest: TaskManifest,
+        state: V2EpisodeState,
+        artifacts: Dict[str, ArtifactRef],
+        tool_results: list[dict],
+        expected_bbox: Tuple[float, float, float, float],
+    ) -> Tuple[bool, Dict[str, object]]:
+        input_id = manifest.evaluator.config.get("input_asset_id")
+        answer = state.final_answer
+        selected = set(answer.evidence_ids if answer is not None else [])
+        evidence = [item for item in state.evidence_refs if item.evidence_id in selected]
+        artifact_valid = False
+        aoi_valid = False
+        contains_truth = False
+        for item in evidence:
+            if item.selector.pixel_window is None:
+                continue
+            artifact = artifacts.get(item.source_ref)
+            if (
+                artifact is None
+                or not isinstance(artifact, PixelArtifactRef)
+                or artifact.lineage.tool_id != "eo_gym.crop"
+                or artifact.lineage.input_refs != [input_id]
+                or item.frozen_sha256 != artifact.sha256
+                or not self.artifact_store.audit_exists(artifact)
+            ):
+                continue
+            artifact_valid = True
+            aoi = self._crop_aoi(artifact.artifact_id, tool_results)
+            aoi_valid = aoi is not None
+            contains_truth = bool(
+                aoi is not None
+                and aoi[0] <= expected_bbox[0]
+                and aoi[1] <= expected_bbox[1]
+                and aoi[2] >= expected_bbox[2]
+                and aoi[3] >= expected_bbox[3]
+            )
+            if contains_truth:
+                break
+        return bool(artifact_valid and aoi_valid and contains_truth), {
+            "contains_hidden_bbox": contains_truth,
+            "crop_aoi_valid": aoi_valid,
+            "crop_artifact_valid": artifact_valid,
+            "selected_evidence_count": len(evidence),
+        }
+
+    def _evaluate_xlrs_visual_grounding(
+        self,
+        evaluation_id: str,
+        manifest: TaskManifest,
+        state: V2EpisodeState,
+        artifacts: Dict[str, ArtifactRef],
+        renderer_calls: int,
+        failed_actions: int,
+        wall_time_ms: int,
+        tool_results: list[dict],
+    ) -> MetricResult:
+        if manifest.evaluator.evaluator_version != "1.0.0":
+            raise EvaluatorError(
+                "evaluator_version_not_supported",
+                "XLRS visual grounding evaluator version is not implemented",
+            )
+        config = manifest.evaluator.config
+        input_id = config.get("input_asset_id")
+        expected_bbox = self._normalized_bbox(config.get("expected_bbox"))
+        minimum_iou = config.get("minimum_iou", 0.5)
+        expected_outcome = config.get("expected_outcome", "submitted")
+        input_assets = [
+            asset
+            for asset in manifest.assets
+            if asset.asset_id == input_id
+            and "input_image" in asset.roles
+            and asset.asset_id in manifest.task.inputs
+        ]
+        if (
+            not isinstance(input_id, str)
+            or not input_id
+            or len(input_assets) != 1
+            or not isinstance(input_assets[0], PixelAssetRef)
+            or expected_bbox is None
+            or isinstance(minimum_iou, bool)
+            or not isinstance(minimum_iou, (int, float))
+            or not 0.0 < float(minimum_iou) <= 1.0
+            or expected_outcome != "submitted"
+        ):
+            raise EvaluatorError(
+                "evaluator_config_invalid",
+                "XLRS grounding truth or public input contract is invalid",
+            )
+
+        answer = state.final_answer
+        actual_outcome = answer.outcome if answer is not None else None
+        raw_bbox = (
+            answer.answer.get("bbox")
+            if answer is not None
+            and answer.outcome == "submitted"
+            and isinstance(answer.answer, dict)
+            else None
+        )
+        actual_bbox = self._normalized_bbox(raw_bbox)
+        answer_valid = actual_bbox is not None
+        iou = (
+            self._iou(expected_bbox, actual_bbox)
+            if actual_bbox is not None
+            else 0.0
+        )
+        submitted = actual_outcome == "submitted"
+        # Grounding tasks always have answerable source truth; abstention is a
+        # task failure even though it remains a valid protocol outcome.
+        abstention_correctness = 0.0
+        evidence_valid, evidence_diagnostics = self._grounding_crop_evidence(
+            manifest,
+            state,
+            artifacts,
+            tool_results,
+            expected_bbox,
+        )
+        faithfulness = float(submitted and answer_valid and evidence_valid)
+
+        efficiency_config = config.get("efficiency", {})
+        ideal_steps = int(efficiency_config.get("ideal_steps", 3))
+        wall_limit = int(efficiency_config.get("wall_time_soft_limit_ms", 30000))
+        if ideal_steps <= 0 or wall_limit <= 0:
+            raise EvaluatorError(
+                "evaluator_config_invalid",
+                "XLRS grounding efficiency bounds must be positive",
+            )
+        step_score = min(1.0, ideal_steps / max(state.step_count, 1))
+        wall_score = min(1.0, wall_limit / max(wall_time_ms, 1))
+        failure_score = 1.0 / (1.0 + max(failed_actions, 0))
+        renderer_score = 1.0 if renderer_calls == 0 else 0.0
+        protocol_valid = bool(submitted and answer_valid and evidence_valid)
+        efficiency = round(
+            float(protocol_valid)
+            * step_score
+            * wall_score
+            * failure_score
+            * renderer_score,
+            6,
+        )
+        accuracy = float(answer_valid and iou >= float(minimum_iou))
+        values = {
+            "task.accuracy": (
+                accuracy,
+                {
+                    "iou": iou,
+                    "answer_bbox_valid": answer_valid,
+                    "minimum_iou": float(minimum_iou),
+                    "submitted": submitted,
+                },
+            ),
+            "answer.abstention_correctness": (
+                abstention_correctness,
+                {
+                    "actual_outcome": actual_outcome,
+                    "expected_outcome": expected_outcome,
+                },
+            ),
+            "evidence.faithfulness": (faithfulness, evidence_diagnostics),
+            "process.efficiency": (
+                efficiency,
+                {
+                    "failed_actions": failed_actions,
+                    "ideal_steps": ideal_steps,
+                    "protocol_valid": protocol_valid,
+                    "renderer_calls": renderer_calls,
+                    "steps": state.step_count,
+                    "wall_time_ms": wall_time_ms,
+                    "wall_time_soft_limit_ms": wall_limit,
+                },
+            ),
+        }
+        if any(name not in values for name in manifest.evaluator.metric_names):
+            raise EvaluatorError(
+                "evaluator_metric_not_supported",
+                "XLRS grounding evaluator metric list contains an unknown metric",
+            )
+        metrics = [
+            Metric(
+                name=name,
+                value=values[name][0],
+                weight=manifest.evaluator.aggregate_weights.get(name),
+                diagnostics=values[name][1],
+            )
+            for name in manifest.evaluator.metric_names
+        ]
+        return MetricResult(
+            evaluation_id=evaluation_id,
+            status="completed",
+            metrics=metrics,
+            aggregate_reward=aggregate_metrics(metrics),
+            evaluator_id=manifest.evaluator.evaluator_id,
+            evaluator_version=manifest.evaluator.evaluator_version,
+            diagnostics={
+                "input_asset_id": input_id,
+                "public_question_sha256": config.get("public_question_sha256"),
             },
         )
