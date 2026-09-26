@@ -70,7 +70,7 @@ class QwenResultManifestTests(unittest.TestCase):
             CREATE TABLE v2_episodes(episode_id TEXT,task_id TEXT,task_version TEXT,task_manifest_hash TEXT,state_json TEXT);
             CREATE TABLE v2_events(episode_id TEXT,sequence INTEGER,event_json TEXT);
             CREATE TABLE v2_action_results(episode_id TEXT,client_action_id TEXT,outcome TEXT,request_json TEXT,response_json TEXT);
-            CREATE TABLE v2_tool_runs(episode_id TEXT,tool_run_id TEXT,status TEXT,run_json TEXT);
+            CREATE TABLE v2_tool_runs(episode_id TEXT,tool_run_id TEXT,client_action_id TEXT,status TEXT,run_json TEXT);
             CREATE TABLE v2_artifacts(artifact_id TEXT,episode_id TEXT,artifact_json TEXT);
             CREATE TABLE v2_episode_artifacts(episode_id TEXT,artifact_id TEXT);
             CREATE TABLE v2_evidence(episode_id TEXT,evidence_id TEXT,evidence_json TEXT);
@@ -93,9 +93,10 @@ class QwenResultManifestTests(unittest.TestCase):
             connection.execute("INSERT INTO v2_action_results VALUES(?,?,?,?,?)",
                                (episode_id, "a", "success", json.dumps(request), "{}"))
             if not rendered:
-                run = {"request_json": json.dumps(request)}
-                connection.execute("INSERT INTO v2_tool_runs VALUES(?,?,?,?)",
-                                   (episode_id, "run", "completed", json.dumps(run)))
+                run = {"request_json": json.dumps(request),
+                       "expected_state_version": 0}
+                connection.execute("INSERT INTO v2_tool_runs VALUES(?,?,?,?,?)",
+                                   (episode_id, "run", "a", "completed", json.dumps(run)))
             artifact = {"sha256": "b" * 64, "lineage": {"input_refs": asset_ids}}
             if not rendered:
                 artifact["lineage"]["tool_id"] = "fixture.crop"
@@ -172,8 +173,28 @@ class QwenResultManifestTests(unittest.TestCase):
             state.mkdir(parents=True, exist_ok=True)
             state.joinpath("episodes.sqlite3").write_bytes(b"not sqlite")
             result = module.validate_report("dataset", "sample", sample, report, state / "episodes.sqlite3")
-            self.assertFalse(result["checks"]["real_image_input_to_model"])
-            self.assertFalse(result["checks"]["model_response_metadata_present"])
+        self.assertFalse(result["checks"]["real_image_input_to_model"])
+        self.assertFalse(result["checks"]["model_response_metadata_present"])
+
+    def test_inconsistent_action_or_tool_join_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_fixture(root)
+            reports = root / "reports"
+            path = next(iter(sorted(reports.glob("*.json"))))
+            report = json.loads(path.read_text())
+            key = path.stem.split("__", 1)
+            sample = module.matrix_samples()[tuple(key)]
+            del report
+            database_path = reports / f"{key[0]}__{key[1]}.sqlite3"
+            with sqlite3.connect(database_path) as connection:
+                connection.execute(
+                    "UPDATE v2_action_results SET outcome='error' WHERE episode_id=("
+                    "SELECT episode_id FROM v2_episodes LIMIT 1)"
+                )
+            result = module.summarize(reports)
+            self.assertIn("episode_actions_consistent", result["failed_checks"])
+            self.assertFalse(result["real_model_acceptance"])
 
 
 if __name__ == "__main__":

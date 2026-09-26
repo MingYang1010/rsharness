@@ -246,6 +246,44 @@ def validate_model_receipt(report: dict) -> bool:
     )
 
 
+def episode_actions_consistent(episode: dict) -> bool:
+    """Require action/tool joins and successful execution evidence."""
+    results = episode.get("results", [])
+    tool_runs = episode.get("tool_runs", [])
+    if not results:
+        return False
+    by_action = {row.get("client_action_id"): row for row in results}
+    if len(by_action) != len(results):
+        return False
+    for row in results:
+        if row.get("outcome") not in {None, "success"}:
+            return False
+        try:
+            action = json.loads(row.get("request_json", "{}")).get("action", {})
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return False
+        if not isinstance(action, dict) or not isinstance(action.get("type"), str):
+            return False
+        if action.get("type") == "tool.invoke":
+            matching = [
+                run for run in tool_runs
+                if run.get("client_action_id") == row.get("client_action_id")
+            ]
+            if len(matching) != 1 or matching[0].get("status") != "completed":
+                return False
+            try:
+                run = json.loads(matching[0].get("run_json", "{}"))
+                run_request = json.loads(run.get("request_json", "{}"))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                return False
+            if run_request.get("action") != action:
+                return False
+            expected_state = int(run.get("expected_state_version", -1))
+            if expected_state < 0:
+                return False
+    return True
+
+
 def validate_report(dataset_id: str, sample_id: str, sample: dict, report: dict,
                     database: Path, root: Path | None = None) -> dict:
     checks = {}
@@ -290,6 +328,7 @@ def validate_report(dataset_id: str, sample_id: str, sample: dict, report: dict,
         checks["episode_evidence_present"] = bool(episode["evidence"])
         checks["episode_artifact_present"] = bool(episode["artifacts"])
         checks["episode_execution_present"] = episode_execution_present(episode)
+        checks["episode_actions_consistent"] = episode_actions_consistent(episode)
         checks["episode_state_version_positive"] = state.get("state_version", 0) > 0
         artifact_hashes = []
         for row in episode["artifacts"]:
@@ -301,6 +340,7 @@ def validate_report(dataset_id: str, sample_id: str, sample: dict, report: dict,
         for key in ("episode_terminal", "episode_task_match", "episode_manifest_binding",
                     "episode_trace_present", "episode_evidence_present",
                     "episode_artifact_present", "episode_execution_present",
+                    "episode_actions_consistent",
                     "episode_state_version_positive", "runner_hashes_bound_to_episode"):
             checks[key] = False
     expected_assets = {sample["asset_id"]} if sample.get("asset_id") else set(sample.get("asset_ids", []))
