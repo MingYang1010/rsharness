@@ -351,8 +351,9 @@ class QwenAgentRunnerTests(unittest.TestCase):
             "tool_schemas": {},
         })
         abstain_schema = abstain_tools[0]["function"]["parameters"]["properties"]["evidence_ids"]
-        self.assertIn("Only IDs returned by memory.save_evidence", abstain_schema["description"])
-        self.assertIn("Never send observation IDs", abstain_schema["description"])
+        self.assertIn("send an empty array", abstain_schema["description"])
+        self.assertIn("never send observation IDs", abstain_schema["description"])
+        self.assertIn("memory IDs", abstain_schema["description"])
         map_session = {"task": {"allowed_actions": ["map.set_view"]}, "tool_schemas": {}}
         map_tools = openai_tools(map_session)
         self.assertEqual([item["function"]["name"] for item in map_tools], ["map.set_view"])
