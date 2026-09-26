@@ -77,7 +77,9 @@ class QwenResultManifestTests(unittest.TestCase):
             """)
             state = {"status": "terminated", "state_version": 2,
                      "accessible_asset_refs": asset_ids,
-                     "evaluation": None}
+                     "evaluation": None,
+                     "final_answer": {"outcome": "submitted",
+                                      "evidence_ids": ["ev"]}}
             if dataset == "ESA-WorldCover-2021":
                 state["evaluation"] = {
                     "status": "completed", "aggregate_reward": 0.1,
@@ -92,12 +94,20 @@ class QwenResultManifestTests(unittest.TestCase):
                        else {"action": {"arguments": {"asset_id": asset_ids[0]}, "type": "tool.invoke"}})
             connection.execute("INSERT INTO v2_action_results VALUES(?,?,?,?,?)",
                                (episode_id, "a", "success", json.dumps(request), "{}"))
+            evidence_request = {"action": {"type": "memory.save_evidence",
+                                           "evidence": {"evidence_id": "ev"}}}
+            connection.execute(
+                "INSERT INTO v2_action_results VALUES(?,?,?,?,?)",
+                (episode_id, "evidence-action", "success",
+                 json.dumps(evidence_request), "{}"),
+            )
             if not rendered:
                 run = {"request_json": json.dumps(request),
                        "expected_state_version": 0}
                 connection.execute("INSERT INTO v2_tool_runs VALUES(?,?,?,?,?)",
                                    (episode_id, "run", "a", "completed", json.dumps(run)))
             artifact = {"sha256": "b" * 64, "lineage": {"input_refs": asset_ids}}
+            artifact["artifact_id"] = f"art-{index}"
             if not rendered:
                 artifact["lineage"]["tool_id"] = "fixture.crop"
             if rendered:
@@ -107,7 +117,10 @@ class QwenResultManifestTests(unittest.TestCase):
             connection.execute("INSERT INTO v2_episode_artifacts VALUES(?,?)",
                                (episode_id, f"art-{index}"))
             connection.execute("INSERT INTO v2_evidence VALUES(?,?,?)",
-                               (episode_id, "ev", json.dumps({"source_ref": f"art-{index}"})))
+                               (episode_id, "ev", json.dumps({
+                                   "evidence_id": "ev",
+                                   "source_ref": f"art-{index}",
+                               })))
             connection.commit(); connection.close()
 
     def test_complete_fixture_passes_and_missing_report_fails_closed(self):
@@ -195,6 +208,25 @@ class QwenResultManifestTests(unittest.TestCase):
             result = module.summarize(reports)
             self.assertIn("episode_actions_consistent", result["failed_checks"])
             self.assertFalse(result["real_model_acceptance"])
+
+    def test_unbound_final_answer_evidence_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_fixture(root)
+            reports = root / "reports"
+            path = next(iter(sorted(reports.glob("*.json"))))
+            key = path.stem.split("__", 1)
+            with sqlite3.connect(
+                reports / f"{key[0]}__{key[1]}.sqlite3"
+            ) as connection:
+                connection.execute(
+                    "UPDATE v2_evidence SET evidence_json=? "
+                    "WHERE episode_id=(SELECT episode_id FROM v2_episodes LIMIT 1)",
+                    (json.dumps({"evidence_id": "unknown",
+                                 "source_ref": "missing-artifact"}),),
+                )
+            result = module.summarize(reports)
+            self.assertIn("episode_evidence_consistent", result["failed_checks"])
 
 
 if __name__ == "__main__":

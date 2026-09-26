@@ -284,6 +284,54 @@ def episode_actions_consistent(episode: dict) -> bool:
     return True
 
 
+def episode_evidence_consistent(episode: dict) -> bool:
+    """Bind terminal answer references to persisted evidence and sources."""
+    try:
+        state = json.loads(episode["episode"]["state_json"])
+        answer = state.get("final_answer")
+        if not isinstance(answer, dict) or state.get("status") != "terminated":
+            return False
+        evidence_rows = {}
+        artifact_ids = set()
+        for row in episode.get("evidence", []):
+            value = json.loads(row.get("evidence_json", "{}"))
+            evidence_id = value.get("evidence_id")
+            if evidence_id in evidence_rows:
+                return False
+            evidence_rows[evidence_id] = value
+        for row in episode.get("artifacts", []):
+            value = json.loads(row.get("artifact_json", "{}"))
+            if value.get("artifact_id"):
+                artifact_ids.add(value["artifact_id"])
+        referenced = answer.get("evidence_ids")
+        if not isinstance(referenced, list) or not all(
+            isinstance(item, str) for item in referenced
+        ):
+            return False
+        if len(referenced) != len(set(referenced)):
+            return False
+        if not set(referenced).issubset(evidence_rows):
+            return False
+        saved_ids = set()
+        for row in episode.get("results", []):
+            if row.get("outcome") not in {None, "success"}:
+                continue
+            action = json.loads(row.get("request_json", "{}")).get("action", {})
+            if action.get("type") != "memory.save_evidence":
+                continue
+            evidence = action.get("evidence", {})
+            saved_ids.add(evidence.get("evidence_id"))
+        if saved_ids != set(evidence_rows):
+            return False
+        for evidence_id in referenced:
+            evidence = evidence_rows[evidence_id]
+            if evidence.get("source_ref") not in artifact_ids:
+                return False
+        return True
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+
+
 def validate_report(dataset_id: str, sample_id: str, sample: dict, report: dict,
                     database: Path, root: Path | None = None) -> dict:
     checks = {}
@@ -329,6 +377,7 @@ def validate_report(dataset_id: str, sample_id: str, sample: dict, report: dict,
         checks["episode_artifact_present"] = bool(episode["artifacts"])
         checks["episode_execution_present"] = episode_execution_present(episode)
         checks["episode_actions_consistent"] = episode_actions_consistent(episode)
+        checks["episode_evidence_consistent"] = episode_evidence_consistent(episode)
         checks["episode_state_version_positive"] = state.get("state_version", 0) > 0
         artifact_hashes = []
         for row in episode["artifacts"]:
@@ -340,7 +389,7 @@ def validate_report(dataset_id: str, sample_id: str, sample: dict, report: dict,
         for key in ("episode_terminal", "episode_task_match", "episode_manifest_binding",
                     "episode_trace_present", "episode_evidence_present",
                     "episode_artifact_present", "episode_execution_present",
-                    "episode_actions_consistent",
+                    "episode_actions_consistent", "episode_evidence_consistent",
                     "episode_state_version_positive", "runner_hashes_bound_to_episode"):
             checks[key] = False
     expected_assets = {sample["asset_id"]} if sample.get("asset_id") else set(sample.get("asset_ids", []))
