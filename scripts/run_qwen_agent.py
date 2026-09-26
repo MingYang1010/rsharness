@@ -525,6 +525,16 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                 try:
                     result = request("POST", "/agent/step", body)
                 except httpx.HTTPStatusError as exc:
+                    try:
+                        error_body = exc.response.json().get("error", {})
+                        error_detail = {
+                            "code": error_body.get("code"),
+                            "message": error_body.get("message"),
+                            "retryable": error_body.get("retryable"),
+                        }
+                    except (AttributeError, ValueError):
+                        error_detail = None
+                    transcript[-1]["gateway_error"] = error_detail
                     return error_report(
                         exc, episode_id=state["episode_id"], turns=turn + 1,
                         tool_calls=tool_calls + 1, image_hashes=sorted(image_hashes),

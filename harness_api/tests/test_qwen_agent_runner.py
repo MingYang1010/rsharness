@@ -585,6 +585,9 @@ class QwenAgentRunnerTests(unittest.TestCase):
         self.assertEqual(report["episode_id"], "ep2-" + "3" * 32)
         self.assertEqual(report["model_tool_calls"], 1)
         self.assertEqual(report["transcript"][0]["assistant"]["tool_calls"][0]["function"]["name"], "eo_gym.crop")
+        self.assertEqual(report["transcript"][-1]["gateway_error"], {
+            "code": "policy_rejected", "message": None, "retryable": None,
+        })
 
     def test_compose_profile_is_agent_front_only_and_minimally_mounted(self):
         path = Path(__file__).resolve().parents[2] / "compose.qwen-runner.yaml"
