@@ -312,6 +312,10 @@ def decode_tool_arguments(call: Any) -> dict:
                 value[key] = json.loads(nested)
             except json.JSONDecodeError:
                 pass
+        # Qwen sometimes serializes explicitly optional fields as empty strings.
+        for key in ("platform", "instrument"):
+            if value.get(key) == "":
+                value[key] = None
     return value
 
 

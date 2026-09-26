@@ -291,6 +291,12 @@ class QwenAgentRunnerTests(unittest.TestCase):
             })}}),
             {"bbox": {"west": 1}, "time_range": {"start": "x"}},
         )
+        self.assertEqual(
+            decode_tool_arguments({"function": {"name": "memory.search", "arguments": json.dumps({
+                "bbox": "{\"west\":1}", "platform": "", "instrument": ""
+            })}}),
+            {"bbox": {"west": 1}, "platform": None, "instrument": None},
+        )
         message = content_message("text", {"size_bytes": 2, "sha256": "f" * 64, "media_type": "image/png"}, b"ab", "image/png")
         self.assertIn("data:image/png;base64,YWI=", message["content"][1]["image_url"]["url"])
         self.assertEqual(compact_messages([{"role": "user", "content": "keep"}, message]),
