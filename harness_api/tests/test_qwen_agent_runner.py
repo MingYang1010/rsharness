@@ -2,6 +2,8 @@ import json
 import sqlite3
 import importlib.util
 import os
+import base64
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -299,6 +301,20 @@ class QwenAgentRunnerTests(unittest.TestCase):
             })}}),
             {"bbox": {"west": 1}, "platform": None, "instrument": None},
         )
+        image = b"abc"
+        encoded = base64.b64encode(image).decode("ascii")
+        receipt = RUNNER.model_request_receipt([
+            {"role": "user", "content": [
+                {"type": "text", "text": "x"},
+                {"type": "image_url", "image_url": {"url": "data:image/png;base64," + encoded}},
+            ]},
+        ], [{ "type": "function"}])
+        self.assertEqual(receipt["schema_version"], "qwen-model-request-receipt-v1")
+        self.assertEqual(receipt["model"], "Qwen3.5-9B")
+        self.assertEqual(receipt["image_hashes"], [{
+            "media_type": "image/png",
+            "payload_sha256": hashlib.sha256(image).hexdigest(),
+        }])
         message = content_message("text", {"size_bytes": 2, "sha256": "f" * 64, "media_type": "image/png"}, b"ab", "image/png")
         self.assertIn("data:image/png;base64,YWI=", message["content"][1]["image_url"]["url"])
         self.assertEqual(compact_messages([{"role": "user", "content": "keep"}, message]),

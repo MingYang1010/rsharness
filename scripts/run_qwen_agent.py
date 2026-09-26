@@ -13,6 +13,7 @@ from types import SimpleNamespace
 
 import httpx
 
+MODEL_NAME = "Qwen3.5-9B"
 
 SYSTEM_PROMPT = """You interact with an EO Harness through tools.
 Use a real tool when it helps; do not fabricate tool output. For crop tasks,
@@ -345,6 +346,34 @@ def response_metadata(response: Any) -> dict:
     }
 
 
+def model_request_receipt(messages: list[dict], tools: list[dict]) -> dict:
+    """Project a model request without retaining base64 image contents."""
+    image_hashes = []
+    for message in messages:
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        for item in content:
+            url = item.get("image_url", {}).get("url") if isinstance(item, dict) else None
+            if isinstance(url, str) and url.startswith("data:"):
+                header, separator, payload = url.partition(",")
+                if separator:
+                    digest = hashlib.sha256(base64.b64decode(payload, validate=True)).hexdigest()
+                    image_hashes.append({
+                        "media_type": header[5:].rsplit(";", 1)[0],
+                        "payload_sha256": digest,
+                    })
+    return {
+        "schema_version": "qwen-model-request-receipt-v1",
+        "model": MODEL_NAME,
+        "temperature": 0.0,
+        "max_tokens": 4096,
+        "message_count": len(messages),
+        "tool_count": len(tools),
+        "image_hashes": image_hashes,
+    }
+
+
 def usage_cost(usage: Any) -> dict:
     value = usage.model_dump(mode="json") if usage is not None else None
     if not isinstance(value, dict):
@@ -516,10 +545,12 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                         "cost": cumulative_cost,
                         "attempt": {"phase": "resume_terminal", "resumed": True,
                                     "new_model_calls": 0}}
+            request_tools = openai_tools(session, artifacts)
+            receipt = model_request_receipt(messages, request_tools)
             response = model_client.chat.completions.create(
-                model="Qwen3.5-9B",
+                model=MODEL_NAME,
                 messages=messages,
-                tools=openai_tools(session, artifacts),
+                tools=request_tools,
                 tool_choice="auto",
                 temperature=0.0,
                 max_tokens=4096,
@@ -527,7 +558,12 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
             assistant, calls = tool_call_message(response)
             cumulative_cost = add_cost(cumulative_cost, usage_cost(getattr(response, "usage", None)))
             messages.append(assistant)
-            transcript.append({"turn": turn, "assistant": assistant, "model_response": response_metadata(response)})
+            transcript.append({
+                "turn": turn,
+                "assistant": assistant,
+                "model_request": receipt,
+                "model_response": response_metadata(response),
+            })
             if not calls:
                 # A final answer without the required evidence/submit tools is a model failure.
                 return {"status": "failed", "reason": "model_returned_text_without_action", "episode_id": state["episode_id"],

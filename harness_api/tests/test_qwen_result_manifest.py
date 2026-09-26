@@ -57,7 +57,11 @@ class QwenResultManifestTests(unittest.TestCase):
             report = {
                 "status": "passed", "episode_id": episode_id, "model_tool_calls": 1,
                 "image_hashes": ["b" * 64], "resume_checked": True,
-                "transcript": [{"model_response": {
+                "transcript": [{"model_request": {
+                    "schema_version": "qwen-model-request-receipt-v1",
+                    "model": module.MODEL_NAME,
+                    "image_hashes": [{"payload_sha256": "b" * 64}],
+                }, "model_response": {
                     "model": module.MODEL_NAME, "id": f"response-{index}",
                     "usage": {"prompt_tokens": 1, "completion_tokens": 0,
                               "total_tokens": 1},
@@ -227,6 +231,25 @@ class QwenResultManifestTests(unittest.TestCase):
                 )
             result = module.summarize(reports)
             self.assertIn("episode_evidence_consistent", result["failed_checks"])
+
+    def test_duplicate_episode_id_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_fixture(root)
+            reports = root / "reports"
+            paths = sorted(reports.glob("*.json"))
+            if len(paths) < 2:
+                self.skipTest("matrix fixture requires two samples")
+            source = json.loads(paths[0].read_text())
+            second_report = json.loads(paths[1].read_text())
+            second_report["episode_id"] = source["episode_id"]
+            paths[1].write_text(json.dumps(second_report))
+            source_db = reports / (paths[0].stem + ".sqlite3")
+            target_db = reports / (paths[1].stem + ".sqlite3")
+            if source_db != target_db:
+                source_db.replace(target_db)
+            result = module.summarize(reports)
+            self.assertIn("episode_ids_unique", result["failed_checks"])
 
 
 if __name__ == "__main__":

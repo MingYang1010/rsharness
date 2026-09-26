@@ -246,6 +246,32 @@ def validate_model_receipt(report: dict) -> bool:
     )
 
 
+def validate_model_image_request_receipt(report: dict) -> bool:
+    """Require compact receipts whose image payload hashes bind to artifacts."""
+    artifact_hashes = set(report.get("image_hashes", []))
+    if not artifact_hashes:
+        return False
+    receipt_hashes = []
+    for item in report.get("transcript", []):
+        receipt = item.get("model_request")
+        if not isinstance(receipt, dict):
+            continue
+        if receipt.get("schema_version") != "qwen-model-request-receipt-v1":
+            continue
+        if receipt.get("model") != "Qwen3.5-9B":
+            continue
+        values = receipt.get("image_hashes", [])
+        if not isinstance(values, list):
+            continue
+        for value in values:
+            if not isinstance(value, dict):
+                continue
+            digest = value.get("payload_sha256")
+            if isinstance(digest, str) and len(digest) == 64:
+                receipt_hashes.append(digest)
+    return bool(receipt_hashes) and set(receipt_hashes).issubset(artifact_hashes)
+
+
 def episode_actions_consistent(episode: dict) -> bool:
     """Require action/tool joins and successful execution evidence."""
     results = episode.get("results", [])
@@ -339,6 +365,7 @@ def validate_report(dataset_id: str, sample_id: str, sample: dict, report: dict,
     checks["model_tool_call_present"] = report.get("model_tool_calls", 0) > 0
     checks["real_image_input_to_model"] = bool(report.get("image_hashes"))
     checks["model_response_metadata_present"] = validate_model_receipt(report)
+    checks["model_image_request_receipt"] = validate_model_image_request_receipt(report)
     checks["resume_evidence_present"] = report.get("resumed") is True or bool(report.get("checkpoint")) or report.get("resume_checked") is True
     episode_id = report.get("episode_id")
     checks["episode_id_present"] = isinstance(episode_id, str) and episode_id.startswith("ep2-")
