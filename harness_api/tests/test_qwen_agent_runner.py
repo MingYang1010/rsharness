@@ -594,6 +594,73 @@ class QwenAgentRunnerTests(unittest.TestCase):
             self.assertEqual(resumed["cost"]["model_calls"], report["cost"]["model_calls"])
             self.assertEqual(resumed["cost"]["total_tokens"], report["cost"]["total_tokens"])
 
+    def test_pending_action_resumes_without_new_model_call(self):
+        class OneCallModel:
+            def __init__(self):
+                self.calls = 0
+                self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
+
+            def create(self, **kwargs):
+                self.calls += 1
+                message = SimpleNamespace(content=None, tool_calls=[
+                    SimpleNamespace(id="pending-call", function={
+                        "name": "answer.submit",
+                        "arguments": '{"answer":{"label":"ok"},"evidence_ids":[]}',
+                    })
+                ])
+                usage = SimpleNamespace(model_dump=lambda mode="json": {
+                    "prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3,
+                })
+                return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=usage)
+
+        model = OneCallModel()
+        submitted = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/agent/session":
+                return httpx.Response(200, json={
+                    "task": {"allowed_actions": ["answer.submit"]},
+                    "state": {"episode_id": "ep2-" + "9" * 32, "state_version": 0},
+                    "observation": {}, "tool_schemas": {},
+                })
+            if request.url.path == "/agent/step":
+                submitted.append(json.loads(request.content))
+                if len(submitted) == 1:
+                    return httpx.Response(500, text="submitted but connection failed")
+                return httpx.Response(200, json={
+                    "terminated": True,
+                    "observation": {},
+                    "state": {"episode_id": "ep2-" + "9" * 32,
+                              "state_version": 1, "status": "terminated"},
+                })
+            raise AssertionError(request.url.path)
+
+        transport = httpx.MockTransport(handler)
+        original_client = httpx.Client
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "checkpoint.json"
+            try:
+                httpx.Client = lambda **kwargs: original_client(transport=transport, **kwargs)
+                first = run("http://gateway", "token", model, checkpoint_path=checkpoint)
+            finally:
+                httpx.Client = original_client
+            self.assertEqual(first["status"], "failed")
+            self.assertEqual(model.calls, 1)
+            self.assertEqual(json.loads(checkpoint.read_text())["pending_action"]["body"],
+                             submitted[0])
+            resumed_model = OneCallModel()
+            try:
+                httpx.Client = lambda **kwargs: original_client(transport=transport, **kwargs)
+                resumed = run("http://gateway", "token", resumed_model,
+                              checkpoint_path=checkpoint)
+            finally:
+                httpx.Client = original_client
+            self.assertEqual(resumed["status"], "passed")
+            self.assertEqual(resumed_model.calls, 0)
+            self.assertEqual(resumed["cost"], first["cost"])
+            self.assertEqual(submitted[0], submitted[1])
+            self.assertNotIn("pending_action", json.loads(checkpoint.read_text()))
+
     def test_error_report_is_fail_closed_and_typed(self):
         report = RUNNER.error_report(httpx.ConnectError("down"), episode_id="ep", turns=2, tool_calls=1,
                                       image_hashes=["a" * 64], elapsed_ms=12, transcript=[{"x": 1}])

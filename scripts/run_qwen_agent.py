@@ -551,6 +551,22 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
             transcript.extend(checkpoint_value.get("transcript", []))
             tool_calls = int(checkpoint_value.get("tool_calls", 0))
             cumulative_cost.update(checkpoint_value.get("cost", cumulative_cost))
+            pending_followup_calls = checkpoint_value.get(
+                "pending_followup_calls", []
+            )
+            restored_followups = []
+            for item in pending_followup_calls:
+                if not isinstance(item, SimpleNamespace):
+                    function = item.get("function", {})
+                    item = SimpleNamespace(
+                        id=item.get("id"),
+                        function=SimpleNamespace(
+                            name=function.get("name"),
+                            arguments=function.get("arguments"),
+                        ),
+                    )
+                restored_followups.append(item)
+            pending_followup_calls = restored_followups
         else:
             messages = [
                 {"role": "system", "content": SYSTEM_PROMPT},
@@ -585,6 +601,10 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
             for artifact_id in artifact_ids:
                 attach_artifact(artifact_id)
         terminated = False
+        pending = checkpoint_value.get("pending_action") if checkpoint_value else None
+        resume_pending = pending is not None
+        if not checkpoint_value:
+            pending_followup_calls = []
         for turn in range(max_turns):
             if resume and state.get("status") == "terminated":
                 return {"status": "passed", "reason": None, "episode_id": state["episode_id"],
@@ -594,41 +614,81 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                         "cost": cumulative_cost,
                         "attempt": {"phase": "resume_terminal", "resumed": True,
                                     "new_model_calls": 0}}
-            request_tools = openai_tools(session, artifacts)
-            receipt = model_request_receipt(messages, request_tools)
-            response = model_client.chat.completions.create(
-                model=MODEL_NAME,
-                messages=messages,
-                tools=request_tools,
-                tool_choice="auto",
-                temperature=0.0,
-                max_tokens=4096,
-            )
-            assistant, calls = tool_call_message(response)
-            provider = provider_response(response)
-            cumulative_cost = add_cost(cumulative_cost, usage_cost(getattr(response, "usage", None)))
-            messages.append(assistant)
-            transcript.append({
-                "turn": turn,
-                "assistant": assistant,
-                "provider_response": provider,
-                "adapter_projection": adapter_projection(provider, assistant),
-                "model_request": receipt,
-                "model_response": response_metadata(response),
-            })
-            if not calls:
+            if resume_pending:
+                calls = pending_followup_calls
+            else:
+                request_tools = openai_tools(session, artifacts)
+                receipt = model_request_receipt(messages, request_tools)
+                response = model_client.chat.completions.create(
+                    model=MODEL_NAME,
+                    messages=messages,
+                    tools=request_tools,
+                    tool_choice="auto",
+                    temperature=0.0,
+                    max_tokens=4096,
+                )
+                assistant, calls = tool_call_message(response)
+                provider = provider_response(response)
+                cumulative_cost = add_cost(cumulative_cost, usage_cost(getattr(response, "usage", None)))
+                messages.append(assistant)
+                transcript.append({
+                    "turn": turn,
+                    "assistant": assistant,
+                    "provider_response": provider,
+                    "adapter_projection": adapter_projection(provider, assistant),
+                    "model_request": receipt,
+                    "model_response": response_metadata(response),
+                })
+            if not calls and not resume_pending:
                 # A final answer without the required evidence/submit tools is a model failure.
                 return {"status": "failed", "reason": "model_returned_text_without_action", "episode_id": state["episode_id"],
                         "turns": turn + 1, "model_tool_calls": tool_calls, "image_hashes": sorted(image_hashes),
                         "elapsed_ms": round((time.time() - started) * 1000, 3), "transcript": transcript,
                         "cost": cumulative_cost,
                         "attempt": {"phase": "failed", "resumed": resume, "new_model_calls": 1}}
-            for call in calls:
-                name = tool_function(call)["name"]
-                arguments = decode_tool_arguments(call)
-                action_id = "qwen-" + state["episode_id"][4:12] + "-" + str(tool_calls)
-                body = {"client_action_id": action_id, "expected_state_version": state["state_version"],
-                        "action": action_from_tool_call(session, name, arguments, artifacts)}
+            if pending is not None:
+                active_calls = [SimpleNamespace(id=pending["tool_call_id"])]
+            else:
+                active_calls = list(calls)
+            resume_pending = False
+            for call in active_calls:
+                if pending is None:
+                    name = tool_function(call)["name"]
+                    arguments = decode_tool_arguments(call)
+                    action_id = "qwen-" + state["episode_id"][4:12] + "-" + str(tool_calls)
+                    body = {
+                        "client_action_id": action_id,
+                        "expected_state_version": state["state_version"],
+                        "action": action_from_tool_call(
+                            session, name, arguments, artifacts
+                        ),
+                    }
+                    pending = {"body": body, "tool_call_id": call.id,
+                               "name": name, "arguments": arguments}
+                    pending["calls_remaining"] = len(calls) - calls.index(call) - 1
+                    pending_followup_calls = list(calls[calls.index(call) + 1:])
+                    if checkpoint_path is not None:
+                        checkpoint_value = {
+                            "schema_version": "qwen-agent-checkpoint-v1",
+                            "session": session,
+                            "messages": compact_messages(messages),
+                            "state": state,
+                            "terminated": terminated,
+                            "tool_calls": tool_calls,
+                            "artifact_ids": artifact_ids,
+                            "image_hashes": sorted(image_hashes),
+                            "transcript": transcript,
+                            "cost": cumulative_cost,
+                            "pending_followup_calls": [
+                                {"id": item.id, **getattr(item, "__dict__", {})}
+                                for item in pending_followup_calls
+                            ],
+                            "pending_action": pending,
+                        }
+                        save_checkpoint(checkpoint_path, checkpoint_value)
+                else:
+                    call = SimpleNamespace(id=pending["tool_call_id"])
+                body = pending["body"]
                 try:
                     result = request("POST", "/agent/step", body)
                 except httpx.HTTPStatusError as exc:
@@ -652,8 +712,39 @@ def run(gateway_url: str, token: str, model_client, max_turns: int = 12,
                 state = result["state"]
                 terminated = result.get("terminated", False)
                 tool_calls += 1
+                pending["calls_remaining"] = max(
+                    0, int(pending.get("calls_remaining", 0)) - 1
+                )
+                completed = {
+                    "tool_call_id": call.id,
+                    "name": pending["name"],
+                    "arguments": pending["arguments"],
+                }
+                if pending["calls_remaining"] == 0:
+                    pending = None
+                if pending is None and pending_followup_calls:
+                    following = pending_followup_calls.pop(0)
+                    call = following
+                    following_name = tool_function(following)["name"]
+                    following_arguments = decode_tool_arguments(following)
+                    action_id = "qwen-" + state["episode_id"][4:12] + "-" + str(tool_calls)
+                    body = {
+                        "client_action_id": action_id,
+                        "expected_state_version": state["state_version"],
+                        "action": action_from_tool_call(
+                            session, following_name, following_arguments, artifacts
+                        ),
+                    }
+                    pending = {
+                        "body": body,
+                        "tool_call_id": following.id,
+                        "name": following_name,
+                        "arguments": following_arguments,
+                        "calls_remaining": 0,
+                    }
                 messages.append({"role": "tool", "tool_call_id": call.id, "content": json.dumps({"observation": result["observation"], "terminated": terminated}, ensure_ascii=False, sort_keys=True)})
-                transcript.append({"turn": turn, "tool_call_id": call.id, "name": name, "arguments": arguments, "state_version": state["state_version"]})
+                transcript.append({"turn": turn, **completed,
+                                   "state_version": state["state_version"]})
                 for artifact_id in artifact_refs(result.get("observation", {})):
                     if artifact_id not in artifact_ids:
                         artifact_ids.append(artifact_id)
